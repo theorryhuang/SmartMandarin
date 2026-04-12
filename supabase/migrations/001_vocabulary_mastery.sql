@@ -125,6 +125,14 @@ create policy "users_own_review_log"
 
 -- ─── Helper Functions ─────────────────────────────────────────────────────────
 
+-- Atomically increments review_count (avoids race in server actions)
+create or replace function increment_review_count(word_id uuid)
+returns void language sql security definer as $$
+  update vocabulary_mastery
+  set review_count = review_count + 1
+  where id = word_id;
+$$;
+
 -- Returns words due for review, flagged words first, then by next_review.
 create or replace function get_due_words(p_user_id uuid, p_limit int default 20)
 returns setof vocabulary_mastery

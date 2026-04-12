@@ -1,6 +1,7 @@
 /**
- * Hand-authored database types until you run `supabase gen types typescript`.
- * Replace this file with the generated output once your Supabase project is linked.
+ * Hand-authored database types.
+ * Replace this file with the output of:
+ *   npx supabase gen types typescript --linked > lib/supabase/database.types.ts
  */
 
 export type Json =
@@ -11,7 +12,7 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
-export interface Database {
+export type Database = {
   public: {
     Tables: {
       vocabulary_mastery: {
@@ -32,19 +33,49 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<
-          Database["public"]["Tables"]["vocabulary_mastery"]["Row"],
-          "id" | "created_at" | "updated_at"
-        > &
-          Partial<
-            Pick<
-              Database["public"]["Tables"]["vocabulary_mastery"]["Row"],
-              "id" | "created_at" | "updated_at"
-            >
-          >;
-        Update: Partial<
-          Database["public"]["Tables"]["vocabulary_mastery"]["Row"]
-        >;
+        Insert: {
+          id?: string;
+          user_id: string;
+          hanzi: string;
+          pinyin: string;
+          meaning: string;
+          hsk_level?: number;
+          stability?: number;
+          difficulty?: number;
+          last_reviewed?: string | null;
+          next_review?: string | null;
+          review_count?: number;
+          is_slang?: boolean;
+          flagged_for_immediate_use?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          hanzi?: string;
+          pinyin?: string;
+          meaning?: string;
+          hsk_level?: number;
+          stability?: number;
+          difficulty?: number;
+          last_reviewed?: string | null;
+          next_review?: string | null;
+          review_count?: number;
+          is_slang?: boolean;
+          flagged_for_immediate_use?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "vocabulary_mastery_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       review_log: {
         Row: {
@@ -58,14 +89,50 @@ export interface Database {
           difficulty_after: number;
           retrievability: number;
           reviewed_at: string;
-          source: "conversation" | "reader" | "review_session";
+          source: string;
         };
-        Insert: Omit<
-          Database["public"]["Tables"]["review_log"]["Row"],
-          "id" | "reviewed_at"
-        > &
-          Partial<Pick<Database["public"]["Tables"]["review_log"]["Row"], "id" | "reviewed_at">>;
-        Update: Partial<Database["public"]["Tables"]["review_log"]["Row"]>;
+        Insert: {
+          id?: string;
+          user_id: string;
+          word_id: string;
+          rating: number;
+          stability_before: number;
+          stability_after: number;
+          difficulty_before: number;
+          difficulty_after: number;
+          retrievability: number;
+          reviewed_at?: string;
+          source: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          word_id?: string;
+          rating?: number;
+          stability_before?: number;
+          stability_after?: number;
+          difficulty_before?: number;
+          difficulty_after?: number;
+          retrievability?: number;
+          reviewed_at?: string;
+          source?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "review_log_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "review_log_word_id_fkey";
+            columns: ["word_id"];
+            isOneToOne: false;
+            referencedRelation: "vocabulary_mastery";
+            referencedColumns: ["id"];
+          }
+        ];
       };
     };
     Views: Record<string, never>;
@@ -83,7 +150,12 @@ export interface Database {
           mastery_ratio: number;
         }[];
       };
+      increment_review_count: {
+        Args: { word_id: string };
+        Returns: void;
+      };
     };
     Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
   };
-}
+};
