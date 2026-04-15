@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { ReviewCard } from "@/components/ReviewCard";
+import { getAllWords } from "@/app/actions/vocabulary";
 import type { VocabularyMastery } from "@/lib/types";
 
 interface Props {
@@ -14,6 +15,7 @@ export function ReviewSession({ initialCards }: Props) {
   const [sessionResults, setSessionResults] = useState<
     { hanzi: string; stability: number }[]
   >([]);
+  const [loadingMore, startLoadingMore] = useTransition();
 
   const current = cards[index];
   const done = index >= cards.length;
@@ -28,14 +30,33 @@ export function ReviewSession({ initialCards }: Props) {
     setIndex((i) => i + 1);
   }
 
+  function practiceAll() {
+    startLoadingMore(async () => {
+      const all = await getAllWords(200);
+      setCards(all);
+      setIndex(0);
+      setSessionResults([]);
+    });
+  }
+
   if (cards.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-4 text-center">
+      <div className="flex flex-col items-center gap-5 text-center">
         <span className="text-4xl">🎉</span>
-        <h2 className="text-xl font-medium">No cards due</h2>
+        <h2 className="text-xl font-medium">All caught up</h2>
         <p className="text-sm text-[var(--color-text-muted)]">
-          Come back later or start a conversation to encounter new words.
+          No cards due right now.
         </p>
+        <button
+          onClick={practiceAll}
+          disabled={loadingMore}
+          className="px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
+        >
+          {loadingMore ? "Loading…" : "Practice all vocabulary"}
+        </button>
+        <a href="/" className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors">
+          Back to home
+        </a>
       </div>
     );
   }
@@ -57,10 +78,14 @@ export function ReviewSession({ initialCards }: Props) {
             </div>
           ))}
         </div>
-        <a
-          href="/"
-          className="text-sm text-violet-400 hover:text-violet-300 transition-colors"
+        <button
+          onClick={practiceAll}
+          disabled={loadingMore}
+          className="w-full px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
         >
+          {loadingMore ? "Loading…" : "Practice all vocabulary"}
+        </button>
+        <a href="/" className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors">
           Back to home
         </a>
       </div>
@@ -69,6 +94,7 @@ export function ReviewSession({ initialCards }: Props) {
 
   return (
     <ReviewCard
+      key={current.id}
       card={current}
       onNext={handleNext}
       queueRemaining={cards.length - index}

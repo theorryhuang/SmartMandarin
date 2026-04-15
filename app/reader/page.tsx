@@ -26,15 +26,19 @@ export default async function ReaderPage() {
       : 3.0;
 
   return (
-    <main className="flex flex-col min-h-screen max-w-2xl mx-auto px-4 py-8">
-      <div className="mb-8">
-        <BackButton href="/" />
-        <h1 className="text-2xl font-medium mt-4">Interactive Reader</h1>
-        <p className="text-sm text-[var(--color-text-muted)] mt-1">
-          Blue-highlighted words aren't fully stable yet. Tap any word to queue it for review.
-        </p>
+    <main className="min-h-screen bg-[var(--color-background)]">
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        <div className="mb-6">
+          <BackButton href="/" />
+          <h1 className="text-2xl font-semibold text-[var(--color-text-primary)] mt-4">
+            Interactive Reader
+          </h1>
+          <p className="text-sm text-[var(--color-text-muted)] mt-1">
+            Tap any word to see its definition and save it for review.
+          </p>
+        </div>
+        <ReaderClient masteryMap={masteryMap} hskLevel={avgHSK} />
       </div>
-      <ReaderClient masteryMap={masteryMap} hskLevel={avgHSK} />
     </main>
   );
 }

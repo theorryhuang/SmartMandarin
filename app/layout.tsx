@@ -23,12 +23,12 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <head>
         {/* iOS home screen icon */}
         <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png" />
       </head>
-      <body className="min-h-screen bg-[#0a0a0a] text-[#ededed] antialiased">
+      <body className="min-h-screen bg-[var(--color-background)] text-[var(--color-text-primary)] antialiased">
         {children}
       </body>
     </html>

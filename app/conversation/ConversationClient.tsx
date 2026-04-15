@@ -14,7 +14,7 @@ interface Message {
 }
 
 interface SheetInfo {
-  char: string;
+  word: string;
   pinyin?: string;
   meaning?: string;
   saved: boolean;
@@ -30,7 +30,7 @@ export function ConversationClient({ masteryMap }: Props) {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [sheet, setSheet] = useState<SheetInfo | null>(null);
-  const [savedChars, setSavedChars] = useState<Set<string>>(new Set());
+  const [savedWords, setSavedWords] = useState<Set<string>>(new Set());
   const [slangMode, setSlangMode] = useState(false);
   const [hskLevel, setHskLevel] = useState<number | null>(null);
   const [unknownWords, setUnknownWords] = useState<
@@ -48,6 +48,23 @@ export function ConversationClient({ masteryMap }: Props) {
       setUnknownWords(unknownWords);
     });
   }, []);
+
+  // Restore persisted chat on mount
+  useEffect(() => {
+    try {
+      const savedMsgs = localStorage.getItem("sm_conv_messages");
+      const savedHistory = localStorage.getItem("sm_conv_history");
+      if (savedMsgs) setMessages(JSON.parse(savedMsgs));
+      if (savedHistory) historyRef.current = JSON.parse(savedHistory);
+    } catch { /* ignore */ }
+  }, []);
+
+  // Persist messages whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem("sm_conv_messages", JSON.stringify(messages));
+    } catch { /* ignore */ }
+  }, [messages]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -69,6 +86,7 @@ export function ConversationClient({ masteryMap }: Props) {
       ...historyRef.current,
       { role: "user" as const, content: text },
     ].slice(-20);
+    try { localStorage.setItem("sm_conv_history", JSON.stringify(historyRef.current)); } catch { /* ignore */ }
 
     setIsLoading(true);
     try {
@@ -96,6 +114,7 @@ export function ConversationClient({ masteryMap }: Props) {
           ...historyRef.current,
           { role: "assistant" as const, content: data.reply },
         ].slice(-20);
+        try { localStorage.setItem("sm_conv_history", JSON.stringify(historyRef.current)); } catch { /* ignore */ }
         setForcedWords([]);
       }
     } catch {
@@ -105,15 +124,16 @@ export function ConversationClient({ masteryMap }: Props) {
     }
   }, [input, isLoading, hskLevel, slangMode, forcedWords, unknownWords]);
 
-  const handleCharTap = useCallback(
-    async (char: string) => {
-      if (/[，。！？、…\s\n()（）\[\]]/.test(char)) return;
-      setSheet({ char, saved: savedChars.has(char) });
+  const handleWordSelect = useCallback(
+    async (word: string) => {
+      if (!word) return;
+      setSheet({ word, saved: savedWords.has(word) });
 
-      const mastery = masteryMap[char];
+      // Check mastery map for single-char or the exact multi-char word
+      const mastery = masteryMap[word];
       if (mastery?.pinyin || mastery?.meaning) {
         setSheet((s) =>
-          s?.char === char ? { ...s, pinyin: mastery.pinyin, meaning: mastery.meaning } : s
+          s?.word === word ? { ...s, pinyin: mastery.pinyin, meaning: mastery.meaning } : s
         );
         return;
       }
@@ -122,31 +142,37 @@ export function ConversationClient({ masteryMap }: Props) {
         const res = await fetch("/api/define-word", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ hanzi: char, hsk_level: hskLevel ?? 1 }),
+          body: JSON.stringify({ hanzi: word, hsk_level: hskLevel ?? 1 }),
         });
         const def = await res.json();
         if (def.pinyin || def.meaning) {
           setSheet((s) =>
-            s?.char === char ? { ...s, pinyin: def.pinyin, meaning: def.meaning } : s
+            s?.word === word ? { ...s, pinyin: def.pinyin, meaning: def.meaning } : s
           );
         }
       } catch {
         // ignore
       }
     },
-    [savedChars, masteryMap, hskLevel]
+    [savedWords, masteryMap, hskLevel]
   );
 
   const handleSave = useCallback(async () => {
     if (!sheet) return;
-    const { char, pinyin, meaning } = sheet;
-    setSavedChars((prev) => new Set([...prev, char]));
-    setForcedWords((prev) => (prev.includes(char) ? prev : [...prev, char]));
+    const { word, pinyin, meaning } = sheet;
+
+    setSavedWords((prev) => {
+      const next = new Set(prev);
+      next.add(word);
+      return next;
+    });
+    setForcedWords((prev) => (prev.includes(word) ? prev : [...prev, word]));
     setSheet((s) => (s ? { ...s, saved: true } : null));
-    await logMistake(masteryMap[char]?.id ?? char, {
+
+    await logMistake(masteryMap[word]?.id ?? word, {
       pinyin,
       meaning,
-      hsk_level: masteryMap[char]?.hsk_level ?? hskLevel ?? 1,
+      hsk_level: masteryMap[word]?.hsk_level ?? hskLevel ?? 1,
     });
   }, [sheet, masteryMap, hskLevel]);
 
@@ -156,13 +182,12 @@ export function ConversationClient({ masteryMap }: Props) {
       <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
         <button
           onClick={() => router.push("/")}
-          className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-[var(--color-surface-raised)] transition-colors flex-shrink-0"
+          className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--color-background)] transition-colors flex-shrink-0"
         >
           <ChevronLeft size={20} className="text-[var(--color-text-muted)]" />
         </button>
 
-        {/* Avatar */}
-        <div className="w-9 h-9 rounded-full bg-violet-700 flex items-center justify-center flex-shrink-0">
+        <div className="w-9 h-9 rounded-full bg-violet-600 flex items-center justify-center flex-shrink-0">
           <span className="text-white text-sm font-medium select-none">灵</span>
         </div>
 
@@ -180,7 +205,7 @@ export function ConversationClient({ masteryMap }: Props) {
           onClick={() => setSlangMode((s) => !s)}
           className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all flex-shrink-0 ${
             slangMode
-              ? "bg-violet-900/40 border-violet-700 text-violet-300"
+              ? "bg-violet-100 border-violet-300 text-violet-700"
               : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
           }`}
         >
@@ -189,13 +214,10 @@ export function ConversationClient({ masteryMap }: Props) {
       </div>
 
       {/* ── Messages ── */}
-      <div
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto px-4 py-5 flex flex-col gap-3"
-      >
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-5 flex flex-col gap-3">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full gap-4 text-center pb-12">
-            <div className="w-16 h-16 rounded-full bg-violet-700 flex items-center justify-center shadow-lg">
+            <div className="w-16 h-16 rounded-full bg-violet-600 flex items-center justify-center shadow-lg">
               <span className="text-white text-2xl font-medium select-none">灵</span>
             </div>
             <div>
@@ -213,26 +235,26 @@ export function ConversationClient({ masteryMap }: Props) {
             className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
           >
             {msg.role === "assistant" && (
-              <div className="w-7 h-7 rounded-full bg-violet-700 flex items-center justify-center flex-shrink-0 mt-1">
+              <div className="w-7 h-7 rounded-full bg-violet-600 flex items-center justify-center flex-shrink-0 mt-1">
                 <span className="text-white text-xs font-medium select-none">灵</span>
               </div>
             )}
             <div
-              className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed ${
+              className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-[15px] ${
                 msg.role === "user"
-                  ? "bg-violet-700 text-white rounded-tr-sm"
-                  : "bg-[var(--color-surface-raised)] text-[var(--color-text-primary)] rounded-tl-sm border border-[var(--color-border)]"
+                  ? "bg-violet-600 text-white rounded-tr-sm"
+                  : "bg-[var(--color-surface)] text-[var(--color-text-primary)] rounded-tl-sm border border-[var(--color-border)] shadow-sm"
               }`}
             >
               {msg.role === "assistant" ? (
-                <TappableText
+                <TappableMessage
                   text={msg.content}
                   masteryMap={masteryMap}
-                  savedChars={savedChars}
-                  onCharTap={handleCharTap}
+                  savedWords={savedWords}
+                  onWordSelect={handleWordSelect}
                 />
               ) : (
-                <span>{msg.content}</span>
+                <span className="leading-relaxed">{msg.content}</span>
               )}
             </div>
           </div>
@@ -240,10 +262,10 @@ export function ConversationClient({ masteryMap }: Props) {
 
         {isLoading && (
           <div className="flex gap-2">
-            <div className="w-7 h-7 rounded-full bg-violet-700 flex items-center justify-center flex-shrink-0 mt-1">
+            <div className="w-7 h-7 rounded-full bg-violet-600 flex items-center justify-center flex-shrink-0 mt-1">
               <span className="text-white text-xs font-medium select-none">灵</span>
             </div>
-            <div className="bg-[var(--color-surface-raised)] border border-[var(--color-border)] rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-1.5">
+            <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-1.5 shadow-sm">
               <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-text-muted)] animate-bounce [animation-delay:-0.3s]" />
               <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-text-muted)] animate-bounce [animation-delay:-0.15s]" />
               <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-text-muted)] animate-bounce" />
@@ -259,7 +281,7 @@ export function ConversationClient({ masteryMap }: Props) {
           {forcedWords.map((w) => (
             <span
               key={w}
-              className="px-2 py-0.5 rounded-full bg-[var(--color-highlight-mistake)] border border-red-800/40 text-red-300 text-xs"
+              className="px-2 py-0.5 rounded-full bg-[var(--color-highlight-mistake)] border border-red-200 text-red-600 text-xs"
             >
               {w}
             </span>
@@ -269,7 +291,7 @@ export function ConversationClient({ masteryMap }: Props) {
 
       {/* ── Input ── */}
       <div className="px-4 py-3 bg-[var(--color-surface)] border-t border-[var(--color-border)]">
-        <div className="flex items-center gap-2 bg-[var(--color-surface-raised)] border border-[var(--color-border)] rounded-2xl px-4 py-2 focus-within:border-violet-600 transition-colors">
+        <div className="flex items-center gap-2 bg-[var(--color-background)] border border-[var(--color-border)] rounded-2xl px-4 py-2 focus-within:border-violet-400 transition-colors">
           <input
             ref={inputRef}
             value={input}
@@ -282,24 +304,24 @@ export function ConversationClient({ masteryMap }: Props) {
           <button
             onClick={sendMessage}
             disabled={isLoading || !input.trim() || hskLevel === null}
-            className="w-8 h-8 rounded-full bg-violet-700 hover:bg-violet-600 flex items-center justify-center transition-colors disabled:opacity-40 flex-shrink-0"
+            className="w-8 h-8 rounded-full bg-violet-600 hover:bg-violet-700 flex items-center justify-center transition-colors disabled:opacity-40 flex-shrink-0"
           >
             <ArrowUp size={15} className="text-white" />
           </button>
         </div>
         <p className="text-center text-[10px] text-[var(--color-text-muted)] mt-1.5">
-          Tap any word to save it for review
+          Tap or drag to select words · save them for review
         </p>
       </div>
 
       {/* ── Bottom sheet ── */}
       {sheet && (
         <>
-          <div className="fixed inset-0 z-40 bg-black/60" onClick={() => setSheet(null)} />
+          <div className="fixed inset-0 z-40 bg-black/30" onClick={() => setSheet(null)} />
           <div className="fixed bottom-0 left-0 right-0 z-50 bg-[var(--color-surface)] border-t border-[var(--color-border)] rounded-t-3xl px-6 py-6 flex flex-col items-center gap-4 shadow-2xl">
-            <div className="w-10 h-1 rounded-full bg-[var(--color-surface-raised)]" />
-            <span className="text-6xl font-medium tracking-tight text-[var(--color-text-primary)]">
-              {sheet.char}
+            <div className="w-10 h-1 rounded-full bg-[var(--color-border)]" />
+            <span className="text-5xl font-medium tracking-tight text-[var(--color-text-primary)]">
+              {sheet.word}
             </span>
             {sheet.pinyin ? (
               <span className="text-lg text-[var(--color-text-secondary)]">{sheet.pinyin}</span>
@@ -314,19 +336,17 @@ export function ConversationClient({ masteryMap }: Props) {
               </span>
             ) : sheet.pinyin ? (
               <span className="text-sm text-[var(--color-text-muted)] italic">
-                no definition saved
+                no definition found
               </span>
             ) : null}
             <button
               onClick={handleSave}
               disabled={sheet.saved}
-              className="w-full max-w-xs py-3 rounded-2xl text-sm font-medium transition-all mt-2"
-              style={{
-                backgroundColor: sheet.saved ? "rgba(127,29,29,0.4)" : "#6d28d9",
-                color: sheet.saved ? "#fca5a5" : "#fff",
-                border: sheet.saved ? "1px solid rgba(153,27,27,0.5)" : "none",
-                cursor: sheet.saved ? "default" : "pointer",
-              }}
+              className={`w-full max-w-xs py-3 rounded-2xl text-sm font-medium transition-all mt-2 ${
+                sheet.saved
+                  ? "bg-red-50 text-red-500 border border-red-200 cursor-default"
+                  : "bg-violet-600 hover:bg-violet-700 text-white cursor-pointer"
+              }`}
             >
               {sheet.saved ? "Saved for review" : "Save for review"}
             </button>
@@ -343,45 +363,75 @@ export function ConversationClient({ masteryMap }: Props) {
   );
 }
 
-// ─── TappableText ─────────────────────────────────────────────────────────────
+// ─── TappableMessage ──────────────────────────────────────────────────────────
+// Renders AI message text with drag-to-select multi-character words.
+// No extra spacing between characters — uses natural inline text flow.
 
-function TappableText({
+function TappableMessage({
   text,
   masteryMap,
-  savedChars,
-  onCharTap,
+  savedWords,
+  onWordSelect,
 }: {
   text: string;
   masteryMap: Record<string, VocabularyMastery>;
-  savedChars: Set<string>;
-  onCharTap: (char: string) => void;
+  savedWords: Set<string>;
+  onWordSelect: (word: string) => void;
 }) {
-  const segments: { type: "hanzi" | "pinyin" | "punct" | "other"; content: string }[] = [];
-  const re = /\(([^)]+)\)|（([^）]+)）|([，。！？、…])|([^\s，。！？、…（()）\n]+)|(\s+)/g;
-  let match;
-  while ((match = re.exec(text)) !== null) {
-    if (match[1] !== undefined) {
-      segments.push({ type: "pinyin", content: match[1] });
-    } else if (match[2] !== undefined) {
-      segments.push({ type: "pinyin", content: match[2] });
-    } else if (match[3] !== undefined) {
-      segments.push({ type: "punct", content: match[3] });
-    } else if (match[4] !== undefined) {
-      for (const char of match[4]) {
-        const isChinese = /[\u4e00-\u9fff\u3400-\u4dbf]/.test(char);
-        segments.push({ type: isChinese ? "hanzi" : "other", content: char });
-      }
-    } else if (match[5] !== undefined) {
-      segments.push({ type: "other", content: " " });
+  // Parse into Chinese chars vs. punctuation/other segments
+  type Seg = { type: "hanzi" | "punct" | "other"; content: string; idx: number };
+  const segments: Seg[] = [];
+  let hanziIdx = 0;
+
+  // Strip parenthetical pinyin the model might sneak in
+  const cleaned = text.replace(/\s*\([^)]{1,30}\)/g, "");
+
+  for (const char of cleaned) {
+    if (/[\u4e00-\u9fff\u3400-\u4dbf]/.test(char)) {
+      segments.push({ type: "hanzi", content: char, idx: hanziIdx++ });
+    } else if (/[，。！？、…]/.test(char)) {
+      segments.push({ type: "punct", content: char, idx: -1 });
+    } else {
+      segments.push({ type: "other", content: char, idx: -1 });
     }
   }
 
-  return (
-    <span className="inline leading-relaxed">
-      {segments.map((seg, i) => {
-        // Strip any residual pinyin the model accidentally includes
-        if (seg.type === "pinyin") return null;
+  const [selStart, setSelStart] = useState<number | null>(null);
+  const [selEnd, setSelEnd] = useState<number | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
 
+  const selLo = selStart !== null && selEnd !== null ? Math.min(selStart, selEnd) : null;
+  const selHi = selStart !== null && selEnd !== null ? Math.max(selStart, selEnd) : null;
+
+  function handlePointerDown(hanziI: number) {
+    setSelStart(hanziI);
+    setSelEnd(hanziI);
+    setIsSelecting(true);
+  }
+
+  function handlePointerEnter(hanziI: number) {
+    if (isSelecting) setSelEnd(hanziI);
+  }
+
+  function handlePointerUp() {
+    if (!isSelecting || selLo === null || selHi === null) return;
+    setIsSelecting(false);
+    const word = segments
+      .filter((s) => s.type === "hanzi" && s.idx >= selLo && s.idx <= selHi)
+      .map((s) => s.content)
+      .join("");
+    if (word) onWordSelect(word);
+    setSelStart(null);
+    setSelEnd(null);
+  }
+
+  return (
+    <div
+      className="leading-loose text-[15px] select-none"
+      onPointerUp={handlePointerUp}
+      onPointerLeave={() => { if (isSelecting) handlePointerUp(); }}
+    >
+      {segments.map((seg, i) => {
         if (seg.type === "punct") {
           return (
             <span key={i} className="text-[var(--color-text-muted)]">
@@ -393,27 +443,36 @@ function TappableText({
           return <span key={i}>{seg.content}</span>;
         }
 
-        // hanzi — tappable
+        // hanzi
+        const isInSel = selLo !== null && selHi !== null && seg.idx >= selLo && seg.idx <= selHi;
+        // Match exact single-char save, or this char being part of a saved compound
+        const isSaved = savedWords.has(seg.content) ||
+          [...savedWords].some((w) => w.length > 1 && w.includes(seg.content));
         const mastery = masteryMap[seg.content];
-        const isSaved = savedChars.has(seg.content);
         const isLearning = mastery && mastery.stability < HIGH_STABILITY_THRESHOLD;
 
         return (
           <span
             key={i}
-            onClick={() => onCharTap(seg.content)}
-            className={`cursor-pointer px-0.5 rounded transition-colors ${
-              isSaved
+            onPointerDown={(e) => {
+              e.currentTarget.releasePointerCapture(e.pointerId);
+              handlePointerDown(seg.idx);
+            }}
+            onPointerEnter={() => handlePointerEnter(seg.idx)}
+            className={`cursor-pointer rounded-sm transition-colors ${
+              isInSel
+                ? "bg-violet-200 text-violet-900"
+                : isSaved
                 ? "word-token word-token--mistake"
                 : isLearning
                 ? "word-token word-token--unknown"
-                : "word-token"
+                : "hover:bg-slate-100"
             }`}
           >
             {seg.content}
           </span>
         );
       })}
-    </span>
+    </div>
   );
 }

@@ -254,6 +254,19 @@ export async function markAssessmentComplete(): Promise<void> {
   });
 }
 
+export async function getAllWords(limit = 100): Promise<VocabularyMastery[]> {
+  const supabase = await createClient();
+  const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
+  const { data, error } = await supabase
+    .from("vocabulary_mastery")
+    .select("*")
+    .eq("user_id", userId)
+    .order("next_review", { ascending: true, nullsFirst: true })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as VocabularyMastery[];
+}
+
 // ─── Add / seed words ─────────────────────────────────────────────────────────
 
 export async function addWord(word: {

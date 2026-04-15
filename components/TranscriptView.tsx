@@ -13,7 +13,7 @@ export function TranscriptView({ turns, onWordTap }: Props) {
   if (turns.length === 0) {
     return (
       <div className="flex items-center justify-center h-32 text-sm text-[var(--color-text-muted)]">
-        Start speaking to see the transcript
+        Hold the button to start speaking
       </div>
     );
   }
@@ -43,8 +43,8 @@ function TurnRow({
       <div
         className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-xs mt-1 ${
           isAI
-            ? "bg-violet-900/60 text-violet-300"
-            : "bg-[var(--color-surface-raised)] text-[var(--color-text-muted)]"
+            ? "bg-violet-100 text-violet-700"
+            : "bg-violet-600 text-white"
         }`}
       >
         {isAI ? "AI" : "你"}
@@ -53,8 +53,8 @@ function TurnRow({
       <div
         className={`flex flex-wrap gap-x-1 gap-y-2 max-w-[85%] rounded-2xl px-4 py-3 text-base leading-loose ${
           isAI
-            ? "bg-[var(--color-surface)] border border-[var(--color-border)]"
-            : "bg-[var(--color-surface-raised)]"
+            ? "bg-[var(--color-surface)] border border-[var(--color-border)] shadow-sm"
+            : "bg-violet-600 text-white"
         }`}
       >
         {turn.tokens.map((token, idx) => (

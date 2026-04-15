@@ -185,8 +185,8 @@ export function AssessmentClient() {
           <h1 className="text-2xl font-semibold mb-2">Quick level check</h1>
           <p className="text-[var(--color-text-secondary)] leading-relaxed">
             We&apos;ll show you Mandarin characters. Try to recall the meaning, then tap the card to reveal pinyin and English. Mark{" "}
-            <span className="text-emerald-400 font-medium">Know it</span> or{" "}
-            <span className="text-red-400 font-medium">Don&apos;t know</span> honestly.
+            <span className="text-emerald-600 font-medium">Know it</span> or{" "}
+            <span className="text-red-500 font-medium">Don&apos;t know</span> honestly.
           </p>
           <p className="text-xs text-[var(--color-text-muted)] mt-3">Takes about 1–2 minutes.</p>
         </div>
@@ -240,7 +240,7 @@ export function AssessmentClient() {
             className={`w-full rounded-3xl border px-8 py-10 text-center transition-all ${
               revealed
                 ? "border-[var(--color-border)] bg-[var(--color-surface)] cursor-default"
-                : "border-[var(--color-border)] bg-[var(--color-surface)] hover:border-violet-600/60 hover:bg-violet-950/20 active:scale-[0.98] cursor-pointer"
+                : "border-[var(--color-border)] bg-[var(--color-surface)] hover:border-violet-400 hover:bg-violet-50 active:scale-[0.98] cursor-pointer"
             }`}
           >
             <p className="text-6xl font-light mb-6 tracking-wide">{currentWord.hanzi}</p>
@@ -280,13 +280,13 @@ export function AssessmentClient() {
             <>
               <button
                 onClick={() => answer(false)}
-                className="flex-1 py-4 rounded-2xl border border-red-900/60 bg-[var(--color-highlight-mistake)] text-red-300 font-medium text-sm hover:bg-red-950/60 transition-all"
+                className="flex-1 py-4 rounded-2xl border border-red-200 bg-red-50 text-red-600 font-medium text-sm hover:bg-red-100 transition-all"
               >
                 ✗ Don&apos;t know
               </button>
               <button
                 onClick={() => answer(true)}
-                className="flex-1 py-4 rounded-2xl border border-emerald-900/60 bg-emerald-950/40 text-emerald-300 font-medium text-sm hover:bg-emerald-950/60 transition-all"
+                className="flex-1 py-4 rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700 font-medium text-sm hover:bg-emerald-100 transition-all"
               >
                 ✓ Know it
               </button>
@@ -328,7 +328,7 @@ export function AssessmentClient() {
               You recognised{" "}
               <span className="text-[var(--color-text-primary)] font-medium">{knownCount}</span>{" "}
               of {results.length} words. We&apos;ve set your baseline to{" "}
-              <span className="text-violet-400 font-medium">HSK {level}</span>.
+              <span className="text-violet-600 font-medium">HSK {level}</span>.
             </p>
             <p className="text-xs text-[var(--color-text-muted)] mt-3">
               The AI will speak at this level and nudge you slightly higher over time.
@@ -337,7 +337,7 @@ export function AssessmentClient() {
         ) : (
           <p className="text-[var(--color-text-secondary)] leading-relaxed">
             No problem — we&apos;ll start you at{" "}
-            <span className="text-violet-400 font-medium">HSK 1</span> and build from there.
+            <span className="text-violet-600 font-medium">HSK 1</span> and build from there.
           </p>
         )}
       </div>

@@ -188,45 +188,43 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
             onClick={() => setSheet(null)}
           />
           {/* Sheet */}
-          <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#1a1a1a] border-t border-[#262626] rounded-t-3xl px-6 py-6 flex flex-col items-center gap-4 shadow-2xl">
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-[var(--color-surface)] border-t border-[var(--color-border)] rounded-t-3xl px-6 py-6 flex flex-col items-center gap-4 shadow-2xl">
             {/* Drag handle */}
-            <div className="w-10 h-1 rounded-full bg-[#3f3f3f]" />
+            <div className="w-10 h-1 rounded-full bg-[var(--color-border)]" />
 
             {/* Character */}
-            <span className="text-6xl font-medium tracking-tight">{sheet.char}</span>
+            <span className="text-6xl font-medium tracking-tight text-[var(--color-text-primary)]">{sheet.char}</span>
 
             {/* Pinyin */}
             {sheet.pinyin ? (
-              <span className="text-lg text-[#a1a1aa]">{sheet.pinyin}</span>
+              <span className="text-lg text-[var(--color-text-secondary)]">{sheet.pinyin}</span>
             ) : (
-              <span className="text-sm text-[#52525b] italic">no pinyin saved</span>
+              <span className="text-sm text-[var(--color-text-muted)] italic">no pinyin saved</span>
             )}
 
             {/* Meaning */}
             {sheet.meaning ? (
-              <span className="text-base text-[#ededed] text-center">{sheet.meaning}</span>
+              <span className="text-base text-[var(--color-text-primary)] text-center">{sheet.meaning}</span>
             ) : (
-              <span className="text-sm text-[#52525b] italic">not in your vocabulary yet</span>
+              <span className="text-sm text-[var(--color-text-muted)] italic">not in your vocabulary yet</span>
             )}
 
             {/* Queue button */}
             <button
               onClick={() => handleQueue(sheet.char, sheet.mastery, sheet._fetchedDef)}
               disabled={sheet.queued}
-              className="w-full max-w-xs py-3 rounded-2xl text-sm font-medium transition-all mt-2"
-              style={{
-                backgroundColor: sheet.queued ? "rgba(127,29,29,0.4)" : "#6d28d9",
-                color: sheet.queued ? "#fca5a5" : "#fff",
-                border: sheet.queued ? "1px solid rgba(153,27,27,0.5)" : "none",
-                cursor: sheet.queued ? "default" : "pointer",
-              }}
+              className={`w-full max-w-xs py-3 rounded-2xl text-sm font-medium transition-all mt-2 ${
+                sheet.queued
+                  ? "bg-red-50 text-red-500 border border-red-200 cursor-default"
+                  : "bg-violet-600 hover:bg-violet-700 text-white cursor-pointer"
+              }`}
             >
               {sheet.queued ? "Queued for review" : "Queue for review"}
             </button>
 
             <button
               onClick={() => setSheet(null)}
-              className="text-sm text-[#52525b] hover:text-[#a1a1aa] transition-colors pb-2"
+              className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors pb-2"
             >
               Dismiss
             </button>

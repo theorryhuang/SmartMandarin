@@ -156,23 +156,38 @@ function speakText(text: string, onEnd: () => void) {
     return;
   }
 
-  // Strip pinyin annotations before speaking (Gemini includes them; TTS should speak hanzi only)
+  // Strip pinyin annotations before speaking
   const hanziOnly = text.replace(/\s*\([^)]+\)/g, "");
 
   const utterance = new SpeechSynthesisUtterance(hanziOnly);
   utterance.lang = "zh-CN";
   utterance.rate = 0.9;
-
-  // Prefer a Chinese voice if available
-  const voices = window.speechSynthesis.getVoices();
-  const chineseVoice = voices.find(
-    (v) => v.lang.startsWith("zh") && !v.name.toLowerCase().includes("google")
-  ) ?? voices.find((v) => v.lang.startsWith("zh"));
-  if (chineseVoice) utterance.voice = chineseVoice;
-
   utterance.onend = onEnd;
   utterance.onerror = onEnd;
-  window.speechSynthesis.speak(utterance);
+
+  const doSpeak = () => {
+    const voices = window.speechSynthesis.getVoices();
+    // Pick any Chinese voice — don't exclude Google voices, they're the most common on Chrome
+    const chineseVoice = voices.find((v) => v.lang.startsWith("zh"));
+    if (chineseVoice) utterance.voice = chineseVoice;
+    window.speechSynthesis.cancel(); // clear any queued utterances
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // getVoices() is async on first call — wait for onvoiceschanged if list is empty
+  const voices = window.speechSynthesis.getVoices();
+  if (voices.length > 0) {
+    doSpeak();
+  } else {
+    window.speechSynthesis.onvoiceschanged = () => {
+      window.speechSynthesis.onvoiceschanged = null;
+      doSpeak();
+    };
+    // Fallback: if onvoiceschanged never fires, speak anyway after 500ms
+    setTimeout(() => {
+      if (!utterance.voice) doSpeak();
+    }, 500);
+  }
 }
 
 function getSupportedMimeType(): string {

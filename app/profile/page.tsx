@@ -19,7 +19,7 @@ export default async function ProfilePage() {
   const avatar = user.user_metadata?.avatar_url as string | undefined;
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-8">
+    <main className="min-h-screen bg-[var(--color-background)] flex flex-col items-center justify-center p-8">
       <div className="absolute top-6 left-6">
         <BackButton href="/" />
       </div>

@@ -11,20 +11,19 @@ interface Props {
   queueRemaining: number;
 }
 
-const RATINGS: { rating: FSRSRating; label: string; sublabel: string; color: string }[] = [
-  { rating: 1, label: "Again", sublabel: "< 1 day",  color: "bg-red-900/40 hover:bg-red-800/60 border-red-800/50 text-red-300" },
-  { rating: 2, label: "Hard",  sublabel: "~1–2 days", color: "bg-orange-900/40 hover:bg-orange-800/60 border-orange-800/50 text-orange-300" },
-  { rating: 3, label: "Good",  sublabel: "calculated", color: "bg-emerald-900/40 hover:bg-emerald-800/60 border-emerald-800/50 text-emerald-300" },
-  { rating: 4, label: "Easy",  sublabel: "longest",  color: "bg-violet-900/40 hover:bg-violet-800/60 border-violet-800/50 text-violet-300" },
+const RATINGS: { rating: FSRSRating; label: string; color: string }[] = [
+  { rating: 1, label: "Again", color: "bg-red-50 hover:bg-red-100 border-red-200 text-red-600" },
+  { rating: 2, label: "Hard",  color: "bg-orange-50 hover:bg-orange-100 border-orange-200 text-orange-600" },
+  { rating: 3, label: "Good",  color: "bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-600" },
+  { rating: 4, label: "Easy",  color: "bg-violet-50 hover:bg-violet-100 border-violet-200 text-violet-600" },
 ];
 
 export function ReviewCard({ card, onNext, queueRemaining }: Props) {
-  const [revealed, setRevealed] = useState(false);
+  const [flipped, setFlipped] = useState(false);
   const [pending, startTransition] = useTransition();
   const [fetchedPinyin, setFetchedPinyin] = useState<string | null>(null);
   const [fetchedMeaning, setFetchedMeaning] = useState<string | null>(null);
 
-  // Fetch definition if missing — runs once per card
   useEffect(() => {
     setFetchedPinyin(null);
     setFetchedMeaning(null);
@@ -51,6 +50,9 @@ export function ReviewCard({ card, onNext, queueRemaining }: Props) {
     : 1;
   const masteryPct = Math.min(card.stability / HIGH_STABILITY_THRESHOLD, 1);
 
+  const pinyin = card.pinyin || fetchedPinyin;
+  const meaning = card.meaning || fetchedMeaning;
+
   function rate(rating: FSRSRating) {
     startTransition(async () => {
       const result = await submitReview(card.id, rating, "review_session");
@@ -65,28 +67,49 @@ export function ReviewCard({ card, onNext, queueRemaining }: Props) {
         {queueRemaining} card{queueRemaining !== 1 ? "s" : ""} remaining
       </p>
 
-      {/* Card face */}
-      <div
-        className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 flex flex-col items-center gap-4 min-h-[220px] cursor-pointer select-none transition-colors hover:border-[var(--color-border-subtle)]"
-        onClick={() => !revealed && setRevealed(true)}
-      >
-        <span className="text-6xl font-light tracking-widest">{card.hanzi}</span>
+      {/* Flip card */}
+      <div style={{ perspective: "1000px" }} className="w-full">
+        <div
+          style={{
+            transformStyle: "preserve-3d",
+            transition: "transform 0.45s cubic-bezier(0.4,0,0.2,1)",
+            transform: flipped ? "rotateY(180deg)" : "rotateY(0deg)",
+            position: "relative",
+            height: "220px",
+          }}
+          className="w-full cursor-pointer"
+          onClick={() => !flipped && setFlipped(true)}
+        >
+          {/* ── Front: hanzi ── */}
+          <div
+            style={{ backfaceVisibility: "hidden" }}
+            className="absolute inset-0 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] flex flex-col items-center justify-center gap-4 select-none"
+          >
+            <span className="text-6xl font-light tracking-widest">{card.hanzi}</span>
+            <span className="text-sm text-[var(--color-text-muted)]">tap to flip</span>
+          </div>
 
-        {revealed ? (
-          <div className="flex flex-col items-center gap-2 mt-2">
-            <span className="text-lg text-[var(--color-text-secondary)]">{card.pinyin || fetchedPinyin}</span>
-            <span className="text-base text-[var(--color-text-primary)]">{card.meaning || fetchedMeaning}</span>
+          {/* ── Back: pinyin + meaning ── */}
+          <div
+            style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
+            className="absolute inset-0 rounded-2xl border border-violet-200 bg-[var(--color-surface)] flex flex-col items-center justify-center gap-3 select-none px-6"
+          >
+            <span className="text-4xl font-light tracking-widest">{card.hanzi}</span>
+            {pinyin ? (
+              <span className="text-lg text-[var(--color-text-secondary)]">{pinyin}</span>
+            ) : (
+              <span className="text-sm text-[var(--color-text-muted)] italic animate-pulse">loading…</span>
+            )}
+            {meaning && (
+              <span className="text-base text-[var(--color-text-primary)] text-center">{meaning}</span>
+            )}
             {card.is_slang && (
-              <span className="mt-1 px-2 py-0.5 rounded-full bg-violet-900/40 text-violet-300 text-xs border border-violet-800/40">
+              <span className="px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 text-xs border border-violet-200">
                 slang
               </span>
             )}
           </div>
-        ) : (
-          <span className="text-sm text-[var(--color-text-muted)] mt-auto">
-            tap to reveal
-          </span>
-        )}
+        </div>
       </div>
 
       {/* Stats bar */}
@@ -115,8 +138,8 @@ export function ReviewCard({ card, onNext, queueRemaining }: Props) {
         {card.review_count > 0 && <span className="ml-2">· {card.review_count} reviews</span>}
       </div>
 
-      {/* Rating buttons — only show after reveal */}
-      {revealed && (
+      {/* Rating buttons — only after flip */}
+      {flipped ? (
         <div className="w-full grid grid-cols-4 gap-2">
           {RATINGS.map(({ rating, label, color }) => (
             <button
@@ -129,11 +152,9 @@ export function ReviewCard({ card, onNext, queueRemaining }: Props) {
             </button>
           ))}
         </div>
-      )}
-
-      {!revealed && (
+      ) : (
         <button
-          onClick={() => setRevealed(true)}
+          onClick={() => setFlipped(true)}
           className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-4 py-3 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
         >
           Show answer

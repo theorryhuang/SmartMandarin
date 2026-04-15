@@ -1,19 +1,19 @@
 @import "tailwindcss";
 
 @theme {
-  --color-background: #0a0a0a;
-  --color-surface: #111111;
-  --color-surface-raised: #1a1a1a;
-  --color-border: #262626;
-  --color-border-subtle: #1f1f1f;
-  --color-text-primary: #ededed;
-  --color-text-secondary: #a1a1aa;
-  --color-text-muted: #52525b;
+  --color-background: #f1f5f9;
+  --color-surface: #ffffff;
+  --color-surface-raised: #f8fafc;
+  --color-border: #e2e8f0;
+  --color-border-subtle: #f1f5f9;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94a3b8;
   --color-accent: #7c3aed;
   --color-accent-hover: #6d28d9;
-  --color-highlight-new: #1e3a5f;
-  --color-highlight-review: #1e3535;
-  --color-highlight-mistake: #3d1515;
+  --color-highlight-new: #dbeafe;
+  --color-highlight-review: #d1fae5;
+  --color-highlight-mistake: #fee2e2;
 }
 
 * {
@@ -23,17 +23,17 @@
 /* Interactable word tokens */
 .word-token {
   cursor: pointer;
-  border-radius: 2px;
+  border-radius: 3px;
   transition: background-color 0.15s ease;
 }
 .word-token:hover {
-  background-color: var(--color-surface-raised);
+  background-color: #e2e8f0;
 }
 .word-token--unknown {
   background-color: var(--color-highlight-new);
-  border-bottom: 1px solid #3b82f680;
+  border-bottom: 1px solid #93c5fd;
 }
 .word-token--mistake {
   background-color: var(--color-highlight-mistake);
-  border-bottom: 1px solid #ef444480;
+  border-bottom: 1px solid #fca5a5;
 }
