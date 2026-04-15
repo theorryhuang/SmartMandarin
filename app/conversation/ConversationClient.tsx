@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { getConversationContext, logMistake } from "@/app/actions/vocabulary";
 import type { VocabularyMastery } from "@/lib/types";
 import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
+import { useLanguage } from "@/app/_components/LanguageContext";
 
 interface Message {
   role: "user" | "assistant";
@@ -26,6 +27,7 @@ interface Props {
 
 export function ConversationClient({ masteryMap }: Props) {
   const router = useRouter();
+  const { t } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -209,7 +211,7 @@ export function ConversationClient({ masteryMap }: Props) {
               : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
           }`}
         >
-          {slangMode ? "🔥 Slang" : "Slang"}
+          {slangMode ? t.slangActive : t.slang}
         </button>
       </div>
 
@@ -223,7 +225,7 @@ export function ConversationClient({ masteryMap }: Props) {
             <div>
               <p className="font-medium text-[var(--color-text-primary)]">小灵</p>
               <p className="text-sm text-[var(--color-text-muted)] mt-1 max-w-[220px]">
-                Type anything to start chatting in Mandarin
+                {t.typeToStart}
               </p>
             </div>
           </div>
@@ -277,7 +279,7 @@ export function ConversationClient({ masteryMap }: Props) {
       {/* ── Forced words ── */}
       {forcedWords.length > 0 && (
         <div className="flex gap-2 px-4 py-2 flex-wrap bg-[var(--color-surface)] border-t border-[var(--color-border)]">
-          <span className="text-xs text-[var(--color-text-muted)] self-center">will use:</span>
+          <span className="text-xs text-[var(--color-text-muted)] self-center">{t.willUse}</span>
           {forcedWords.map((w) => (
             <span
               key={w}
@@ -297,7 +299,7 @@ export function ConversationClient({ masteryMap }: Props) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
-            placeholder="Type in Mandarin or English…"
+            placeholder={t.typeInput}
             disabled={isLoading || hskLevel === null}
             className="flex-1 bg-transparent text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none disabled:opacity-50"
           />
@@ -310,7 +312,7 @@ export function ConversationClient({ masteryMap }: Props) {
           </button>
         </div>
         <p className="text-center text-[10px] text-[var(--color-text-muted)] mt-1.5">
-          Tap or drag to select words · save them for review
+          {t.tapToSelect}
         </p>
       </div>
 
@@ -327,7 +329,7 @@ export function ConversationClient({ masteryMap }: Props) {
               <span className="text-lg text-[var(--color-text-secondary)]">{sheet.pinyin}</span>
             ) : (
               <span className="text-sm text-[var(--color-text-muted)] italic animate-pulse">
-                Looking up…
+                {t.lookingUp}
               </span>
             )}
             {sheet.meaning ? (
@@ -336,7 +338,7 @@ export function ConversationClient({ masteryMap }: Props) {
               </span>
             ) : sheet.pinyin ? (
               <span className="text-sm text-[var(--color-text-muted)] italic">
-                no definition found
+                {t.noDefinition}
               </span>
             ) : null}
             <button
@@ -348,13 +350,13 @@ export function ConversationClient({ masteryMap }: Props) {
                   : "bg-violet-600 hover:bg-violet-700 text-white cursor-pointer"
               }`}
             >
-              {sheet.saved ? "Saved for review" : "Save for review"}
+              {sheet.saved ? t.savedForReview : t.saveForReview}
             </button>
             <button
               onClick={() => setSheet(null)}
               className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors pb-2"
             >
-              Dismiss
+              {t.dismiss}
             </button>
           </div>
         </>

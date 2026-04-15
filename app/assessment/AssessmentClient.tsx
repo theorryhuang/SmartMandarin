@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { saveAssessmentResults, markAssessmentComplete } from "@/app/actions/vocabulary";
 import type { AssessmentWord } from "@/app/actions/vocabulary";
+import { useLanguage } from "@/app/_components/LanguageContext";
 
 // ─── Word bank ────────────────────────────────────────────────────────────────
 
@@ -100,6 +101,7 @@ interface Result extends WordEntry {
 
 export function AssessmentClient() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [phase, setPhase] = useState<Phase>("intro");
   const [revealed, setRevealed] = useState(false);
   const [levelIndex, setLevelIndex] = useState(0);
@@ -182,13 +184,11 @@ export function AssessmentClient() {
       <div className="flex flex-col items-center justify-center min-h-screen px-6 gap-8 max-w-md mx-auto text-center">
         <div>
           <div className="text-4xl mb-4">🈶</div>
-          <h1 className="text-2xl font-semibold mb-2">Quick level check</h1>
+          <h1 className="text-2xl font-semibold mb-2">{t.quickLevelCheck}</h1>
           <p className="text-[var(--color-text-secondary)] leading-relaxed">
-            We&apos;ll show you Mandarin characters. Try to recall the meaning, then tap the card to reveal pinyin and English. Mark{" "}
-            <span className="text-emerald-600 font-medium">Know it</span> or{" "}
-            <span className="text-red-500 font-medium">Don&apos;t know</span> honestly.
+            {t.assessmentDesc}
           </p>
-          <p className="text-xs text-[var(--color-text-muted)] mt-3">Takes about 1–2 minutes.</p>
+          <p className="text-xs text-[var(--color-text-muted)] mt-3">{t.takesAbout}</p>
         </div>
 
         <div className="flex flex-col gap-3 w-full">
@@ -196,13 +196,13 @@ export function AssessmentClient() {
             onClick={() => setPhase("quiz")}
             className="w-full py-3.5 rounded-2xl bg-violet-700 hover:bg-violet-600 text-white font-medium text-sm transition-all"
           >
-            Start assessment
+            {t.startAssessment}
           </button>
           <button
             onClick={skip}
             className="w-full py-3 rounded-2xl border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] text-sm transition-all"
           >
-            I&apos;m a complete beginner — skip
+            {t.beginnerSkip}
           </button>
         </div>
       </div>
@@ -252,7 +252,7 @@ export function AssessmentClient() {
               </div>
             ) : (
               <p className="text-xs text-[var(--color-text-muted)] tracking-wide uppercase">
-                tap to reveal
+                {t.tapToReveal}
               </p>
             )}
           </button>
@@ -282,13 +282,13 @@ export function AssessmentClient() {
                 onClick={() => answer(false)}
                 className="flex-1 py-4 rounded-2xl border border-red-200 bg-red-50 text-red-600 font-medium text-sm hover:bg-red-100 transition-all"
               >
-                ✗ Don&apos;t know
+                {t.dontKnowBtn}
               </button>
               <button
                 onClick={() => answer(true)}
                 className="flex-1 py-4 rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700 font-medium text-sm hover:bg-emerald-100 transition-all"
               >
-                ✓ Know it
+                {t.knowItBtn}
               </button>
             </>
           ) : (
@@ -296,7 +296,7 @@ export function AssessmentClient() {
               onClick={() => setRevealed(true)}
               className="flex-1 py-4 rounded-2xl bg-violet-700 hover:bg-violet-600 text-white font-medium text-sm transition-all"
             >
-              Reveal
+              {t.reveal}
             </button>
           )}
         </div>
@@ -308,7 +308,7 @@ export function AssessmentClient() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4">
         <div className="w-6 h-6 rounded-full border-2 border-violet-500 border-t-transparent animate-spin" />
-        <p className="text-sm text-[var(--color-text-muted)]">Saving your results…</p>
+        <p className="text-sm text-[var(--color-text-muted)]">{t.savingResults}</p>
       </div>
     );
   }
@@ -321,23 +321,20 @@ export function AssessmentClient() {
     <div className="flex flex-col items-center justify-center min-h-screen px-6 gap-8 max-w-md mx-auto text-center">
       <div>
         <div className="text-4xl mb-4">🎯</div>
-        <h1 className="text-2xl font-semibold mb-2">Assessment complete</h1>
+        <h1 className="text-2xl font-semibold mb-2">{t.assessmentComplete}</h1>
         {results.length > 0 ? (
           <>
             <p className="text-[var(--color-text-secondary)] leading-relaxed">
-              You recognised{" "}
-              <span className="text-[var(--color-text-primary)] font-medium">{knownCount}</span>{" "}
-              of {results.length} words. We&apos;ve set your baseline to{" "}
+              {t.youRecognised(knownCount, results.length)}{" "}
               <span className="text-violet-600 font-medium">HSK {level}</span>.
             </p>
             <p className="text-xs text-[var(--color-text-muted)] mt-3">
-              The AI will speak at this level and nudge you slightly higher over time.
+              {t.aiWillSpeak}
             </p>
           </>
         ) : (
           <p className="text-[var(--color-text-secondary)] leading-relaxed">
-            No problem — we&apos;ll start you at{" "}
-            <span className="text-violet-600 font-medium">HSK 1</span> and build from there.
+            {t.beginnerStart}
           </p>
         )}
       </div>
@@ -346,7 +343,7 @@ export function AssessmentClient() {
         onClick={() => router.push("/")}
         className="w-full py-3.5 rounded-2xl bg-violet-700 hover:bg-violet-600 text-white font-medium text-sm transition-all"
       >
-        Let&apos;s go →
+        {t.letsGo}
       </button>
     </div>
   );

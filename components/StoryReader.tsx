@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { logMistake } from "@/app/actions/vocabulary";
 import type { VocabularyMastery } from "@/lib/types";
 import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
+import { useLanguage } from "@/app/_components/LanguageContext";
 
 interface StorySentence {
   hanzi: string;
@@ -34,6 +35,7 @@ interface SheetInfo {
 }
 
 export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
+  const { t } = useLanguage();
   const [story, setStory] = useState<Story | null>(null);
   const [topic, setTopic] = useState("");
   const [queuedWords, setQueuedWords] = useState<Set<string>>(new Set());
@@ -119,7 +121,7 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
         <input
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
-          placeholder="Topic (optional) — e.g. 咖啡店, 旅行..."
+          placeholder={t.topicPlaceholder}
           className="flex-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-sm placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-violet-600"
           onKeyDown={(e) => e.key === "Enter" && generate()}
         />
@@ -128,7 +130,7 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
           disabled={isGenerating}
           className="px-4 py-2.5 rounded-xl bg-violet-700 hover:bg-violet-600 text-white text-sm font-medium transition-colors disabled:opacity-50 whitespace-nowrap"
         >
-          {isGenerating ? "Generating…" : "New story"}
+          {isGenerating ? t.generating : t.newStory}
         </button>
       </div>
 
@@ -148,7 +150,7 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
           {/* Queue count */}
           {queuedWords.size > 0 && (
             <p className="text-xs text-[var(--color-text-muted)]">
-              {queuedWords.size} word{queuedWords.size !== 1 ? "s" : ""} queued for review
+              {t.wordsQueued(queuedWords.size)}
             </p>
           )}
 
@@ -169,13 +171,13 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
 
       {!story && !isGenerating && (
         <div className="flex items-center justify-center h-48 border border-dashed border-[var(--color-border)] rounded-2xl text-sm text-[var(--color-text-muted)]">
-          Generate a story to start reading
+          {t.generatePrompt}
         </div>
       )}
 
       {isGenerating && (
         <div className="flex items-center justify-center h-48 text-sm text-[var(--color-text-muted)]">
-          <span className="animate-pulse">Generating story…</span>
+          <span className="animate-pulse">{t.generatingStory}</span>
         </div>
       )}
 
@@ -199,14 +201,14 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
             {sheet.pinyin ? (
               <span className="text-lg text-[var(--color-text-secondary)]">{sheet.pinyin}</span>
             ) : (
-              <span className="text-sm text-[var(--color-text-muted)] italic">no pinyin saved</span>
+              <span className="text-sm text-[var(--color-text-muted)] italic">{t.noPinyin}</span>
             )}
 
             {/* Meaning */}
             {sheet.meaning ? (
               <span className="text-base text-[var(--color-text-primary)] text-center">{sheet.meaning}</span>
             ) : (
-              <span className="text-sm text-[var(--color-text-muted)] italic">not in your vocabulary yet</span>
+              <span className="text-sm text-[var(--color-text-muted)] italic">{t.notInVocab}</span>
             )}
 
             {/* Queue button */}
@@ -219,14 +221,14 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
                   : "bg-violet-600 hover:bg-violet-700 text-white cursor-pointer"
               }`}
             >
-              {sheet.queued ? "Queued for review" : "Queue for review"}
+              {sheet.queued ? t.queuedForReview : t.queueForReview}
             </button>
 
             <button
               onClick={() => setSheet(null)}
               className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors pb-2"
             >
-              Dismiss
+              {t.dismiss}
             </button>
           </div>
         </>

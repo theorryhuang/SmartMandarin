@@ -4,6 +4,7 @@ import { useState, useTransition, useEffect } from "react";
 import { submitReview } from "@/app/actions/vocabulary";
 import type { VocabularyMastery, FSRSRating } from "@/lib/types";
 import { forgettingCurve, HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
+import { useLanguage } from "@/app/_components/LanguageContext";
 
 interface Props {
   card: VocabularyMastery;
@@ -11,18 +12,19 @@ interface Props {
   queueRemaining: number;
 }
 
-const RATINGS: { rating: FSRSRating; label: string; color: string }[] = [
-  { rating: 1, label: "Again", color: "bg-red-50 hover:bg-red-100 border-red-200 text-red-600" },
-  { rating: 2, label: "Hard",  color: "bg-orange-50 hover:bg-orange-100 border-orange-200 text-orange-600" },
-  { rating: 3, label: "Good",  color: "bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-600" },
-  { rating: 4, label: "Easy",  color: "bg-violet-50 hover:bg-violet-100 border-violet-200 text-violet-600" },
-];
-
 export function ReviewCard({ card, onNext, queueRemaining }: Props) {
+  const { t } = useLanguage();
   const [flipped, setFlipped] = useState(false);
   const [pending, startTransition] = useTransition();
   const [fetchedPinyin, setFetchedPinyin] = useState<string | null>(null);
   const [fetchedMeaning, setFetchedMeaning] = useState<string | null>(null);
+
+  const RATINGS: { rating: FSRSRating; label: string; color: string }[] = [
+    { rating: 1, label: t.again, color: "bg-red-50 hover:bg-red-100 border-red-200 text-red-600" },
+    { rating: 2, label: t.hard,  color: "bg-orange-50 hover:bg-orange-100 border-orange-200 text-orange-600" },
+    { rating: 3, label: t.good,  color: "bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-600" },
+    { rating: 4, label: t.easy,  color: "bg-violet-50 hover:bg-violet-100 border-violet-200 text-violet-600" },
+  ];
 
   useEffect(() => {
     setFetchedPinyin(null);
@@ -64,7 +66,7 @@ export function ReviewCard({ card, onNext, queueRemaining }: Props) {
     <div className="flex flex-col items-center gap-6 w-full max-w-md">
       {/* Queue counter */}
       <p className="text-sm text-[var(--color-text-muted)]">
-        {queueRemaining} card{queueRemaining !== 1 ? "s" : ""} remaining
+        {t.cardsRemaining(queueRemaining)}
       </p>
 
       {/* Flip card */}
@@ -86,7 +88,7 @@ export function ReviewCard({ card, onNext, queueRemaining }: Props) {
             className="absolute inset-0 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] flex flex-col items-center justify-center gap-4 select-none"
           >
             <span className="text-6xl font-light tracking-widest">{card.hanzi}</span>
-            <span className="text-sm text-[var(--color-text-muted)]">tap to flip</span>
+            <span className="text-sm text-[var(--color-text-muted)]">{t.tapToFlip}</span>
           </div>
 
           {/* ── Back: pinyin + meaning ── */}
@@ -98,14 +100,14 @@ export function ReviewCard({ card, onNext, queueRemaining }: Props) {
             {pinyin ? (
               <span className="text-lg text-[var(--color-text-secondary)]">{pinyin}</span>
             ) : (
-              <span className="text-sm text-[var(--color-text-muted)] italic animate-pulse">loading…</span>
+              <span className="text-sm text-[var(--color-text-muted)] italic animate-pulse">{t.loading}</span>
             )}
             {meaning && (
               <span className="text-base text-[var(--color-text-primary)] text-center">{meaning}</span>
             )}
             {card.is_slang && (
               <span className="px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 text-xs border border-violet-200">
-                slang
+                {t.slangBadge}
               </span>
             )}
           </div>
@@ -116,7 +118,7 @@ export function ReviewCard({ card, onNext, queueRemaining }: Props) {
       <div className="w-full flex items-center gap-4 text-xs text-[var(--color-text-muted)]">
         <div className="flex-1">
           <div className="flex justify-between mb-1">
-            <span>mastery</span>
+            <span>{t.masteryLabel}</span>
             <span>{Math.round(masteryPct * 100)}%</span>
           </div>
           <div className="h-1 rounded-full bg-[var(--color-border)]">
@@ -157,7 +159,7 @@ export function ReviewCard({ card, onNext, queueRemaining }: Props) {
           onClick={() => setFlipped(true)}
           className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-4 py-3 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
         >
-          Show answer
+          {t.showAnswer}
         </button>
       )}
     </div>

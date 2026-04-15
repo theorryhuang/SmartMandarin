@@ -2,9 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
+import { useLanguage } from "./LanguageContext";
 
 export function BackButton({ href }: { href?: string }) {
   const router = useRouter();
+  const { t } = useLanguage();
 
   function handleClick() {
     if (href) {
@@ -20,7 +22,7 @@ export function BackButton({ href }: { href?: string }) {
       className="flex items-center gap-1 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
     >
       <ChevronLeft size={18} />
-      Back
+      {t.back}
     </button>
   );
 }

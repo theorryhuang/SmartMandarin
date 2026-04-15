@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { StoryReader } from "@/components/StoryReader";
 import type { VocabularyMastery } from "@/lib/types";
+import { useLanguage } from "@/app/_components/LanguageContext";
 
 interface Props {
   masteryMap: Record<string, VocabularyMastery>;
@@ -10,19 +11,24 @@ interface Props {
 }
 
 export function ReaderClient({ masteryMap, hskLevel }: Props) {
+  const { t } = useLanguage();
   const [slangMode, setSlangMode] = useState(false);
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="mb-2">
+        <h1 className="text-2xl font-semibold text-[var(--color-text-primary)]">{t.interactiveReader}</h1>
+        <p className="text-sm text-[var(--color-text-muted)] mt-1">{t.tapWordToSee}</p>
+      </div>
       <div className="flex items-center justify-between">
         <div className="flex gap-3 text-xs text-[var(--color-text-muted)]">
           <span className="flex items-center gap-1.5">
             <span className="inline-block w-3 h-3 rounded-sm bg-[var(--color-highlight-new)] border border-blue-500/40" />
-            learning
+            {t.learning}
           </span>
           <span className="flex items-center gap-1.5">
             <span className="inline-block w-3 h-3 rounded-sm bg-[var(--color-highlight-mistake)] border border-red-500/40" />
-            queued
+            {t.queued}
           </span>
         </div>
 
@@ -34,7 +40,7 @@ export function ReaderClient({ masteryMap, hskLevel }: Props) {
               : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
           }`}
         >
-          {slangMode ? "🔥 Slang ON" : "Slang"}
+          {slangMode ? t.slangActiveReader : t.slang}
         </button>
       </div>
 

@@ -7,9 +7,11 @@ import { useGroqConversation } from "@/hooks/useGroqConversation";
 import { TranscriptView } from "@/components/TranscriptView";
 import { logMistake, getConversationContext } from "@/app/actions/vocabulary";
 import type { ConversationTurn, TranscriptToken } from "@/lib/types";
+import { useLanguage } from "@/app/_components/LanguageContext";
 
 export function SpeakingClient() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [turns, setTurns] = useState<ConversationTurn[]>([]);
   const [slangMode, setSlangMode] = useState(false);
   const [forcedWords, setForcedWords] = useState<string[]>([]);
@@ -94,12 +96,12 @@ export function SpeakingClient() {
   const isBusy = state === "transcribing" || state === "thinking" || state === "speaking";
 
   const statusLabel: Record<typeof state, string> = {
-    idle: "Hold to speak",
-    recording: "Recording…",
-    transcribing: "Transcribing…",
-    thinking: "Thinking…",
-    speaking: "Speaking…",
-    error: "Error",
+    idle: t.holdToSpeak,
+    recording: t.recording,
+    transcribing: t.transcribing,
+    thinking: t.thinking,
+    speaking: t.speaking,
+    error: t.error,
   };
 
   return (
@@ -114,10 +116,10 @@ export function SpeakingClient() {
         </button>
         <div className="flex-1">
           <h1 className="font-semibold text-sm text-[var(--color-text-primary)]">
-            Speaking Practice
+            {t.speakingPractice}
           </h1>
           <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-            HSK {hskLevel} · Tap any word to flag it for review
+            {t.tapWordToFlag(hskLevel)}
           </p>
         </div>
         <button
@@ -128,7 +130,7 @@ export function SpeakingClient() {
               : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
           }`}
         >
-          {slangMode ? "🔥 Slang" : "Slang"}
+          {slangMode ? t.slangActive : t.slang}
         </button>
       </div>
 
@@ -140,7 +142,7 @@ export function SpeakingClient() {
       {/* Flagged words */}
       {forcedWords.length > 0 && (
         <div className="flex gap-2 px-4 py-2 flex-wrap bg-[var(--color-surface)] border-t border-[var(--color-border)]">
-          <span className="text-xs text-[var(--color-text-muted)] self-center">will use:</span>
+          <span className="text-xs text-[var(--color-text-muted)] self-center">{t.willUse}</span>
           {forcedWords.map((w) => (
             <span
               key={w}
@@ -184,7 +186,7 @@ export function SpeakingClient() {
             onClick={cancel}
             className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
           >
-            Cancel
+            {t.cancel}
           </button>
         )}
       </div>
