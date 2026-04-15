@@ -2,17 +2,18 @@
  * POST /api/generate-story
  * Body: { hsk_level: number; known_words: string[]; slang_mode: boolean; topic?: string }
  *
- * Uses Gemini Flash to generate a short story calibrated to the user's HSK level.
+ * Uses Groq (free) to generate a short story calibrated to the user's HSK level.
  * Returns structured JSON: { title, sentences: [{ hanzi, pinyin, english }] }
  */
 import { NextRequest, NextResponse } from "next/server";
 
-const MODEL = "gemini-2.0-flash";
+const GROQ_MODEL = "llama-3.3-70b-versatile";
+const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: "GEMINI_API_KEY not set" }, { status: 500 });
+    return NextResponse.json({ error: "GROQ_API_KEY not set" }, { status: 500 });
   }
 
   const {
@@ -24,29 +25,40 @@ export async function POST(req: NextRequest) {
 
   const prompt = buildPrompt(hsk_level, known_words, slang_mode, topic);
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseMimeType: "application/json",
-          temperature: 0.9,
-          maxOutputTokens: 1024,
-        },
-      }),
-    }
-  );
+  const res = await fetch(GROQ_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: GROQ_MODEL,
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.9,
+      max_tokens: 1024,
+      response_format: { type: "json_object" },
+    }),
+  });
 
   if (!res.ok) {
-    const err = await res.text();
-    return NextResponse.json({ error: err }, { status: res.status });
+    const errText = await res.text();
+    let message = `Story generation failed (${res.status})`;
+    try {
+      const errJson = JSON.parse(errText);
+      const detail = errJson?.error?.message ?? errText;
+      if (typeof detail === "string") {
+        message = detail.includes("quota") || detail.includes("rate_limit")
+          ? "Groq rate limit hit. Wait a moment and try again."
+          : detail.slice(0, 200);
+      }
+    } catch {
+      message = errText.slice(0, 200);
+    }
+    return NextResponse.json({ error: message }, { status: res.status });
   }
 
   const raw = await res.json();
-  const text = raw.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
+  const text = raw.choices?.[0]?.message?.content ?? "{}";
 
   try {
     const story = JSON.parse(text);
@@ -66,7 +78,6 @@ function buildPrompt(
   const slangLine = slangMode
     ? "Include some modern Chinese internet slang (e.g. 绝绝子, yyds, 破防了, 摆烂) where natural."
     : "";
-
   const knownLine =
     knownWords.length > 0
       ? `The user already knows these words well — feel free to use them: ${knownWords.slice(0, 30).join("、")}.`
@@ -82,15 +93,21 @@ ${topicLine}
 ${slangLine}
 ${knownLine}
 
-Return ONLY valid JSON in exactly this shape (no markdown fences):
+CRITICAL JSON rules — violating these makes the output useless:
+- "title" MUST be Chinese characters (汉字) only — e.g. "约会的烦恼". NEVER pinyin.
+- "hanzi" MUST be Chinese characters (汉字) only — e.g. "我今天很高兴。". NEVER pinyin.
+- "pinyin" MUST be romanized pinyin with tone marks — e.g. "wǒ jīntiān hěn gāoxìng。". NEVER Chinese characters.
+- "english" MUST be English — NEVER Chinese or pinyin.
+
+Return ONLY valid JSON in exactly this shape (no markdown fences, no extra keys):
 {
-  "title": "story title in Chinese",
-  "title_pinyin": "pinyin for title",
+  "title": "汉字标题",
+  "title_pinyin": "pīnyīn for title",
   "title_english": "English translation of title",
   "sentences": [
     {
-      "hanzi": "full sentence in Chinese characters",
-      "pinyin": "full pinyin with tone marks",
+      "hanzi": "用汉字写的完整句子。",
+      "pinyin": "yòng hànzì xiě de wán zhěng jù zi。",
       "english": "natural English translation"
     }
   ]

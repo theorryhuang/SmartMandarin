@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { ReaderClient } from "./ReaderClient";
+import { BackButton } from "@/app/_components/BackButton";
 import type { VocabularyMastery } from "@/lib/types";
 
 export default async function ReaderPage() {
@@ -27,7 +28,8 @@ export default async function ReaderPage() {
   return (
     <main className="flex flex-col min-h-screen max-w-2xl mx-auto px-4 py-8">
       <div className="mb-8">
-        <h1 className="text-2xl font-medium">Interactive Reader</h1>
+        <BackButton href="/" />
+        <h1 className="text-2xl font-medium mt-4">Interactive Reader</h1>
         <p className="text-sm text-[var(--color-text-muted)] mt-1">
           Blue-highlighted words aren't fully stable yet. Tap any word to queue it for review.
         </p>

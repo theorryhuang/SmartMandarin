@@ -1,7 +1,8 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { calculateNextReview } from "@/lib/fsrs";
+import { calculateNextReview, HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
 import type { FSRSRating, VocabularyMastery } from "@/lib/types";
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
@@ -127,6 +128,130 @@ export async function logMistake(
         { onConflict: "user_id,hanzi", ignoreDuplicates: false }
       );
   }
+}
+
+// ─── Conversation context ──────────────────────────────────────────────────────
+
+/**
+ * Returns the user's derived HSK level and their persistent unknown-word bank
+ * (words flagged in past sessions or with very low FSRS stability after reviews).
+ * Called by ConversationClient before opening a Gemini Live session.
+ */
+export async function getConversationContext(): Promise<{
+  hskLevel: number;
+  unknownWords: { hanzi: string; pinyin: string; meaning: string }[];
+}> {
+  const supabase = await createClient();
+  const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
+
+  // Derive current HSK level from per-level stats.
+  // "Current level" = highest level where the user has ≥5 words tracked.
+  const { data: stats } = await supabase.rpc("get_hsk_level_stats", {
+    p_user_id: userId,
+  });
+
+  let hskLevel = 1;
+  if (stats && stats.length > 0) {
+    const activeLevels = (stats as { level: number; total: number }[]).filter(
+      (s) => s.total >= 1
+    );
+    if (activeLevels.length > 0) {
+      hskLevel = Math.max(...activeLevels.map((s) => s.level));
+    }
+  }
+
+  // Fetch persistent unknown words: explicitly flagged by user in past sessions,
+  // plus low-stability words they've reviewed but keep struggling with.
+  const { data: flagged } = await supabase
+    .from("vocabulary_mastery")
+    .select("hanzi, pinyin, meaning")
+    .eq("user_id", userId)
+    .eq("flagged_for_immediate_use", true)
+    .limit(15);
+
+  const { data: weak } = await supabase
+    .from("vocabulary_mastery")
+    .select("hanzi, pinyin, meaning")
+    .eq("user_id", userId)
+    .eq("flagged_for_immediate_use", false)
+    .gt("review_count", 0)
+    .lt("stability", 7)
+    .order("stability", { ascending: true })
+    .limit(10);
+
+  // Merge, dedup by hanzi
+  const seen = new Set<string>();
+  const unknownWords: { hanzi: string; pinyin: string; meaning: string }[] = [];
+  for (const w of [...(flagged ?? []), ...(weak ?? [])]) {
+    if (!seen.has(w.hanzi)) {
+      seen.add(w.hanzi);
+      unknownWords.push({ hanzi: w.hanzi, pinyin: w.pinyin, meaning: w.meaning });
+    }
+  }
+
+  return { hskLevel, unknownWords };
+}
+
+// ─── Assessment ───────────────────────────────────────────────────────────────
+
+export interface AssessmentWord {
+  hanzi: string;
+  pinyin: string;
+  meaning: string;
+  hsk_level: number;
+  knew: boolean;
+}
+
+/**
+ * Persists placement-test results:
+ * - Known words → upserted with high stability so they won't crowd the review queue.
+ * - Unknown words → upserted with stability 0 so they surface for review soon.
+ *
+ * Also sets the sm_assessed cookie so the home page won't redirect again.
+ */
+export async function saveAssessmentResults(words: AssessmentWord[]): Promise<void> {
+  const supabase = await createClient();
+  const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
+
+  if (userId && words.length > 0) {
+    const now = new Date().toISOString();
+    // Known words: treat as if reviewed once with "Easy" — far next_review date
+    const farFuture = new Date(Date.now() + HIGH_STABILITY_THRESHOLD * 2 * 86_400_000).toISOString();
+
+    const rows = words.map((w) => ({
+      user_id: userId,
+      hanzi: w.hanzi,
+      pinyin: w.pinyin,
+      meaning: w.meaning,
+      hsk_level: w.hsk_level,
+      stability: w.knew ? HIGH_STABILITY_THRESHOLD * 2 : 0,
+      difficulty: w.knew ? 4 : 7,           // easy known / harder unknown baseline
+      review_count: w.knew ? 1 : 0,
+      last_reviewed: w.knew ? now : null,
+      next_review: w.knew ? farFuture : now, // unknown words are due immediately
+      flagged_for_immediate_use: false,
+    }));
+
+    await supabase
+      .from("vocabulary_mastery")
+      .upsert(rows, { onConflict: "user_id,hanzi", ignoreDuplicates: true });
+  }
+
+  await markAssessmentComplete();
+}
+
+/**
+ * Sets the sm_assessed cookie so the user is never redirected to assessment again.
+ * Call this even when the user skips the assessment.
+ */
+export async function markAssessmentComplete(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.set("sm_assessed", "1", {
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365 * 10, // 10 years
+    httpOnly: true,
+    sameSite: "lax",
+  });
 }
 
 // ─── Add / seed words ─────────────────────────────────────────────────────────

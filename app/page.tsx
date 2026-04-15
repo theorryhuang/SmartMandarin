@@ -1,11 +1,30 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { VocabularyMastery } from "@/lib/types";
 import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
+import { DevResetButton } from "@/app/_components/DevResetButton";
 
 export default async function Home() {
   const supabase = await createClient();
   const userId = (await supabase.auth.getUser()).data.user?.id;
+
+  // Redirect new logged-in users to the placement assessment unless they've
+  // already done it (sm_assessed cookie) or already have vocabulary data.
+  if (userId) {
+    const cookieStore = await cookies();
+    const assessed = cookieStore.get("sm_assessed");
+    if (!assessed) {
+      const { count } = await supabase
+        .from("vocabulary_mastery")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId);
+      if ((count ?? 0) === 0) {
+        redirect("/assessment");
+      }
+    }
+  }
 
   let dueCount = 0;
   let totalWords = 0;
@@ -42,15 +61,15 @@ export default async function Home() {
     },
     {
       href: "/conversation",
-      label: "Conversation",
-      description: "Practice speaking with Gemini Live",
+      label: "Chat",
+      description: "Practice Mandarin · tap words to save them",
       badge: null,
       accent: "emerald",
     },
     {
       href: "/reader",
       label: "Reader",
-      description: "Read stories at your level",
+      description: "Read stories at your level · tap to save words",
       badge: null,
       accent: "blue",
     },
@@ -58,6 +77,15 @@ export default async function Home() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-8 gap-10">
+      <div className="absolute top-6 right-6">
+        <Link
+          href="/profile"
+          className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+        >
+          Profile
+        </Link>
+      </div>
+
       <div className="text-center">
         <h1 className="text-4xl font-semibold tracking-tight">SmartMandarin</h1>
         {totalWords > 0 && (
@@ -86,6 +114,9 @@ export default async function Home() {
           </Link>
         ))}
       </div>
+      {process.env.NODE_ENV === "development" && (
+        <DevResetButton />
+      )}
     </main>
   );
 }

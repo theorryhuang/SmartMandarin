@@ -19,6 +19,10 @@ export type ConnectionState = "idle" | "connecting" | "connected" | "error";
 export interface GeminiLiveOptions {
   slangMode: boolean;
   forcedWords: string[];
+  /** Derived HSK level of the user — shapes vocab difficulty in system prompt */
+  hskLevel: number;
+  /** Words flagged in past sessions — persistent unknown word bank */
+  unknownWords: { hanzi: string; pinyin: string; meaning: string }[];
   onTranscriptUpdate: (tokens: TranscriptToken[], role: "user" | "assistant") => void;
   onAITurnEnd: () => void;
 }
@@ -39,6 +43,9 @@ export function useGeminiLive(opts: GeminiLiveOptions): GeminiLiveHandle {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const isMutedRef = useRef(false);
+  const audioQueueRef = useRef<AudioBuffer[]>([]);
+  const isPlayingRef = useRef(false);
   const optsRef = useRef(opts);
   optsRef.current = opts;
 
@@ -51,6 +58,8 @@ export function useGeminiLive(opts: GeminiLiveOptions): GeminiLiveHandle {
     mediaStreamRef.current = null;
     wsRef.current?.close();
     wsRef.current = null;
+    audioQueueRef.current = [];
+    isPlayingRef.current = false;
     setConnectionState("idle");
   }, []);
 
@@ -65,6 +74,8 @@ export function useGeminiLive(opts: GeminiLiveOptions): GeminiLiveHandle {
         body: JSON.stringify({
           slang_mode: optsRef.current.slangMode,
           forced_words: optsRef.current.forcedWords,
+          hsk_level: optsRef.current.hskLevel,
+          unknown_words: optsRef.current.unknownWords,
         }),
       });
       const { api_key, model, system_instruction } = await tokenRes.json();
@@ -101,7 +112,7 @@ export function useGeminiLive(opts: GeminiLiveOptions): GeminiLiveHandle {
 
         processor.onaudioprocess = (e) => {
           if (ws.readyState !== WebSocket.OPEN || optsRef.current.slangMode === undefined) return;
-          if (isMuted) return;
+          if (isMutedRef.current) return;
 
           const pcm = e.inputBuffer.getChannelData(0);
           const int16 = new Int16Array(pcm.length);
@@ -137,15 +148,57 @@ export function useGeminiLive(opts: GeminiLiveOptions): GeminiLiveHandle {
     }
   }, [isMuted]);
 
-  function handleServerMessage(msg: Record<string, unknown>) {
-    // Text transcript from the model
-    const candidates = (msg as any)?.serverContent?.modelTurn?.parts;
-    if (candidates) {
-      const text: string = candidates
-        .filter((p: any) => p.text)
-        .map((p: any) => p.text as string)
-        .join("");
+  function playNextInQueue() {
+    if (isPlayingRef.current || audioQueueRef.current.length === 0) return;
+    const ctx = audioContextRef.current;
+    if (!ctx) return;
 
+    isPlayingRef.current = true;
+    const buffer = audioQueueRef.current.shift()!;
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ctx.destination);
+    source.onended = () => {
+      isPlayingRef.current = false;
+      playNextInQueue();
+    };
+    source.start();
+  }
+
+  function handleAudioChunk(base64: string, mimeType: string) {
+    const ctx = audioContextRef.current;
+    if (!ctx) return;
+
+    // Parse sample rate from mime type, e.g. "audio/pcm;rate=24000"
+    const rateMatch = mimeType.match(/rate=(\d+)/);
+    const sampleRate = rateMatch ? parseInt(rateMatch[1]) : 24000;
+
+    // Decode base64 → Int16Array → Float32Array → AudioBuffer
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const int16 = new Int16Array(bytes.buffer);
+    const float32 = new Float32Array(int16.length);
+    for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
+
+    const buffer = ctx.createBuffer(1, float32.length, sampleRate);
+    buffer.copyToChannel(float32, 0);
+    audioQueueRef.current.push(buffer);
+    playNextInQueue();
+  }
+
+  function handleServerMessage(msg: Record<string, unknown>) {
+    const parts = (msg as any)?.serverContent?.modelTurn?.parts;
+    if (parts) {
+      let text = "";
+      for (const part of parts) {
+        if (part.text) {
+          text += part.text;
+        }
+        if (part.inlineData?.data && part.inlineData?.mimeType) {
+          handleAudioChunk(part.inlineData.data, part.inlineData.mimeType);
+        }
+      }
       if (text) {
         const tokens = tokenizeTranscript(text);
         optsRef.current.onTranscriptUpdate(tokens, "assistant");
@@ -172,7 +225,10 @@ export function useGeminiLive(opts: GeminiLiveOptions): GeminiLiveHandle {
     isMuted,
     connect,
     disconnect,
-    toggleMute: () => setIsMuted((m) => !m),
+    toggleMute: () => setIsMuted((m) => {
+      isMutedRef.current = !m;
+      return !m;
+    }),
   };
 }
 

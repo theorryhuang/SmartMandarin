@@ -19,23 +19,31 @@ interface Story {
 }
 
 interface Props {
-  /** All words in vocabulary_mastery for the user — used to detect known/unknown */
   masteryMap: Record<string, VocabularyMastery>;
   hskLevel: number;
   slangMode: boolean;
 }
 
+interface SheetInfo {
+  char: string;
+  pinyin?: string;
+  meaning?: string;
+  mastery?: VocabularyMastery;
+  queued: boolean;
+  _fetchedDef?: { pinyin: string; meaning: string };
+}
+
 export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
   const [story, setStory] = useState<Story | null>(null);
   const [topic, setTopic] = useState("");
-  const [showPinyin, setShowPinyin] = useState(false);
-  const [showEnglish, setShowEnglish] = useState(false);
   const [queuedWords, setQueuedWords] = useState<Set<string>>(new Set());
   const [isGenerating, startGenerate] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<SheetInfo | null>(null);
 
   function generate() {
     setError(null);
+    setSheet(null);
     startGenerate(async () => {
       const knownWords = Object.values(masteryMap)
         .filter((w) => w.stability >= HIGH_STABILITY_THRESHOLD)
@@ -62,12 +70,44 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
     });
   }
 
-  async function handleWordTap(hanzi: string) {
-    setQueuedWords((prev) => new Set([...prev, hanzi]));
-    const mastery = masteryMap[hanzi];
-    await logMistake(mastery?.id ?? hanzi, {
+  async function handleCharTap(char: string, mastery: VocabularyMastery | undefined) {
+    // Show sheet immediately with what we have
+    setSheet({
+      char,
       pinyin: mastery?.pinyin,
       meaning: mastery?.meaning,
+      mastery,
+      queued: queuedWords.has(char),
+    });
+
+    // If word not in vocab, fetch definition in background
+    if (!mastery?.meaning) {
+      try {
+        const res = await fetch("/api/define-word", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ hanzi: char, hsk_level: hskLevel }),
+        });
+        const def = await res.json();
+        if (def.pinyin || def.meaning) {
+          setSheet((s) =>
+            s && s.char === char
+              ? { ...s, pinyin: s.pinyin || def.pinyin, meaning: s.meaning || def.meaning, _fetchedDef: def }
+              : s
+          );
+        }
+      } catch {
+        // silently ignore
+      }
+    }
+  }
+
+  async function handleQueue(char: string, mastery: VocabularyMastery | undefined, fetchedDef?: { pinyin: string; meaning: string }) {
+    setQueuedWords((prev) => new Set([...prev, char]));
+    setSheet((s) => s ? { ...s, queued: true } : null);
+    await logMistake(mastery?.id ?? char, {
+      pinyin: mastery?.pinyin || fetchedDef?.pinyin,
+      meaning: mastery?.meaning || fetchedDef?.meaning,
       hsk_level: mastery?.hsk_level ?? hskLevel,
     });
   }
@@ -103,47 +143,16 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
           {/* Title */}
           <div className="border-b border-[var(--color-border)] pb-4">
             <h2 className="text-2xl font-medium">{story.title}</h2>
-            {showPinyin && (
-              <p className="text-sm text-[var(--color-text-secondary)] mt-1">
-                {story.title_pinyin}
-              </p>
-            )}
-            {showEnglish && (
-              <p className="text-sm text-[var(--color-text-muted)] mt-0.5 italic">
-                {story.title_english}
-              </p>
-            )}
           </div>
 
-          {/* Display toggles */}
-          <div className="flex gap-3">
-            {(["pinyin", "english"] as const).map((mode) => {
-              const on = mode === "pinyin" ? showPinyin : showEnglish;
-              const toggle = mode === "pinyin"
-                ? () => setShowPinyin((v) => !v)
-                : () => setShowEnglish((v) => !v);
-              return (
-                <button
-                  key={mode}
-                  onClick={toggle}
-                  className={`px-3 py-1 rounded-full text-xs border transition-all ${
-                    on
-                      ? "bg-violet-900/40 border-violet-700 text-violet-300"
-                      : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
-                  }`}
-                >
-                  {mode}
-                </button>
-              );
-            })}
-            {queuedWords.size > 0 && (
-              <span className="ml-auto text-xs text-[var(--color-text-muted)]">
-                {queuedWords.size} word{queuedWords.size !== 1 ? "s" : ""} queued for review
-              </span>
-            )}
-          </div>
+          {/* Queue count */}
+          {queuedWords.size > 0 && (
+            <p className="text-xs text-[var(--color-text-muted)]">
+              {queuedWords.size} word{queuedWords.size !== 1 ? "s" : ""} queued for review
+            </p>
+          )}
 
-          {/* Sentences */}
+          {/* Sentences — hanzi only */}
           <div className="flex flex-col gap-5">
             {story.sentences.map((sentence, i) => (
               <StoryLine
@@ -151,9 +160,7 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
                 sentence={sentence}
                 masteryMap={masteryMap}
                 queuedWords={queuedWords}
-                showPinyin={showPinyin}
-                showEnglish={showEnglish}
-                onWordTap={handleWordTap}
+                onCharTap={handleCharTap}
               />
             ))}
           </div>
@@ -171,6 +178,61 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
           <span className="animate-pulse">Generating story…</span>
         </div>
       )}
+
+      {/* Bottom sheet */}
+      {sheet && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-40 bg-black/50"
+            onClick={() => setSheet(null)}
+          />
+          {/* Sheet */}
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#1a1a1a] border-t border-[#262626] rounded-t-3xl px-6 py-6 flex flex-col items-center gap-4 shadow-2xl">
+            {/* Drag handle */}
+            <div className="w-10 h-1 rounded-full bg-[#3f3f3f]" />
+
+            {/* Character */}
+            <span className="text-6xl font-medium tracking-tight">{sheet.char}</span>
+
+            {/* Pinyin */}
+            {sheet.pinyin ? (
+              <span className="text-lg text-[#a1a1aa]">{sheet.pinyin}</span>
+            ) : (
+              <span className="text-sm text-[#52525b] italic">no pinyin saved</span>
+            )}
+
+            {/* Meaning */}
+            {sheet.meaning ? (
+              <span className="text-base text-[#ededed] text-center">{sheet.meaning}</span>
+            ) : (
+              <span className="text-sm text-[#52525b] italic">not in your vocabulary yet</span>
+            )}
+
+            {/* Queue button */}
+            <button
+              onClick={() => handleQueue(sheet.char, sheet.mastery, sheet._fetchedDef)}
+              disabled={sheet.queued}
+              className="w-full max-w-xs py-3 rounded-2xl text-sm font-medium transition-all mt-2"
+              style={{
+                backgroundColor: sheet.queued ? "rgba(127,29,29,0.4)" : "#6d28d9",
+                color: sheet.queued ? "#fca5a5" : "#fff",
+                border: sheet.queued ? "1px solid rgba(153,27,27,0.5)" : "none",
+                cursor: sheet.queued ? "default" : "pointer",
+              }}
+            >
+              {sheet.queued ? "Queued for review" : "Queue for review"}
+            </button>
+
+            <button
+              onClick={() => setSheet(null)}
+              className="text-sm text-[#52525b] hover:text-[#a1a1aa] transition-colors pb-2"
+            >
+              Dismiss
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -179,67 +241,84 @@ function StoryLine({
   sentence,
   masteryMap,
   queuedWords,
-  showPinyin,
-  showEnglish,
-  onWordTap,
+  onCharTap,
 }: {
   sentence: StorySentence;
   masteryMap: Record<string, VocabularyMastery>;
   queuedWords: Set<string>;
-  showPinyin: boolean;
-  showEnglish: boolean;
-  onWordTap: (hanzi: string) => void;
+  onCharTap: (char: string, mastery: VocabularyMastery | undefined) => void;
 }) {
-  // Split sentence into individual characters/words for per-word highlighting
-  // Simple approach: split on each character since we annotate at char level
-  const chars = splitIntoWords(sentence.hanzi);
+  const chars = Array.from(sentence.hanzi);
+  const [selStart, setSelStart] = useState<number | null>(null);
+  const [selEnd, setSelEnd] = useState<number | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+
+  const selLo = selStart !== null && selEnd !== null ? Math.min(selStart, selEnd) : null;
+  const selHi = selStart !== null && selEnd !== null ? Math.max(selStart, selEnd) : null;
+
+  function handlePointerDown(i: number) {
+    setSelStart(i);
+    setSelEnd(i);
+    setIsSelecting(true);
+  }
+
+  function handlePointerEnter(i: number) {
+    if (isSelecting) setSelEnd(i);
+  }
+
+  function handlePointerUp() {
+    if (!isSelecting || selStart === null || selEnd === null) return;
+    setIsSelecting(false);
+    const lo = Math.min(selStart, selEnd);
+    const hi = Math.max(selStart, selEnd);
+    // skip if selection is entirely punctuation indices
+    const selected = chars.slice(lo, hi + 1);
+    const word = selected.filter((c) => !/[，。！？、…\s]/.test(c)).join("");
+    if (word) {
+      onCharTap(word, masteryMap[word]);
+    }
+    setSelStart(null);
+    setSelEnd(null);
+  }
 
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex flex-wrap gap-x-0.5 gap-y-1 leading-loose">
-        {chars.map((char, i) => {
-          const mastery = masteryMap[char];
-          const isHighStability = mastery && mastery.stability >= HIGH_STABILITY_THRESHOLD;
-          const isQueued = queuedWords.has(char);
-          const isPunctuation = /[，。！？、…\s]/.test(char);
+    <div
+      className="leading-loose text-lg select-none"
+      onPointerUp={handlePointerUp}
+      onPointerLeave={() => {
+        if (isSelecting) handlePointerUp();
+      }}
+    >
+      {chars.map((char, i) => {
+        const mastery = masteryMap[char];
+        const isHighStability = mastery && mastery.stability >= HIGH_STABILITY_THRESHOLD;
+        const isQueued = queuedWords.has(char);
+        const isPunctuation = /[，。！？、…\s]/.test(char);
+        const isInSelection = selLo !== null && selHi !== null && i >= selLo && i <= selHi && !isPunctuation;
 
-          if (isPunctuation) {
-            return <span key={i} className="text-[var(--color-text-muted)]">{char}</span>;
-          }
+        if (isPunctuation) {
+          return <span key={i} className="text-[var(--color-text-muted)]">{char}</span>;
+        }
 
-          return (
-            <button
-              key={i}
-              onClick={() => onWordTap(char)}
-              className={`word-token px-0.5 text-lg transition-all ${
-                isQueued
-                  ? "word-token--mistake"
-                  : !isHighStability
-                  ? "word-token--unknown"
-                  : ""
-              }`}
-              title={mastery ? `${mastery.pinyin} — ${mastery.meaning}` : "tap to add to review"}
-            >
-              {char}
-            </button>
-          );
-        })}
-      </div>
-
-      {showPinyin && (
-        <p className="text-sm text-[var(--color-text-secondary)]">{sentence.pinyin}</p>
-      )}
-      {showEnglish && (
-        <p className="text-sm text-[var(--color-text-muted)] italic">{sentence.english}</p>
-      )}
+        return (
+          <span
+            key={i}
+            onPointerDown={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); handlePointerDown(i); }}
+            onPointerEnter={() => handlePointerEnter(i)}
+            className={`word-token px-0.5 transition-all cursor-pointer touch-none ${
+              isInSelection
+                ? "bg-violet-600/40 rounded"
+                : isQueued
+                ? "word-token--mistake"
+                : !isHighStability && mastery
+                ? "word-token--unknown"
+                : ""
+            }`}
+          >
+            {char}
+          </span>
+        );
+      })}
     </div>
   );
-}
-
-/**
- * Splits a Chinese sentence into individual characters,
- * preserving punctuation as separate tokens.
- */
-function splitIntoWords(text: string): string[] {
-  return Array.from(text);
 }

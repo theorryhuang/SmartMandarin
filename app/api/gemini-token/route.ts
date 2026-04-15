@@ -15,9 +15,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "GEMINI_API_KEY not set" }, { status: 500 });
   }
 
-  const { slang_mode = false, forced_words = [] } = await req.json().catch(() => ({}));
+  const {
+    slang_mode = false,
+    forced_words = [],
+    hsk_level = 1,
+    unknown_words = [],
+  } = await req.json().catch(() => ({}));
 
-  const systemInstruction = buildSystemPrompt(slang_mode, forced_words);
+  const systemInstruction = buildSystemPrompt(slang_mode, forced_words, hsk_level, unknown_words);
 
   // Exchange for an ephemeral token via the Gemini token exchange endpoint
   const res = await fetch(
@@ -44,24 +49,51 @@ export async function POST(req: NextRequest) {
   });
 }
 
-function buildSystemPrompt(slangMode: boolean, forcedWords: string[]): string {
-  const base = `You are a friendly Mandarin Chinese conversation partner.
-Your goal is to help the user practice natural, flowing Mandarin.
+type UnknownWord = { hanzi: string; pinyin: string; meaning: string };
+
+function buildSystemPrompt(
+  slangMode: boolean,
+  forcedWords: string[],
+  hskLevel: number,
+  unknownWords: UnknownWord[]
+): string {
+  const base = `You are a friendly Mandarin Chinese conversation partner helping an intermediate learner practice natural, flowing Mandarin.
 - Respond in Mandarin (simplified characters) with pinyin in parentheses after each sentence.
 - Keep responses concise — 2 to 4 sentences.
 - Gently correct grammatical errors by rephrasing naturally.
-- Always respond with a follow-up question to keep conversation going.`;
+- Always respond with a follow-up question to keep the conversation going.`;
 
-  const slang = slangMode
-    ? `\n- SLANG MODE ON: Prefer modern internet slang and colloquialisms over formal HSK equivalents.
-  Use terms like 绝绝子, yyds, 躺平, 内卷, 破防, 芭比Q了 where natural.`
-    : "";
+  // HSK level calibration — core instruction
+  const hskInstruction = `\n\n## Vocabulary level
+The user is currently at HSK ${hskLevel}. Calibrate your vocabulary accordingly:
+- Use words the user is likely to know at HSK ${hskLevel} as your baseline.
+- Occasionally introduce 1–2 words from HSK ${Math.min(hskLevel + 1, 9)} to gently stretch their abilities, but always in a context where meaning can be inferred.
+- Avoid vocabulary significantly above HSK ${hskLevel + 1} unless it is unavoidable for the topic.
+- Prefer shorter, clearer sentences over complex grammar structures beyond the user's level.`;
 
-  const forced =
-    forcedWords.length > 0
-      ? `\n- PRIORITY WORDS: Naturally work these words into your very next response: ${forcedWords.join("、")}.
-  The user recently struggled with these — reusing them helps reinforce memory.`
+  // Persistent unknown word bank from past sessions
+  const unknownBank =
+    unknownWords.length > 0
+      ? `\n\n## User's known-weak words (from past sessions)
+These are words the user has previously struggled with. Naturally weave relevant ones into the conversation over time to help reinforce them — do NOT force all of them in at once:
+${unknownWords
+  .map((w) => `- ${w.hanzi} (${w.pinyin}): ${w.meaning}`)
+  .join("\n")}`
       : "";
 
-  return base + slang + forced;
+  const slang = slangMode
+    ? `\n\n## Slang mode ON
+Prefer modern internet slang and colloquialisms over formal HSK equivalents.
+Use terms like 绝绝子, yyds, 躺平, 内卷, 破防, 芭比Q了 where natural.`
+    : "";
+
+  // Words flagged in the current session — inject immediately
+  const forced =
+    forcedWords.length > 0
+      ? `\n\n## PRIORITY — use in your very next response
+The user just flagged these words as ones they didn't understand: ${forcedWords.join("、")}.
+Work all of them naturally into your immediate reply to reinforce memory.`
+      : "";
+
+  return base + hskInstruction + unknownBank + slang + forced;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { submitReview } from "@/app/actions/vocabulary";
 import type { VocabularyMastery, FSRSRating } from "@/lib/types";
 import { forgettingCurve, HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
@@ -21,6 +21,27 @@ const RATINGS: { rating: FSRSRating; label: string; sublabel: string; color: str
 export function ReviewCard({ card, onNext, queueRemaining }: Props) {
   const [revealed, setRevealed] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [fetchedPinyin, setFetchedPinyin] = useState<string | null>(null);
+  const [fetchedMeaning, setFetchedMeaning] = useState<string | null>(null);
+
+  // Fetch definition if missing — runs once per card
+  useEffect(() => {
+    setFetchedPinyin(null);
+    setFetchedMeaning(null);
+    if (!card.meaning || !card.pinyin) {
+      fetch("/api/define-word", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hanzi: card.hanzi, hsk_level: card.hsk_level }),
+      })
+        .then((r) => r.json())
+        .then((def) => {
+          if (def.pinyin) setFetchedPinyin(def.pinyin);
+          if (def.meaning) setFetchedMeaning(def.meaning);
+        })
+        .catch(() => {});
+    }
+  }, [card.id]);
 
   const elapsedDays = card.last_reviewed
     ? (Date.now() - new Date(card.last_reviewed).getTime()) / 86_400_000
@@ -53,8 +74,8 @@ export function ReviewCard({ card, onNext, queueRemaining }: Props) {
 
         {revealed ? (
           <div className="flex flex-col items-center gap-2 mt-2">
-            <span className="text-lg text-[var(--color-text-secondary)]">{card.pinyin}</span>
-            <span className="text-base text-[var(--color-text-primary)]">{card.meaning}</span>
+            <span className="text-lg text-[var(--color-text-secondary)]">{card.pinyin || fetchedPinyin}</span>
+            <span className="text-base text-[var(--color-text-primary)]">{card.meaning || fetchedMeaning}</span>
             {card.is_slang && (
               <span className="mt-1 px-2 py-0.5 rounded-full bg-violet-900/40 text-violet-300 text-xs border border-violet-800/40">
                 slang
