@@ -69,7 +69,6 @@ export function useGroqConversation(opts: GroqConvOptions): GroqConvHandle {
         (d) => !/virtual|teams|zoom|blackhole|soundflower|loopback/i.test(d.label)
       );
       const deviceId = realMic?.deviceId ?? "default";
-      console.log("[recording] using device:", realMic?.label ?? "default");
 
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { deviceId: { exact: deviceId }, echoCancellation: false, noiseSuppression: false, autoGainControl: false },
@@ -99,7 +98,6 @@ export function useGroqConversation(opts: GroqConvOptions): GroqConvHandle {
 
       const mimeType = getSupportedMimeType();
       const rawBlob = new Blob(chunksRef.current, { type: mimeType });
-      console.log("[recording] raw blob size:", rawBlob.size);
       chunksRef.current = [];
 
       if (rawBlob.size < 3000) {
@@ -112,7 +110,6 @@ export function useGroqConversation(opts: GroqConvOptions): GroqConvHandle {
       let blob: Blob;
       try {
         blob = await toWav(rawBlob);
-        console.log("[recording] wav blob size:", blob.size);
       } catch (e) {
         console.warn("[recording] WAV conversion failed, sending raw:", e);
         blob = rawBlob;
@@ -234,18 +231,9 @@ function speakText(text: string, onEnd: () => void) {
 /** Decode any browser-recorded audio blob and re-encode as 16-bit PCM WAV. */
 async function toWav(blob: Blob): Promise<Blob> {
   const arrayBuffer = await blob.arrayBuffer();
-  // Check raw bytes before decoding
-  const rawBytes = new Uint8Array(arrayBuffer);
-  const rawMax = rawBytes.slice(100).reduce((m, b) => Math.max(m, b), 0);
-  console.log("[toWav] raw webm max byte:", rawMax, "size:", rawBytes.length);
-
   const audioCtx = new AudioContext();
   const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
   audioCtx.close();
-
-  const decodedPcm = audioBuffer.getChannelData(0);
-  const decodedMax = decodedPcm.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
-  console.log("[toWav] decoded duration:", audioBuffer.duration.toFixed(2), "s | max sample:", decodedMax.toFixed(6));
 
   // Mix down to mono, resample to 16 kHz
   const sampleRate = 16000;
@@ -257,8 +245,6 @@ async function toWav(blob: Blob): Promise<Blob> {
   const rendered = await offlineCtx.startRendering();
 
   const pcm = rendered.getChannelData(0);
-  const rms = Math.sqrt(pcm.reduce((s, v) => s + v * v, 0) / pcm.length);
-  console.log("[toWav] duration:", audioBuffer.duration.toFixed(2), "s | RMS:", rms.toFixed(6));
   const samples = new Int16Array(pcm.length);
   for (let i = 0; i < pcm.length; i++) {
     samples[i] = Math.max(-32768, Math.min(32767, Math.round(pcm[i] * 32767)));

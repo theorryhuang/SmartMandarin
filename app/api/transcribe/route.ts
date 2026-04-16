@@ -1,9 +1,10 @@
 /**
  * POST /api/transcribe
- * Body: FormData with field "audio" (webm/opus blob)
+ * Body: FormData with field "audio" (wav blob — converted client-side from webm/opus)
  * Returns: { text: string }
  *
  * Uses ElevenLabs Scribe for speech-to-text.
+ * Note: ElevenLabs does not reliably decode webm/opus, so the client converts to WAV first.
  */
 import { NextRequest, NextResponse } from "next/server";
 
@@ -19,17 +20,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No audio provided" }, { status: 400 });
   }
 
-  console.log("[transcribe] audio size:", audio.size, "type:", audio.type);
-  // Spot-check PCM data (WAV header is 44 bytes, PCM starts after)
-  if (audio.type === "audio/wav") {
-    const buf = await audio.arrayBuffer();
-    const samples = new Int16Array(buf, 44, Math.min(1000, (buf.byteLength - 44) / 2));
-    const maxAbs = samples.reduce((m, s) => Math.max(m, Math.abs(s)), 0);
-    console.log("[transcribe] WAV max sample value:", maxAbs, "(0 = silent)");
-  }
-
-  const isWav = audio.type === "audio/wav";
-  const filename = isWav ? "audio.wav" : "audio.webm";
+  const filename = audio.type === "audio/wav" ? "audio.wav" : "audio.webm";
 
   const elForm = new FormData();
   elForm.append("file", audio, filename);
@@ -56,6 +47,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Invalid response from ElevenLabs: ${rawText.slice(0, 100)}` }, { status: 500 });
   }
 
-  console.log("[transcribe] ElevenLabs full response:", JSON.stringify(data));
   return NextResponse.json({ text: data.text ?? "" });
 }
