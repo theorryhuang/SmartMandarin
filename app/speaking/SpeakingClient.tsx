@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useGroqConversation } from "@/hooks/useGroqConversation";
 import { TranscriptView } from "@/components/TranscriptView";
 import { logMistake, removeFromReviewQueue, getConversationContext } from "@/app/actions/vocabulary";
+import { saveSpeakingTurns, loadRecentSpeakingTurns } from "@/app/actions/speaking";
 import type { ConversationTurn, TranscriptToken } from "@/lib/types";
 import { useLanguage } from "@/app/_components/LanguageContext";
 
@@ -17,10 +18,31 @@ interface SheetInfo {
   saved: boolean;
 }
 
+// Keep at most this many turns in localStorage; older ones live in Supabase.
+const MAX_LOCAL_TURNS = 60;
+
+function loadTurnsFromStorage(): ConversationTurn[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem("sm_speaking_turns");
+    return raw ? (JSON.parse(raw) as ConversationTurn[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 export function SpeakingClient() {
   const router = useRouter();
   const { t } = useLanguage();
-  const [turns, setTurns] = useState<ConversationTurn[]>([]);
+
+  // ── Turns — initialised synchronously from localStorage ──────────────────
+  const [turns, setTurns] = useState<ConversationTurn[]>(loadTurnsFromStorage);
+  const [revealedTurns, setRevealedTurns] = useState<Set<number>>(() => {
+    // Reveal all restored turns so history is immediately readable
+    const loaded = loadTurnsFromStorage();
+    return new Set(loaded.map((_, i) => i));
+  });
+
   const [slangMode, setSlangMode] = useState(false);
   const [forcedWords, setForcedWords] = useState<string[]>([]);
   const [savedWords, setSavedWords] = useState<Set<string>>(new Set());
@@ -30,6 +52,23 @@ export function SpeakingClient() {
   >([]);
   const [sheet, setSheet] = useState<SheetInfo | null>(null);
 
+  // Track which client_ids have been persisted to Supabase already
+  const persistedIdsRef = useRef<Set<string>>(new Set(turns.map((t) => t.timestamp)));
+  const isFirstRender = useRef(true);
+
+  // ── If localStorage was empty, fall back to Supabase ─────────────────────
+  useEffect(() => {
+    if (turns.length > 0) return; // already have data
+    loadRecentSpeakingTurns(MAX_LOCAL_TURNS)
+      .then((loaded) => {
+        if (loaded.length === 0) return;
+        setTurns(loaded);
+        setRevealedTurns(new Set(loaded.map((_, i) => i)));
+        persistedIdsRef.current = new Set(loaded.map((t) => t.timestamp));
+      })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     getConversationContext().then(({ hskLevel, unknownWords }) => {
       setHskLevel(hskLevel);
@@ -37,31 +76,57 @@ export function SpeakingClient() {
     });
   }, []);
 
+  // ── Persist turns whenever they change ───────────────────────────────────
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    // Save recent turns to localStorage
+    const toStore = turns.slice(-MAX_LOCAL_TURNS);
+    try {
+      localStorage.setItem("sm_speaking_turns", JSON.stringify(toStore));
+    } catch { /* ignore quota errors */ }
+
+    // Push any turns not yet in Supabase
+    const newTurns = turns.filter((t) => !persistedIdsRef.current.has(t.timestamp));
+    if (newTurns.length > 0) {
+      saveSpeakingTurns(newTurns).catch(() => {});
+      for (const t of newTurns) persistedIdsRef.current.add(t.timestamp);
+    }
+  }, [turns]);
+
+  // ── Derive LLM history from loaded turns (for AI context continuity) ─────
+  const initialHistory = useRef(
+    turns.slice(-20).map((t) => ({ role: t.role, content: t.raw_text }))
+  );
+
   const handleTranscriptUpdate = useCallback(
     (tokens: TranscriptToken[], role: "user" | "assistant", audioUrl?: string) => {
       setTurns((prev) => {
         const last = prev[prev.length - 1];
         if (last && last.role === role) {
-          const merged = [...last.tokens, ...tokens];
+          // Merge tokens into the existing turn (shouldn't normally happen for Groq but safe)
           return [
             ...prev.slice(0, -1),
             {
               ...last,
-              tokens: merged,
+              tokens: [...last.tokens, ...tokens],
               raw_text: last.raw_text + tokens.map((tk) => tk.hanzi).join(""),
             },
           ];
         }
-        return [
-          ...prev,
-          {
-            role,
-            tokens,
-            raw_text: tokens.map((tk) => tk.hanzi).join(""),
-            timestamp: new Date().toISOString(),
-            audioUrl,
-          },
-        ];
+        const newTurn: ConversationTurn = {
+          role,
+          tokens,
+          raw_text: tokens.map((tk) => tk.hanzi).join(""),
+          timestamp: new Date().toISOString(),
+          audioUrl,
+        };
+        // Auto-reveal new turns
+        setRevealedTurns((s) => new Set([...s, prev.length]));
+        return [...prev, newTurn];
       });
     },
     []
@@ -69,8 +134,10 @@ export function SpeakingClient() {
 
   const handleAITurnEnd = useCallback(() => setForcedWords([]), []);
 
-  const [revealedTurns, setRevealedTurns] = useState<Set<number>>(new Set());
-  const revealTurn = useCallback((i: number) => setRevealedTurns((s) => new Set(s).add(i)), []);
+  const revealTurn = useCallback(
+    (i: number) => setRevealedTurns((s) => new Set(s).add(i)),
+    []
+  );
 
   const { state, error, startRecording, stopRecording, cancel, replay } = useGroqConversation({
     slangMode,
@@ -79,11 +146,12 @@ export function SpeakingClient() {
     unknownWords,
     onTranscriptUpdate: handleTranscriptUpdate,
     onAITurnEnd: handleAITurnEnd,
+    initialHistory: initialHistory.current,
   });
 
+  // ── Word lookup sheet ─────────────────────────────────────────────────────
   const handleWordSelect = useCallback(
     async (word: string) => {
-      // Check local unknownWords cache first
       const cached = unknownWords.find((w) => w.hanzi === word);
       setSheet({
         word,
@@ -92,7 +160,6 @@ export function SpeakingClient() {
         saved: savedWords.has(word),
       });
 
-      // Fetch definition in background if not cached
       if (!cached?.pinyin && !cached?.meaning) {
         try {
           const res = await fetch("/api/define-word", {
@@ -108,9 +175,7 @@ export function SpeakingClient() {
                 : s
             );
           }
-        } catch {
-          // ignore
-        }
+        } catch { /* ignore */ }
       }
     },
     [unknownWords, savedWords]

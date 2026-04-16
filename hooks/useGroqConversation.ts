@@ -39,7 +39,7 @@ export interface GroqConvHandle {
 
 type HistoryEntry = { role: "user" | "assistant"; content: string };
 
-export function useGroqConversation(opts: GroqConvOptions): GroqConvHandle {
+export function useGroqConversation(opts: GroqConvOptions & { initialHistory?: HistoryEntry[] }): GroqConvHandle {
   const [state, setState] = useState<ConvState>("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -48,7 +48,8 @@ export function useGroqConversation(opts: GroqConvOptions): GroqConvHandle {
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const historyRef = useRef<HistoryEntry[]>([]);
+  // Seed with restored history so the AI has context when resuming a session
+  const historyRef = useRef<HistoryEntry[]>(opts.initialHistory ?? []);
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   const cancel = useCallback(() => {
