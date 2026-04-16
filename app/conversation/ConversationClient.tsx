@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { ArrowUp, ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getConversationContext, logMistake, removeFromReviewQueue } from "@/app/actions/vocabulary";
+import { saveMessages } from "@/app/actions/chat";
 import type { VocabularyMastery } from "@/lib/types";
 import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
 import { useLanguage } from "@/app/_components/LanguageContext";
@@ -24,6 +25,8 @@ interface SheetInfo {
 interface Props {
   masteryMap: Record<string, VocabularyMastery>;
 }
+
+const MAX_LOCAL_MESSAGES = 100;
 
 export function ConversationClient({ masteryMap }: Props) {
   const router = useRouter();
@@ -69,7 +72,15 @@ export function ConversationClient({ masteryMap }: Props) {
       return;
     }
     try {
-      localStorage.setItem("sm_conv_messages", JSON.stringify(messages));
+      // Keep only the last MAX_LOCAL_MESSAGES in localStorage
+      const toStore = messages.slice(-MAX_LOCAL_MESSAGES);
+      localStorage.setItem("sm_conv_messages", JSON.stringify(toStore));
+
+      // Persist any overflow (older messages) to Supabase
+      if (messages.length > MAX_LOCAL_MESSAGES) {
+        const overflow = messages.slice(0, messages.length - MAX_LOCAL_MESSAGES);
+        saveMessages(overflow).catch(() => {});
+      }
     } catch { /* ignore */ }
   }, [messages]);
 
@@ -88,6 +99,7 @@ export function ConversationClient({ masteryMap }: Props) {
 
     const userMsg: Message = { role: "user", content: text, id: Date.now().toString() };
     setMessages((prev) => [...prev, userMsg]);
+    saveMessages([userMsg]).catch(() => {});
 
     historyRef.current = [
       ...historyRef.current,
@@ -117,6 +129,7 @@ export function ConversationClient({ masteryMap }: Props) {
           id: (Date.now() + 1).toString(),
         };
         setMessages((prev) => [...prev, aiMsg]);
+        saveMessages([aiMsg]).catch(() => {});
         historyRef.current = [
           ...historyRef.current,
           { role: "assistant" as const, content: data.reply },
