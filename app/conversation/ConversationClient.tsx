@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { ArrowUp, ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { getConversationContext, logMistake } from "@/app/actions/vocabulary";
+import { getConversationContext, logMistake, removeFromReviewQueue } from "@/app/actions/vocabulary";
 import type { VocabularyMastery } from "@/lib/types";
 import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
 import { useLanguage } from "@/app/_components/LanguageContext";
@@ -134,54 +134,62 @@ export function ConversationClient({ masteryMap }: Props) {
   const handleWordSelect = useCallback(
     async (word: string) => {
       if (!word) return;
-      setSheet({ word, saved: savedWords.has(word) });
-
-      // Check mastery map for single-char or the exact multi-char word
       const mastery = masteryMap[word];
-      if (mastery?.pinyin || mastery?.meaning) {
-        setSheet((s) =>
-          s?.word === word ? { ...s, pinyin: mastery.pinyin, meaning: mastery.meaning } : s
-        );
-        return;
-      }
+      const isSaved = savedWords.has(word) || (mastery?.flagged_for_immediate_use ?? false);
 
-      try {
-        const res = await fetch("/api/define-word", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ hanzi: word, hsk_level: hskLevel ?? 1 }),
-        });
-        const def = await res.json();
-        if (def.pinyin || def.meaning) {
-          setSheet((s) =>
-            s?.word === word ? { ...s, pinyin: def.pinyin, meaning: def.meaning } : s
-          );
+      // Show sheet — let user decide to add/remove
+      setSheet({
+        word,
+        saved: isSaved,
+        pinyin: mastery?.pinyin,
+        meaning: mastery?.meaning,
+      });
+
+      // Fetch definition in background if missing
+      if (!mastery?.pinyin && !mastery?.meaning) {
+        try {
+          const res = await fetch("/api/define-word", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ hanzi: word, hsk_level: hskLevel ?? 1 }),
+          });
+          const def = await res.json();
+          if (def.pinyin || def.meaning) {
+            setSheet((s) =>
+              s?.word === word ? { ...s, pinyin: def.pinyin || s.pinyin, meaning: def.meaning || s.meaning } : s
+            );
+          }
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
       }
     },
     [savedWords, masteryMap, hskLevel]
   );
 
-  const handleSave = useCallback(async () => {
+  const handleAddToSaved = useCallback(async () => {
     if (!sheet) return;
-    const { word, pinyin, meaning } = sheet;
-
-    setSavedWords((prev) => {
-      const next = new Set(prev);
-      next.add(word);
-      return next;
-    });
+    const { word } = sheet;
+    const mastery = masteryMap[word];
+    setSavedWords((prev) => new Set([...prev, word]));
     setForcedWords((prev) => (prev.includes(word) ? prev : [...prev, word]));
-    setSheet((s) => (s ? { ...s, saved: true } : null));
-
-    await logMistake(masteryMap[word]?.id ?? word, {
-      pinyin,
-      meaning,
-      hsk_level: masteryMap[word]?.hsk_level ?? hskLevel ?? 1,
-    });
+    setSheet((s) => s ? { ...s, saved: true } : s);
+    await logMistake(mastery?.id ?? word, {
+      pinyin: mastery?.pinyin,
+      meaning: mastery?.meaning,
+      hsk_level: mastery?.hsk_level ?? hskLevel ?? 1,
+    }).catch(() => {});
   }, [sheet, masteryMap, hskLevel]);
+
+  const handleRemoveFromSaved = useCallback(async () => {
+    if (!sheet) return;
+    const { word } = sheet;
+    setSavedWords((prev) => { const next = new Set(prev); next.delete(word); return next; });
+    setForcedWords((prev) => prev.filter((w) => w !== word));
+    setSheet((s) => s ? { ...s, saved: false } : s);
+    const mastery = masteryMap[word];
+    await removeFromReviewQueue(mastery?.id ?? word).catch(() => {});
+  }, [sheet, masteryMap]);
 
   return (
     <div className="flex flex-col h-full bg-[var(--color-background)]">
@@ -346,17 +354,21 @@ export function ConversationClient({ masteryMap }: Props) {
                 {t.noDefinition}
               </span>
             ) : null}
-            <button
-              onClick={handleSave}
-              disabled={sheet.saved}
-              className={`w-full max-w-xs py-3 rounded-2xl text-sm font-medium transition-all mt-2 ${
-                sheet.saved
-                  ? "bg-red-50 text-red-500 border border-red-200 cursor-default"
-                  : "bg-violet-600 hover:bg-violet-700 text-white cursor-pointer"
-              }`}
-            >
-              {sheet.saved ? t.savedForReview : t.saveForReview}
-            </button>
+            {sheet.saved ? (
+              <button
+                onClick={handleRemoveFromSaved}
+                className="w-full max-w-xs py-3 rounded-2xl text-sm font-medium transition-all mt-2 bg-red-50 hover:bg-red-100 text-red-500 border border-red-200 cursor-pointer"
+              >
+                {t.removeFromReview}
+              </button>
+            ) : (
+              <button
+                onClick={handleAddToSaved}
+                className="w-full max-w-xs py-3 rounded-2xl text-sm font-medium transition-all mt-2 bg-violet-50 hover:bg-violet-100 text-violet-600 border border-violet-200 cursor-pointer"
+              >
+                {t.queueForReview}
+              </button>
+            )}
             <button
               onClick={() => setSheet(null)}
               className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors pb-2"
@@ -410,6 +422,22 @@ function TappableMessage({
   const selLo = selStart !== null && selEnd !== null ? Math.min(selStart, selEnd) : null;
   const selHi = selStart !== null && selEnd !== null ? Math.max(selStart, selEnd) : null;
 
+  // Precompute which hanzi-indices are covered by a saved multi-char compound
+  // that actually appears at that position in the text (not just any occurrence of the char).
+  const hanziSegs = segments.filter((s) => s.type === "hanzi");
+  const hanziStr = hanziSegs.map((s) => s.content).join("");
+  const savedCoveredIndices = new Set<number>();
+  for (const word of savedWords) {
+    if (word.length <= 1) continue;
+    let pos = 0;
+    while ((pos = hanziStr.indexOf(word, pos)) !== -1) {
+      for (let j = pos; j < pos + word.length; j++) {
+        savedCoveredIndices.add(hanziSegs[j].idx);
+      }
+      pos++;
+    }
+  }
+
   function handlePointerDown(hanziI: number) {
     setSelStart(hanziI);
     setSelEnd(hanziI);
@@ -452,9 +480,8 @@ function TappableMessage({
 
         // hanzi
         const isInSel = selLo !== null && selHi !== null && seg.idx >= selLo && seg.idx <= selHi;
-        // Match exact single-char save, or this char being part of a saved compound
-        const isSaved = savedWords.has(seg.content) ||
-          [...savedWords].some((w) => w.length > 1 && w.includes(seg.content));
+        // Highlight if this exact char is saved, or if it's covered by a saved compound at this position
+        const isSaved = savedWords.has(seg.content) || savedCoveredIndices.has(seg.idx);
         const mastery = masteryMap[seg.content];
         const isLearning = mastery && mastery.stability < HIGH_STABILITY_THRESHOLD;
 

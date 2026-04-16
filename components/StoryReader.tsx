@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { logMistake } from "@/app/actions/vocabulary";
+import { logMistake, removeFromReviewQueue } from "@/app/actions/vocabulary";
 import type { VocabularyMastery } from "@/lib/types";
 import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
 import { useLanguage } from "@/app/_components/LanguageContext";
@@ -73,16 +73,18 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
   }
 
   async function handleCharTap(char: string, mastery: VocabularyMastery | undefined) {
-    // Show sheet immediately with what we have
+    const isQueued = queuedWords.has(char) || (mastery?.flagged_for_immediate_use ?? false);
+
+    // Show sheet — let user decide to add/remove
     setSheet({
       char,
       pinyin: mastery?.pinyin,
       meaning: mastery?.meaning,
       mastery,
-      queued: queuedWords.has(char),
+      queued: isQueued,
     });
 
-    // If word not in vocab, fetch definition in background
+    // Fetch definition in background if missing
     if (!mastery?.meaning) {
       try {
         const res = await fetch("/api/define-word", {
@@ -104,14 +106,20 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
     }
   }
 
-  async function handleQueue(char: string, mastery: VocabularyMastery | undefined, fetchedDef?: { pinyin: string; meaning: string }) {
+  async function handleQueue(char: string, mastery: VocabularyMastery | undefined) {
     setQueuedWords((prev) => new Set([...prev, char]));
-    setSheet((s) => s ? { ...s, queued: true } : null);
+    setSheet((s) => s ? { ...s, queued: true } : s);
     await logMistake(mastery?.id ?? char, {
-      pinyin: mastery?.pinyin || fetchedDef?.pinyin,
-      meaning: mastery?.meaning || fetchedDef?.meaning,
+      pinyin: mastery?.pinyin,
+      meaning: mastery?.meaning,
       hsk_level: mastery?.hsk_level ?? hskLevel,
-    });
+    }).catch(() => {});
+  }
+
+  async function handleUnqueue(char: string, mastery: VocabularyMastery | undefined) {
+    setQueuedWords((prev) => { const next = new Set(prev); next.delete(char); return next; });
+    setSheet((s) => s ? { ...s, queued: false } : s);
+    await removeFromReviewQueue(mastery?.id ?? char).catch(() => {});
   }
 
   return (
@@ -211,18 +219,21 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
               <span className="text-sm text-[var(--color-text-muted)] italic">{t.notInVocab}</span>
             )}
 
-            {/* Queue button */}
-            <button
-              onClick={() => handleQueue(sheet.char, sheet.mastery, sheet._fetchedDef)}
-              disabled={sheet.queued}
-              className={`w-full max-w-xs py-3 rounded-2xl text-sm font-medium transition-all mt-2 ${
-                sheet.queued
-                  ? "bg-red-50 text-red-500 border border-red-200 cursor-default"
-                  : "bg-violet-600 hover:bg-violet-700 text-white cursor-pointer"
-              }`}
-            >
-              {sheet.queued ? t.queuedForReview : t.queueForReview}
-            </button>
+            {sheet.queued ? (
+              <button
+                onClick={() => handleUnqueue(sheet.char, sheet.mastery)}
+                className="w-full max-w-xs py-3 rounded-2xl text-sm font-medium transition-all mt-2 bg-red-50 hover:bg-red-100 text-red-500 border border-red-200 cursor-pointer"
+              >
+                {t.removeFromReview}
+              </button>
+            ) : (
+              <button
+                onClick={() => handleQueue(sheet.char, sheet.mastery)}
+                className="w-full max-w-xs py-3 rounded-2xl text-sm font-medium transition-all mt-2 bg-violet-50 hover:bg-violet-100 text-violet-600 border border-violet-200 cursor-pointer"
+              >
+                {t.queueForReview}
+              </button>
+            )}
 
             <button
               onClick={() => setSheet(null)}
@@ -255,6 +266,21 @@ function StoryLine({
 
   const selLo = selStart !== null && selEnd !== null ? Math.min(selStart, selEnd) : null;
   const selHi = selStart !== null && selEnd !== null ? Math.max(selStart, selEnd) : null;
+
+  // Precompute which char indices are covered by a queued multi-char compound
+  // at that exact position in the sentence (so individual chars remain selectable).
+  const sentenceStr = chars.join("");
+  const queuedCoveredIndices = new Set<number>();
+  for (const word of queuedWords) {
+    if (word.length <= 1) continue;
+    let pos = 0;
+    while ((pos = sentenceStr.indexOf(word, pos)) !== -1) {
+      for (let j = pos; j < pos + word.length; j++) {
+        queuedCoveredIndices.add(j);
+      }
+      pos++;
+    }
+  }
 
   function handlePointerDown(i: number) {
     setSelStart(i);
@@ -292,7 +318,7 @@ function StoryLine({
       {chars.map((char, i) => {
         const mastery = masteryMap[char];
         const isHighStability = mastery && mastery.stability >= HIGH_STABILITY_THRESHOLD;
-        const isQueued = queuedWords.has(char);
+        const isQueued = queuedWords.has(char) || queuedCoveredIndices.has(i);
         const isPunctuation = /[，。！？、…\s]/.test(char);
         const isInSelection = selLo !== null && selHi !== null && i >= selLo && i <= selHi && !isPunctuation;
 

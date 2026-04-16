@@ -8,11 +8,14 @@ import { useLanguage } from "@/app/_components/LanguageContext";
 
 interface Props {
   card: VocabularyMastery;
-  onNext: (result: { stability: number; next_review: string }) => void;
-  queueRemaining: number;
+  onNext: (result: { stability: number; difficulty: number; next_review: string }) => void;
+  onBack: () => void;
+  canGoBack: boolean;
+  currentIndex: number;
+  totalCards: number;
 }
 
-export function ReviewCard({ card, onNext, queueRemaining }: Props) {
+export function ReviewCard({ card, onNext, onBack, canGoBack, currentIndex, totalCards }: Props) {
   const { t } = useLanguage();
   const [flipped, setFlipped] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -58,16 +61,35 @@ export function ReviewCard({ card, onNext, queueRemaining }: Props) {
   function rate(rating: FSRSRating) {
     startTransition(async () => {
       const result = await submitReview(card.id, rating, "review_session");
-      onNext(result);
+      onNext({ stability: result.stability, difficulty: result.difficulty, next_review: result.next_review });
     });
   }
 
+  const progressPct = ((currentIndex + 1) / totalCards) * 100;
+
   return (
     <div className="flex flex-col items-center gap-6 w-full max-w-md">
-      {/* Queue counter */}
-      <p className="text-sm text-[var(--color-text-muted)]">
-        {t.cardsRemaining(queueRemaining)}
-      </p>
+      {/* Session progress */}
+      <div className="w-full">
+        <div className="flex justify-between mb-1.5 text-xs text-[var(--color-text-muted)]">
+          <span>{t.cardProgress(currentIndex + 1, totalCards)}</span>
+          {canGoBack && (
+            <button
+              onClick={onBack}
+              disabled={pending}
+              className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors disabled:opacity-40"
+            >
+              ← {t.prevCard}
+            </button>
+          )}
+        </div>
+        <div className="h-1.5 rounded-full bg-[var(--color-border)]">
+          <div
+            className="h-1.5 rounded-full bg-violet-500 transition-all duration-300"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+      </div>
 
       {/* Flip card */}
       <div style={{ perspective: "1000px" }} className="w-full">

@@ -6,37 +6,110 @@ import { getAllWords } from "@/app/actions/vocabulary";
 import type { VocabularyMastery } from "@/lib/types";
 import { useLanguage } from "@/app/_components/LanguageContext";
 
+const SESSION_KEY = "sm_review_session";
+
+interface SavedSession {
+  cards: VocabularyMastery[];
+  index: number;
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function saveSession(cards: VocabularyMastery[], index: number) {
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ cards, index }));
+  } catch {}
+}
+
+function clearSession() {
+  try { localStorage.removeItem(SESSION_KEY); } catch {}
+}
+
+function initSession(incoming: VocabularyMastery[]): {
+  ordered: VocabularyMastery[];
+  startIndex: number;
+} {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (raw) {
+      const saved: SavedSession = JSON.parse(raw);
+      if (saved.cards?.length > 0 && saved.index < saved.cards.length) {
+        return { ordered: saved.cards, startIndex: saved.index };
+      }
+    }
+  } catch {}
+
+  // Fresh shuffle
+  const ordered = shuffle(incoming);
+  saveSession(ordered, 0);
+  return { ordered, startIndex: 0 };
+}
+
 interface Props {
   initialCards: VocabularyMastery[];
 }
 
 export function ReviewSession({ initialCards }: Props) {
   const { t } = useLanguage();
-  const [cards, setCards] = useState(initialCards);
-  const [index, setIndex] = useState(0);
+
+  const [{ cards, index }, setSession] = useState(() => {
+    const { ordered, startIndex } = initSession(initialCards);
+    return { cards: ordered, index: startIndex };
+  });
+
   const [sessionResults, setSessionResults] = useState<
     { hanzi: string; stability: number }[]
   >([]);
+  const [history, setHistory] = useState<{ cards: VocabularyMastery[]; index: number }[]>([]);
   const [loadingMore, startLoadingMore] = useTransition();
 
   const current = cards[index];
   const done = index >= cards.length;
 
-  function handleNext(result: { stability: number; next_review: string }) {
+  function handleNext(result: { stability: number; difficulty: number; next_review: string }) {
     if (current) {
       setSessionResults((prev) => [
         ...prev,
         { hanzi: current.hanzi, stability: result.stability },
       ]);
     }
-    setIndex((i) => i + 1);
+    // Snapshot current state before advancing so we can go back
+    setHistory((h) => [...h, { cards, index }]);
+    setSession((s) => {
+      const next = s.index + 1;
+      const updatedCards = s.cards.map((c, i) =>
+        i === s.index
+          ? { ...c, stability: result.stability, difficulty: result.difficulty }
+          : c
+      );
+      saveSession(updatedCards, next);
+      return { cards: updatedCards, index: next };
+    });
+  }
+
+  function handleBack() {
+    if (history.length === 0) return;
+    const prev = history[history.length - 1];
+    setHistory((h) => h.slice(0, -1));
+    setSessionResults((r) => r.slice(0, -1));
+    setSession({ cards: prev.cards, index: prev.index });
+    saveSession(prev.cards, prev.index);
   }
 
   function practiceAll() {
     startLoadingMore(async () => {
       const all = await getAllWords(200);
-      setCards(all);
-      setIndex(0);
+      clearSession();
+      const ordered = shuffle(all);
+      saveSession(ordered, 0);
+      setSession({ cards: ordered, index: 0 });
       setSessionResults([]);
     });
   }
@@ -64,6 +137,7 @@ export function ReviewSession({ initialCards }: Props) {
   }
 
   if (done) {
+    clearSession();
     return (
       <div className="flex flex-col items-center gap-6 text-center max-w-sm">
         <h2 className="text-2xl font-medium">{t.sessionComplete}</h2>
@@ -99,7 +173,10 @@ export function ReviewSession({ initialCards }: Props) {
       key={current.id}
       card={current}
       onNext={handleNext}
-      queueRemaining={cards.length - index}
+      onBack={handleBack}
+      canGoBack={history.length > 0}
+      currentIndex={index}
+      totalCards={cards.length}
     />
   );
 }

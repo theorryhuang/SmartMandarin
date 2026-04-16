@@ -85,6 +85,7 @@ const en = {
   masteryLabel: "mastery",
   cardsReviewed: (n: number) => `${n} card${n !== 1 ? "s" : ""} reviewed`,
   cardsRemaining: (n: number) => `${n} card${n !== 1 ? "s" : ""} remaining`,
+  cardProgress: (current: number, total: number) => `Word ${current} / ${total}`,
 
   // ── Speaking ─────────────────────────────────────────────────────────────────
   holdToSpeak: "Hold to speak",
@@ -120,6 +121,10 @@ const en = {
   queueForReview: "Queue for review",
   queuedForReview: "Queued for review",
   wordsQueued: (n: number) => `${n} word${n !== 1 ? "s" : ""} queued for review`,
+  removeFromReview: "Remove from review",
+
+  // ── Review navigation ────────────────────────────────────────────────────────
+  prevCard: "Previous",
 };
 
 const zh: typeof en = {
@@ -207,6 +212,7 @@ const zh: typeof en = {
   masteryLabel: "掌握度",
   cardsReviewed: (n: number) => `已复习 ${n} 张卡片`,
   cardsRemaining: (n: number) => `剩余 ${n} 张卡片`,
+  cardProgress: (current: number, total: number) => `第 ${current} / ${total} 词`,
 
   // ── Speaking ─────────────────────────────────────────────────────────────────
   holdToSpeak: "按住说话",
@@ -242,6 +248,10 @@ const zh: typeof en = {
   queueForReview: "加入复习队列",
   queuedForReview: "已加入复习队列",
   wordsQueued: (n: number) => `${n} 个单词待复习`,
+  removeFromReview: "移出复习",
+
+  // ── Review navigation ────────────────────────────────────────────────────────
+  prevCard: "上一张",
 };
 
 export const translations: Record<Lang, typeof en> = { en, zh };
