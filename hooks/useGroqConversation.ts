@@ -61,21 +61,25 @@ export function useGroqConversation(opts: GroqConvOptions): GroqConvHandle {
   const startRecording = useCallback(async () => {
     setError(null);
     try {
-      let stream: MediaStream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-        });
-      } catch {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      }
+      // Prefer a real microphone over virtual devices (Teams, Zoom, etc.)
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioInputs = devices.filter((d) => d.kind === "audioinput");
+      const realMic = audioInputs.find(
+        (d) => !/virtual|teams|zoom|blackhole|soundflower|loopback/i.test(d.label)
+      );
+      const deviceId = realMic?.deviceId ?? "default";
+      console.log("[recording] using device:", realMic?.label ?? "default");
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { deviceId: { exact: deviceId }, echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      });
       const recorder = new MediaRecorder(stream, { mimeType: getSupportedMimeType() });
       chunksRef.current = [];
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
       mediaRecorderRef.current = recorder;
-      recorder.start();
+      recorder.start(100); // 100ms timeslice — flush data continuously
       setState("recording");
     } catch (err) {
       setError("Microphone access denied");
@@ -93,15 +97,44 @@ export function useGroqConversation(opts: GroqConvOptions): GroqConvHandle {
       mediaRecorderRef.current = null;
 
       const mimeType = getSupportedMimeType();
-      const blob = new Blob(chunksRef.current, { type: mimeType });
+      const rawBlob = new Blob(chunksRef.current, { type: mimeType });
+      console.log("[recording] raw blob size:", rawBlob.size);
+      // DEBUG: play back raw recording to verify mic is capturing
+      const debugUrl = URL.createObjectURL(rawBlob);
+      const debugAudio = new Audio(debugUrl);
+      debugAudio.play().catch(() => {});
+      setTimeout(() => URL.revokeObjectURL(debugUrl), 10000);
       chunksRef.current = [];
+
+      if (rawBlob.size < 3000) {
+        setError("Recording too short — hold the button while speaking");
+        setState("error");
+        return;
+      }
+
+      // Convert webm/opus → WAV so ElevenLabs can decode it reliably
+      let blob: Blob;
+      try {
+        blob = await toWav(rawBlob);
+        console.log("[recording] wav blob size:", blob.size);
+      } catch (e) {
+        console.warn("[recording] WAV conversion failed, sending raw:", e);
+        blob = rawBlob;
+      }
 
       // ── Step 1: Transcribe ────────────────────────────────────────────────
       setState("transcribing");
       const form = new FormData();
       form.append("audio", blob, "audio.webm");
-      const transcribeRes = await fetch("/api/transcribe", { method: "POST", body: form });
-      const transcribeData = await transcribeRes.json();
+      let transcribeData: { text?: string; error?: string };
+      try {
+        const transcribeRes = await fetch("/api/transcribe", { method: "POST", body: form });
+        transcribeData = await transcribeRes.json();
+      } catch (e) {
+        setError(`Transcription request failed: ${e instanceof Error ? e.message : String(e)}`);
+        setState("error");
+        return;
+      }
       if (transcribeData.error || !transcribeData.text?.trim()) {
         setError(transcribeData.error ?? "Could not transcribe speech");
         setState("error");
@@ -195,6 +228,63 @@ function speakText(text: string, onEnd: () => void) {
       if (!utterance.voice) doSpeak();
     }, 500);
   }
+}
+
+/** Decode any browser-recorded audio blob and re-encode as 16-bit PCM WAV. */
+async function toWav(blob: Blob): Promise<Blob> {
+  const arrayBuffer = await blob.arrayBuffer();
+  // Check raw bytes before decoding
+  const rawBytes = new Uint8Array(arrayBuffer);
+  const rawMax = rawBytes.slice(100).reduce((m, b) => Math.max(m, b), 0);
+  console.log("[toWav] raw webm max byte:", rawMax, "size:", rawBytes.length);
+
+  const audioCtx = new AudioContext();
+  const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+  audioCtx.close();
+
+  const decodedPcm = audioBuffer.getChannelData(0);
+  const decodedMax = decodedPcm.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+  console.log("[toWav] decoded duration:", audioBuffer.duration.toFixed(2), "s | max sample:", decodedMax.toFixed(6));
+
+  // Mix down to mono, resample to 16 kHz
+  const sampleRate = 16000;
+  const offlineCtx = new OfflineAudioContext(1, Math.ceil(audioBuffer.duration * sampleRate), sampleRate);
+  const source = offlineCtx.createBufferSource();
+  source.buffer = audioBuffer;
+  source.connect(offlineCtx.destination);
+  source.start();
+  const rendered = await offlineCtx.startRendering();
+
+  const pcm = rendered.getChannelData(0);
+  const rms = Math.sqrt(pcm.reduce((s, v) => s + v * v, 0) / pcm.length);
+  console.log("[toWav] duration:", audioBuffer.duration.toFixed(2), "s | RMS:", rms.toFixed(6));
+  const samples = new Int16Array(pcm.length);
+  for (let i = 0; i < pcm.length; i++) {
+    samples[i] = Math.max(-32768, Math.min(32767, Math.round(pcm[i] * 32767)));
+  }
+
+  const wavBuffer = new ArrayBuffer(44 + samples.byteLength);
+  const view = new DataView(wavBuffer);
+  const write = (offset: number, val: number, bytes: number) => {
+    for (let i = 0; i < bytes; i++) view.setUint8(offset + i, (val >> (8 * i)) & 0xff);
+  };
+  // RIFF header
+  [0x52, 0x49, 0x46, 0x46].forEach((b, i) => view.setUint8(i, b)); // "RIFF"
+  write(4, 36 + samples.byteLength, 4);
+  [0x57, 0x41, 0x56, 0x45].forEach((b, i) => view.setUint8(8 + i, b)); // "WAVE"
+  [0x66, 0x6d, 0x74, 0x20].forEach((b, i) => view.setUint8(12 + i, b)); // "fmt "
+  write(16, 16, 4);       // subchunk size
+  write(20, 1, 2);        // PCM
+  write(22, 1, 2);        // mono
+  write(24, sampleRate, 4);
+  write(28, sampleRate * 2, 4); // byte rate
+  write(32, 2, 2);        // block align
+  write(34, 16, 2);       // bits per sample
+  [0x64, 0x61, 0x74, 0x61].forEach((b, i) => view.setUint8(36 + i, b)); // "data"
+  write(40, samples.byteLength, 4);
+  new Int16Array(wavBuffer, 44).set(samples);
+
+  return new Blob([wavBuffer], { type: "audio/wav" });
 }
 
 function getSupportedMimeType(): string {
