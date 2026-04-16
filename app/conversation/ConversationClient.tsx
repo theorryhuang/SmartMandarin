@@ -43,6 +43,7 @@ export function ConversationClient({ masteryMap }: Props) {
   const historyRef = useRef<{ role: "user" | "assistant"; content: string }[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isFirstRender = useRef(true);
 
   useEffect(() => {
     getConversationContext().then(({ hskLevel, unknownWords }) => {
@@ -61,8 +62,12 @@ export function ConversationClient({ masteryMap }: Props) {
     } catch { /* ignore */ }
   }, []);
 
-  // Persist messages whenever they change
+  // Persist messages whenever they change (skip first render to avoid wiping saved data)
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
     try {
       localStorage.setItem("sm_conv_messages", JSON.stringify(messages));
     } catch { /* ignore */ }
