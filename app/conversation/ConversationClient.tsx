@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { ArrowUp, ChevronLeft } from "lucide-react";
+import { ArrowUp, ChevronLeft, Mic } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getConversationContext, logMistake, removeFromReviewQueue } from "@/app/actions/vocabulary";
 import { saveMessages } from "@/app/actions/chat";
@@ -43,10 +43,15 @@ export function ConversationClient({ masteryMap }: Props) {
   >([]);
   const [forcedWords, setForcedWords] = useState<string[]>([]);
 
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+
   const historyRef = useRef<{ role: "user" | "assistant"; content: string }[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const isFirstRender = useRef(true);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   useEffect(() => {
     getConversationContext().then(({ hskLevel, unknownWords }) => {
@@ -143,6 +148,61 @@ export function ConversationClient({ masteryMap }: Props) {
       setIsLoading(false);
     }
   }, [input, isLoading, hskLevel, slangMode, forcedWords, unknownWords]);
+
+  const startRecording = useCallback(async () => {
+    try {
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        });
+      } catch {
+        // Constraints not supported — fall back to plain audio
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
+      const mimeType = getSupportedMimeType();
+      const recorder = new MediaRecorder(stream, { mimeType });
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      recorder.onstop = async () => {
+        recorder.stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        audioChunksRef.current = [];
+        setIsTranscribing(true);
+        try {
+          const form = new FormData();
+          form.append("audio", blob, "audio.webm");
+          const res = await fetch("/api/transcribe", { method: "POST", body: form });
+          const data = await res.json();
+          const text = data.text?.trim() ?? "";
+          const blocked = isBoilerplate(text);
+          console.log("[transcribe] raw:", JSON.stringify(text));
+          console.log("[transcribe] blob size:", blob.size, "mime:", mimeType);
+          console.log("[transcribe] boilerplate blocked:", blocked);
+          // Reject known background-audio boilerplate
+          if (text && !blocked) {
+            setInput(text);
+            inputRef.current?.focus();
+          }
+        } catch { /* ignore */ } finally {
+          setIsTranscribing(false);
+        }
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setIsRecording(true);
+    } catch { /* mic denied */ }
+  }, []);
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current?.state !== "inactive") {
+      mediaRecorderRef.current?.stop();
+    }
+    mediaRecorderRef.current = null;
+    setIsRecording(false);
+  }, []);
 
   const handleWordSelect = useCallback(
     async (word: string) => {
@@ -330,6 +390,23 @@ export function ConversationClient({ masteryMap }: Props) {
             className="flex-1 bg-transparent text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none disabled:opacity-50"
           />
           <button
+            onPointerDown={startRecording}
+            onPointerUp={stopRecording}
+            onPointerLeave={stopRecording}
+            disabled={isLoading || isTranscribing || hskLevel === null}
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors disabled:opacity-40 flex-shrink-0 ${
+              isRecording
+                ? "bg-red-500"
+                : "bg-[var(--color-border)] hover:bg-slate-300"
+            }`}
+          >
+            {isTranscribing ? (
+              <span className="w-3 h-3 rounded-full border-2 border-violet-500 border-t-transparent animate-spin" />
+            ) : (
+              <Mic size={15} className={isRecording ? "text-white" : "text-[var(--color-text-muted)]"} />
+            )}
+          </button>
+          <button
             onClick={sendMessage}
             disabled={isLoading || !input.trim() || hskLevel === null}
             className="w-8 h-8 rounded-full bg-violet-600 hover:bg-violet-700 flex items-center justify-center transition-colors disabled:opacity-40 flex-shrink-0"
@@ -393,6 +470,18 @@ export function ConversationClient({ masteryMap }: Props) {
       )}
     </div>
   );
+}
+
+function isBoilerplate(text: string): boolean {
+  return /点赞|订阅|转发|打赏|明镜|点点栏目/.test(text);
+}
+
+function getSupportedMimeType(): string {
+  const types = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"];
+  for (const type of types) {
+    if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(type)) return type;
+  }
+  return "audio/webm";
 }
 
 // ─── TappableMessage ──────────────────────────────────────────────────────────

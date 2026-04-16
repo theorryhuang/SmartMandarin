@@ -3,14 +3,14 @@
  * Body: FormData with field "audio" (webm/opus blob)
  * Returns: { text: string }
  *
- * Uses Groq Whisper (free) for speech-to-text.
+ * Uses ElevenLabs Scribe for speech-to-text.
  */
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: "GROQ_API_KEY not set" }, { status: 500 });
+    return NextResponse.json({ error: "ELEVENLABS_API_KEY not set" }, { status: 500 });
   }
 
   const formData = await req.formData();
@@ -19,17 +19,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No audio provided" }, { status: 400 });
   }
 
-  // Forward to Groq Whisper
-  const groqForm = new FormData();
-  groqForm.append("file", audio, "audio.webm");
-  groqForm.append("model", "whisper-large-v3-turbo");
-  groqForm.append("language", "zh"); // hint: Chinese
-  groqForm.append("response_format", "json");
+  const elForm = new FormData();
+  elForm.append("file", audio, "audio.webm");
+  elForm.append("model_id", "scribe_v1");
+  elForm.append("language_code", "zh");
 
-  const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+  const res = await fetch("https://api.elevenlabs.io/v1/speech-to-text", {
     method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}` },
-    body: groqForm,
+    headers: { "xi-api-key": apiKey },
+    body: elForm,
   });
 
   if (!res.ok) {

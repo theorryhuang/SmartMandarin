@@ -61,7 +61,14 @@ export function useGroqConversation(opts: GroqConvOptions): GroqConvHandle {
   const startRecording = useCallback(async () => {
     setError(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
       const recorder = new MediaRecorder(stream, { mimeType: getSupportedMimeType() });
       chunksRef.current = [];
       recorder.ondataavailable = (e) => {

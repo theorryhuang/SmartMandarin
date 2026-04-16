@@ -71,8 +71,18 @@ export async function POST(req: NextRequest) {
   }
 
   const data = await res.json();
-  const reply = data.choices?.[0]?.message?.content ?? "";
+  const raw: string = data.choices?.[0]?.message?.content ?? "";
+  const reply = stripBoilerplate(raw);
   return NextResponse.json({ reply });
+}
+
+function stripBoilerplate(text: string): string {
+  // Strip Chinese social-media engagement phrases LLaMA appends from training data
+  return text
+    .replace(/请不吝点赞[^\n]*/g, "")
+    .replace(/喜欢的话.*?(订阅|关注)[^\n]*/g, "")
+    .replace(/记得.*?(点赞|订阅|关注)[^\n]*/g, "")
+    .trim();
 }
 
 function buildSystemPrompt(
@@ -85,7 +95,8 @@ function buildSystemPrompt(
 - Respond ONLY in Mandarin (simplified characters). Do NOT include pinyin or romanization anywhere in your responses.
 - Keep responses concise — 2 to 4 sentences.
 - Gently correct grammatical errors by rephrasing naturally.
-- Always end with a follow-up question to keep the conversation going.`;
+- Always end with a follow-up question to keep the conversation going.
+- NEVER include social media calls to action (点赞、订阅、转发、打赏、关注 etc.) in your response.`;
 
   const hskInstruction = `\n\nThe user is at HSK ${hskLevel}. Use vocabulary appropriate for that level. Occasionally introduce 1–2 HSK ${Math.min(hskLevel + 1, 9)} words where meaning can be inferred from context.`;
 
