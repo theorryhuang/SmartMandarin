@@ -125,6 +125,8 @@ const en = {
 
   // ── Review navigation ────────────────────────────────────────────────────────
   prevCard: "Previous",
+  restartSession: "Restart",
+  reshuffleSession: "Shuffle",
 
   // ── Vocabulary list ──────────────────────────────────────────────────────────
   myVocabulary: "My Vocabulary",
@@ -262,6 +264,8 @@ const zh: typeof en = {
 
   // ── Review navigation ────────────────────────────────────────────────────────
   prevCard: "上一张",
+  restartSession: "重新开始",
+  reshuffleSession: "重新洗牌",
 
   // ── Vocabulary list ──────────────────────────────────────────────────────────
   myVocabulary: "我的词汇",

@@ -103,6 +103,23 @@ export function ReviewSession({ initialCards }: Props) {
     saveSession(prev.cards, prev.index);
   }
 
+  function handleRestart() {
+    setSession({ cards, index: 0 });
+    setHistory([]);
+    setSessionResults([]);
+    saveSession(cards, 0);
+  }
+
+  function handleReshuffle() {
+    setSession((s) => {
+      const reviewed = s.cards.slice(0, s.index);
+      const remaining = shuffle(s.cards.slice(s.index));
+      const reshuffled = [...reviewed, ...remaining];
+      saveSession(reshuffled, s.index);
+      return { cards: reshuffled, index: s.index };
+    });
+  }
+
   function practiceAll() {
     startLoadingMore(async () => {
       const all = await getAllWords(200);
@@ -175,6 +192,8 @@ export function ReviewSession({ initialCards }: Props) {
       onNext={handleNext}
       onBack={handleBack}
       canGoBack={history.length > 0}
+      onRestart={handleRestart}
+      onReshuffle={handleReshuffle}
       currentIndex={index}
       totalCards={cards.length}
     />

@@ -11,11 +11,13 @@ interface Props {
   onNext: (result: { stability: number; difficulty: number; next_review: string }) => void;
   onBack: () => void;
   canGoBack: boolean;
+  onRestart: () => void;
+  onReshuffle: () => void;
   currentIndex: number;
   totalCards: number;
 }
 
-export function ReviewCard({ card, onNext, onBack, canGoBack, currentIndex, totalCards }: Props) {
+export function ReviewCard({ card, onNext, onBack, canGoBack, onRestart, onReshuffle, currentIndex, totalCards }: Props) {
   const { t } = useLanguage();
   const [flipped, setFlipped] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -82,15 +84,31 @@ export function ReviewCard({ card, onNext, onBack, canGoBack, currentIndex, tota
       <div className="w-full">
         <div className="flex justify-between mb-1.5 text-xs text-[var(--color-text-muted)]">
           <span>{t.cardProgress(currentIndex + 1, totalCards)}</span>
-          {canGoBack && (
+          <div className="flex items-center gap-3">
+            {canGoBack && (
+              <button
+                onClick={onBack}
+                disabled={pending}
+                className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors disabled:opacity-40"
+              >
+                ← {t.prevCard}
+              </button>
+            )}
             <button
-              onClick={onBack}
+              onClick={onRestart}
               disabled={pending}
               className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors disabled:opacity-40"
             >
-              ← {t.prevCard}
+              ↩ {t.restartSession}
             </button>
-          )}
+            <button
+              onClick={onReshuffle}
+              disabled={pending}
+              className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors disabled:opacity-40"
+            >
+              ⇄ {t.reshuffleSession}
+            </button>
+          </div>
         </div>
         <div className="h-1.5 rounded-full bg-[var(--color-border)]">
           <div
