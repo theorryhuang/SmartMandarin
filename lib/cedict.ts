@@ -1,31 +1,30 @@
 /**
- * CEDICT lookup module — loads CC-CEDICT once, cached in module scope.
- * Server-side only (uses fs).
+ * CEDICT lookup module — SQLite-backed, O(log n) per query.
+ * Server-side only (uses better-sqlite3 native addon).
  */
 import path from "path";
+import Database, { type Database as DB } from "better-sqlite3";
 
-// Lazy-loaded singleton
-let dictCache: ReturnType<typeof loadDict> | null = null;
+// Lazy-loaded singleton connection
+let db: DB | null = null;
+let stmt: ReturnType<DB["prepare"]> | null = null;
 
-function loadDict() {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const cedict = require("cedict-lookup");
-  const filePath = path.join(process.cwd(), "data", "cedict.txt");
-  return cedict.loadSimplified(filePath) as {
-    getMatch: (word: string) => CedictEntry[];
-  };
+function getDb() {
+  if (!db) {
+    const dbPath = path.join(process.cwd(), "data", "cedict.db");
+    db = new Database(dbPath, { readonly: true, fileMustExist: true });
+    db.pragma("journal_mode = WAL");
+    stmt = db.prepare(
+      "SELECT traditional, pinyin, english FROM entries WHERE simplified = ? LIMIT 1"
+    );
+  }
+  return stmt!;
 }
 
-interface CedictEntry {
+interface Row {
   traditional: string;
-  simplified: string;
-  pinyin: string; // numbered tones: "qing2 jie2"
-  english: string; // slash-separated: "complex (psychology)/..."
-}
-
-function getDict() {
-  if (!dictCache) dictCache = loadDict();
-  return dictCache;
+  pinyin: string;
+  english: string;
 }
 
 /** Tone-number pinyin → tone-mark pinyin. e.g. "qing2 jie2" → "qíng jié" */
@@ -53,8 +52,6 @@ function toToneMarks(numbered: string): string {
       let result = base;
 
       if (lower.includes("a")) {
-        result = base.replace(/a/i, (c) => toneMap[c === "A" ? "a" : "a"][tone] ?? c);
-        // preserve case
         result = base.replace(/a/gi, (c) => {
           const m = toneMap.a[tone] ?? c;
           return c === "A" ? m.toUpperCase() : m;
@@ -105,18 +102,16 @@ export interface DictResult {
  * Returns null if not found.
  */
 export function cedictLookup(hanzi: string): DictResult | null {
-  const dict = getDict();
-  const entries = dict.getMatch(hanzi);
-  if (!entries || entries.length === 0) return null;
+  const query = getDb();
+  const row = query.get(hanzi) as Row | undefined;
+  if (!row) return null;
 
-  const entry = entries[0];
-  const pinyin = toToneMarks(entry.pinyin);
-  // CEDICT meanings are slash-separated; take first two for conciseness
-  const meanings = entry.english
+  const pinyin = toToneMarks(row.pinyin);
+  const meaning = row.english
     .split("/")
     .filter(Boolean)
     .slice(0, 2)
     .join("; ");
 
-  return { pinyin, meaning: meanings, source: "cedict" };
+  return { pinyin, meaning, source: "cedict" };
 }

@@ -18,6 +18,11 @@ tsconfig.tsbuildinfo
 # OS
 .DS_Store
 
+# Generated CEDICT SQLite database (rebuild with: npm run build-cedict-db)
+data/cedict.db
+data/cedict.db-shm
+data/cedict.db-wal
+
 # Supabase local dev
 supabase/.branches
 supabase/.temp
