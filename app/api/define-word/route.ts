@@ -6,13 +6,13 @@
  * Lookup order: CC-CEDICT (authoritative) → Groq LLM fallback for phrases not in dict.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { cedictLookup } from "@/lib/cedict";
+import { cedictLookup, hskLookup } from "@/lib/cedict";
 
 const GROQ_MODEL = "llama-3.3-70b-versatile";
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 export async function POST(req: NextRequest) {
-  const { hanzi, hsk_level = 3 } = await req.json().catch(() => ({}));
+  const { hanzi } = await req.json().catch(() => ({}));
   if (!hanzi) {
     return NextResponse.json({ error: "hanzi required" }, { status: 400 });
   }
@@ -23,13 +23,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(cedictResult);
   }
 
+  // Not in CEDICT — look up HSK level independently before AI fallback
+  const hsk_level = hskLookup(hanzi);
+
   // 2. Groq fallback for multi-word phrases / proper nouns not in CEDICT
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: "GROQ_API_KEY not set" }, { status: 500 });
   }
 
-  const prompt = `You are a Mandarin dictionary. Define the word or phrase "${hanzi}" for an HSK ${hsk_level} learner.
+  const prompt = `You are a Mandarin dictionary. Define the word or phrase "${hanzi}".
 
 Return ONLY valid JSON (no markdown, no extra keys):
 {
@@ -64,6 +67,7 @@ Return ONLY valid JSON (no markdown, no extra keys):
     return NextResponse.json({
       pinyin: def.pinyin ?? "",
       meaning: def.meaning ?? "",
+      hsk_level,
       source: "ai",
     });
   } catch {

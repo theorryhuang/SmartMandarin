@@ -35,13 +35,14 @@ export async function submitReview(
 ): Promise<{ stability: number; difficulty: number; next_review: string }> {
   const supabase = await createClient();
 
-  // Fetch current card state
+  // Fetch current card state (maybeSingle returns null instead of error when row missing)
   const { data: card, error: fetchErr } = await supabase
     .from("vocabulary_mastery")
     .select("stability, difficulty, last_reviewed")
     .eq("id", wordId)
-    .single();
-  if (fetchErr || !card) throw new Error(fetchErr?.message ?? "Word not found");
+    .maybeSingle();
+  if (fetchErr) throw new Error(fetchErr.message);
+  if (!card) throw new Error("WORD_DELETED");
 
   const lastReview = card.last_reviewed ? new Date(card.last_reviewed) : null;
   const result = calculateNextReview(
@@ -122,7 +123,7 @@ export async function logMistake(
           hanzi: wordIdOrHanzi,
           pinyin: meta?.pinyin ?? "",
           meaning: meta?.meaning ?? "",
-          hsk_level: meta?.hsk_level ?? 1,
+          hsk_level: meta?.hsk_level ?? null,
           flagged_for_immediate_use: true,
         },
         { onConflict: "user_id,hanzi", ignoreDuplicates: false }

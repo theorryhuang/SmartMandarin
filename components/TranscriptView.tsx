@@ -1,17 +1,26 @@
 "use client";
 
+import { useState } from "react";
 import { Play } from "lucide-react";
-import type { ConversationTurn, TranscriptToken } from "@/lib/types";
+import type { ConversationTurn } from "@/lib/types";
 
 interface Props {
   turns: ConversationTurn[];
   revealedTurns: Set<number>;
-  onWordTap: (token: TranscriptToken, turnIndex: number, tokenIndex: number) => void;
+  savedWords: Set<string>;
+  onWordSelect: (word: string, turnIndex: number) => void;
   onRevealTurn: (turnIndex: number) => void;
   onReplayTurn: (turnIndex: number) => void;
 }
 
-export function TranscriptView({ turns, revealedTurns, onWordTap, onRevealTurn, onReplayTurn }: Props) {
+export function TranscriptView({
+  turns,
+  revealedTurns,
+  savedWords,
+  onWordSelect,
+  onRevealTurn,
+  onReplayTurn,
+}: Props) {
   if (turns.length === 0) {
     return (
       <div className="flex items-center justify-center h-32 text-sm text-[var(--color-text-muted)]">
@@ -27,8 +36,9 @@ export function TranscriptView({ turns, revealedTurns, onWordTap, onRevealTurn, 
           key={ti}
           turn={turn}
           turnIndex={ti}
-          revealed={turn.role === "user" || revealedTurns.has(ti)}
-          onWordTap={onWordTap}
+          revealed={revealedTurns.has(ti)}
+          savedWords={savedWords}
+          onWordSelect={(word) => onWordSelect(word, ti)}
           onReveal={() => onRevealTurn(ti)}
           onReplay={() => onReplayTurn(ti)}
         />
@@ -39,16 +49,17 @@ export function TranscriptView({ turns, revealedTurns, onWordTap, onRevealTurn, 
 
 function TurnRow({
   turn,
-  turnIndex,
   revealed,
-  onWordTap,
+  savedWords,
+  onWordSelect,
   onReveal,
   onReplay,
 }: {
   turn: ConversationTurn;
   turnIndex: number;
   revealed: boolean;
-  onWordTap: Props["onWordTap"];
+  savedWords: Set<string>;
+  onWordSelect: (word: string) => void;
   onReveal: () => void;
   onReplay: () => void;
 }) {
@@ -71,55 +82,174 @@ function TurnRow({
             : "bg-violet-600 text-white"
         }`}
       >
-        {isAI && (
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onReplay}
+            className={`flex items-center gap-1.5 text-xs transition-colors ${
+              isAI
+                ? "text-violet-600 hover:text-violet-800"
+                : "text-violet-200 hover:text-white"
+            }`}
+          >
+            <Play size={13} className={isAI ? "fill-violet-600" : "fill-violet-200"} />
+            <span>Play</span>
+          </button>
+          {!revealed && (
             <button
-              onClick={onReplay}
-              className="flex items-center gap-1.5 text-xs text-violet-600 hover:text-violet-800 transition-colors"
+              onClick={onReveal}
+              className={`text-xs transition-colors underline underline-offset-2 ${
+                isAI
+                  ? "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
+                  : "text-violet-200 hover:text-white"
+              }`}
             >
-              <Play size={13} className="fill-violet-600" />
-              <span>Play</span>
+              Show transcript
             </button>
-            {!revealed && (
-              <button
-                onClick={onReveal}
-                className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors underline underline-offset-2"
-              >
-                Show transcript
-              </button>
-            )}
-          </div>
-        )}
+          )}
+        </div>
 
         {revealed && (
-          <div className="flex flex-wrap gap-x-1 gap-y-2">
-            {turn.tokens.map((token, idx) => (
-              <WordToken
-                key={idx}
-                token={token}
-                onTap={() => onWordTap(token, turnIndex, idx)}
-              />
-            ))}
-          </div>
+          <TappableTranscript
+            text={turn.raw_text}
+            savedWords={savedWords}
+            isUser={!isAI}
+            onWordSelect={onWordSelect}
+          />
         )}
       </div>
     </div>
   );
 }
 
-function WordToken({ token, onTap }: { token: TranscriptToken; onTap: () => void }) {
-  const cls = token.flagged ? "word-token word-token--mistake" : "word-token";
+function TappableTranscript({
+  text,
+  savedWords,
+  isUser,
+  onWordSelect,
+}: {
+  text: string;
+  savedWords: Set<string>;
+  isUser: boolean;
+  onWordSelect: (word: string) => void;
+}) {
+  type Seg = { type: "hanzi" | "other"; content: string; idx: number };
+  const segments: Seg[] = [];
+  let hanziIdx = 0;
+
+  const cleaned = text.replace(/\s*\([^)]{1,30}\)/g, "");
+
+  for (const char of cleaned) {
+    if (/[\u4e00-\u9fff\u3400-\u4dbf]/.test(char)) {
+      segments.push({ type: "hanzi", content: char, idx: hanziIdx++ });
+    } else {
+      segments.push({ type: "other", content: char, idx: -1 });
+    }
+  }
+
+  const hanziSegs = segments.filter((s) => s.type === "hanzi");
+  const hanziStr = hanziSegs.map((s) => s.content).join("");
+
+  // Which hanzi indices are covered by a saved multi-char compound
+  const savedCoveredIndices = new Set<number>();
+  for (const word of savedWords) {
+    let pos = 0;
+    while ((pos = hanziStr.indexOf(word, pos)) !== -1) {
+      for (let j = pos; j < pos + word.length; j++) {
+        savedCoveredIndices.add(hanziSegs[j]?.idx ?? -1);
+      }
+      pos++;
+    }
+  }
+
+  const [selStart, setSelStart] = useState<number | null>(null);
+  const [selEnd, setSelEnd] = useState<number | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+
+  const selLo = selStart !== null && selEnd !== null ? Math.min(selStart, selEnd) : null;
+  const selHi = selStart !== null && selEnd !== null ? Math.max(selStart, selEnd) : null;
+
+  function handlePointerDown(idx: number) {
+    setSelStart(idx);
+    setSelEnd(idx);
+    setIsSelecting(true);
+  }
+
+  function handlePointerEnter(idx: number) {
+    if (isSelecting) setSelEnd(idx);
+  }
+
+  function handlePointerUp() {
+    if (!isSelecting || selLo === null || selHi === null) return;
+    setIsSelecting(false);
+    const word = segments
+      .filter((s) => s.type === "hanzi" && s.idx >= selLo && s.idx <= selHi)
+      .map((s) => s.content)
+      .join("");
+    if (word) onWordSelect(word);
+    setSelStart(null);
+    setSelEnd(null);
+  }
 
   return (
-    <span
-      className={`${cls} px-0.5 inline-flex flex-col items-center gap-0.5`}
-      onClick={onTap}
-      title={token.pinyin ? `${token.pinyin}${token.meaning ? " — " + token.meaning : ""}` : undefined}
+    <div
+      className="leading-loose text-[15px] select-none"
+      onPointerUp={handlePointerUp}
+      onPointerLeave={() => { if (isSelecting) handlePointerUp(); }}
     >
-      <span className="text-base">{token.hanzi}</span>
-      {token.pinyin && (
-        <span className="text-[10px] text-[var(--color-text-muted)] leading-none">{token.pinyin}</span>
-      )}
-    </span>
+      {segments.map((seg, i) => {
+        if (seg.type === "other") {
+          return (
+            <span key={i} className={isUser ? "text-violet-200" : "text-[var(--color-text-muted)]"}>
+              {seg.content}
+            </span>
+          );
+        }
+
+        const isInSel = selLo !== null && selHi !== null && seg.idx >= selLo && seg.idx <= selHi;
+        const isSaved = savedWords.has(seg.content) || savedCoveredIndices.has(seg.idx);
+
+        if (isUser) {
+          return (
+            <span
+              key={i}
+              onPointerDown={(e) => {
+                e.currentTarget.releasePointerCapture(e.pointerId);
+                handlePointerDown(seg.idx);
+              }}
+              onPointerEnter={() => handlePointerEnter(seg.idx)}
+              className={`cursor-pointer rounded-sm transition-colors ${
+                isInSel
+                  ? "bg-white/30 text-white"
+                  : isSaved
+                  ? "bg-white/20 text-white line-through opacity-70"
+                  : "hover:bg-white/20"
+              }`}
+            >
+              {seg.content}
+            </span>
+          );
+        }
+
+        return (
+          <span
+            key={i}
+            onPointerDown={(e) => {
+              e.currentTarget.releasePointerCapture(e.pointerId);
+              handlePointerDown(seg.idx);
+            }}
+            onPointerEnter={() => handlePointerEnter(seg.idx)}
+            className={`cursor-pointer rounded-sm transition-colors ${
+              isInSel
+                ? "bg-violet-200 text-violet-900"
+                : isSaved
+                ? "word-token word-token--mistake"
+                : "hover:bg-slate-100"
+            }`}
+          >
+            {seg.content}
+          </span>
+        );
+      })}
+    </div>
   );
 }

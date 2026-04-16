@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Brain, MessageCircle, BookOpen, TrendingUp, ChevronRight, User, Mic } from "lucide-react";
+import { Brain, MessageCircle, BookOpen, TrendingUp, ChevronRight, User, Mic, List } from "lucide-react";
 import { useLanguage } from "./LanguageContext";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 
@@ -52,6 +52,15 @@ export function HomeClient({ dueCount, totalWords, masteredCount, masteryPct, de
       icon: BookOpen,
       iconBg: "bg-emerald-100",
       iconColor: "text-emerald-600",
+      badge: null,
+    },
+    {
+      href: "/vocab",
+      label: t.myVocabulary,
+      description: t.vocabDesc,
+      icon: List,
+      iconBg: "bg-teal-100",
+      iconColor: "text-teal-600",
       badge: null,
     },
   ];

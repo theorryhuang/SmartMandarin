@@ -22,7 +22,7 @@ export default async function ReaderPage() {
   const words = Object.values(masteryMap);
   const avgHSK =
     words.length > 0
-      ? words.reduce((sum, w) => sum + w.hsk_level, 0) / words.length
+      ? words.reduce((sum, w) => sum + (w.hsk_level ?? 3), 0) / words.length
       : 3.0;
 
   return (

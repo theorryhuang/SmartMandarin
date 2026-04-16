@@ -24,7 +24,7 @@ export interface GroqConvOptions {
   forcedWords: string[];
   hskLevel: number;
   unknownWords: { hanzi: string; pinyin: string; meaning: string }[];
-  onTranscriptUpdate: (tokens: TranscriptToken[], role: "user" | "assistant") => void;
+  onTranscriptUpdate: (tokens: TranscriptToken[], role: "user" | "assistant", audioUrl?: string) => void;
   onAITurnEnd: () => void;
 }
 
@@ -138,7 +138,8 @@ export function useGroqConversation(opts: GroqConvOptions): GroqConvHandle {
       }
       const userText: string = transcribeData.text.trim();
       const userTokens = tokenizeTranscript(userText);
-      optsRef.current.onTranscriptUpdate(userTokens, "user");
+      const audioUrl = URL.createObjectURL(blob);
+      optsRef.current.onTranscriptUpdate(userTokens, "user", audioUrl);
 
       // ── Step 2: Get AI reply ──────────────────────────────────────────────
       setState("thinking");

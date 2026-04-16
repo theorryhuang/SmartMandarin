@@ -5,9 +5,17 @@ import { Mic, ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useGroqConversation } from "@/hooks/useGroqConversation";
 import { TranscriptView } from "@/components/TranscriptView";
-import { logMistake, getConversationContext } from "@/app/actions/vocabulary";
+import { logMistake, removeFromReviewQueue, getConversationContext } from "@/app/actions/vocabulary";
 import type { ConversationTurn, TranscriptToken } from "@/lib/types";
 import { useLanguage } from "@/app/_components/LanguageContext";
+
+interface SheetInfo {
+  word: string;
+  pinyin?: string;
+  meaning?: string;
+  hsk_level?: number | null;
+  saved: boolean;
+}
 
 export function SpeakingClient() {
   const router = useRouter();
@@ -15,10 +23,12 @@ export function SpeakingClient() {
   const [turns, setTurns] = useState<ConversationTurn[]>([]);
   const [slangMode, setSlangMode] = useState(false);
   const [forcedWords, setForcedWords] = useState<string[]>([]);
+  const [savedWords, setSavedWords] = useState<Set<string>>(new Set());
   const [hskLevel, setHskLevel] = useState(1);
   const [unknownWords, setUnknownWords] = useState<
     { hanzi: string; pinyin: string; meaning: string }[]
   >([]);
+  const [sheet, setSheet] = useState<SheetInfo | null>(null);
 
   useEffect(() => {
     getConversationContext().then(({ hskLevel, unknownWords }) => {
@@ -28,7 +38,7 @@ export function SpeakingClient() {
   }, []);
 
   const handleTranscriptUpdate = useCallback(
-    (tokens: TranscriptToken[], role: "user" | "assistant") => {
+    (tokens: TranscriptToken[], role: "user" | "assistant", audioUrl?: string) => {
       setTurns((prev) => {
         const last = prev[prev.length - 1];
         if (last && last.role === role) {
@@ -38,7 +48,7 @@ export function SpeakingClient() {
             {
               ...last,
               tokens: merged,
-              raw_text: last.raw_text + tokens.map((t) => t.hanzi).join(""),
+              raw_text: last.raw_text + tokens.map((tk) => tk.hanzi).join(""),
             },
           ];
         }
@@ -47,8 +57,9 @@ export function SpeakingClient() {
           {
             role,
             tokens,
-            raw_text: tokens.map((t) => t.hanzi).join(""),
+            raw_text: tokens.map((tk) => tk.hanzi).join(""),
             timestamp: new Date().toISOString(),
+            audioUrl,
           },
         ];
       });
@@ -70,30 +81,62 @@ export function SpeakingClient() {
     onAITurnEnd: handleAITurnEnd,
   });
 
-  const handleWordTap = useCallback(
-    async (token: TranscriptToken, turnIndex: number, tokenIndex: number) => {
-      setTurns((prev) =>
-        prev.map((turn, ti) =>
-          ti !== turnIndex
-            ? turn
-            : {
-                ...turn,
-                tokens: turn.tokens.map((t, idx) =>
-                  idx === tokenIndex ? { ...t, flagged: true } : t
-                ),
-              }
-        )
-      );
-      setForcedWords((prev) =>
-        prev.includes(token.hanzi) ? prev : [...prev, token.hanzi]
-      );
-      await logMistake(token.mastery_id ?? token.hanzi, {
-        pinyin: token.pinyin,
-        meaning: token.meaning,
+  const handleWordSelect = useCallback(
+    async (word: string) => {
+      // Check local unknownWords cache first
+      const cached = unknownWords.find((w) => w.hanzi === word);
+      setSheet({
+        word,
+        pinyin: cached?.pinyin,
+        meaning: cached?.meaning,
+        saved: savedWords.has(word),
       });
+
+      // Fetch definition in background if not cached
+      if (!cached?.pinyin && !cached?.meaning) {
+        try {
+          const res = await fetch("/api/define-word", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ hanzi: word }),
+          });
+          const def = await res.json();
+          if (def.pinyin || def.meaning) {
+            setSheet((s) =>
+              s?.word === word
+                ? { ...s, pinyin: def.pinyin || s.pinyin, meaning: def.meaning || s.meaning, hsk_level: def.hsk_level ?? null }
+                : s
+            );
+          }
+        } catch {
+          // ignore
+        }
+      }
     },
-    []
+    [unknownWords, savedWords]
   );
+
+  const handleAddToSaved = useCallback(async () => {
+    if (!sheet) return;
+    const { word } = sheet;
+    setSavedWords((prev) => new Set([...prev, word]));
+    setForcedWords((prev) => (prev.includes(word) ? prev : [...prev, word]));
+    setSheet((s) => (s ? { ...s, saved: true } : s));
+    await logMistake(word, {
+      pinyin: sheet.pinyin,
+      meaning: sheet.meaning,
+      hsk_level: sheet.hsk_level ?? undefined,
+    }).catch(() => {});
+  }, [sheet]);
+
+  const handleRemoveFromSaved = useCallback(async () => {
+    if (!sheet) return;
+    const { word } = sheet;
+    setSavedWords((prev) => { const next = new Set(prev); next.delete(word); return next; });
+    setForcedWords((prev) => prev.filter((w) => w !== word));
+    setSheet((s) => (s ? { ...s, saved: false } : s));
+    await removeFromReviewQueue(word).catch(() => {});
+  }, [sheet]);
 
   const isRecording = state === "recording";
   const isBusy = state === "transcribing" || state === "thinking" || state === "speaking";
@@ -142,9 +185,17 @@ export function SpeakingClient() {
         <TranscriptView
           turns={turns}
           revealedTurns={revealedTurns}
-          onWordTap={handleWordTap}
+          savedWords={savedWords}
+          onWordSelect={handleWordSelect}
           onRevealTurn={revealTurn}
-          onReplayTurn={(i) => replay(turns[i]?.raw_text ?? "")}
+          onReplayTurn={(i) => {
+            const turn = turns[i];
+            if (turn?.role === "user" && turn.audioUrl) {
+              new Audio(turn.audioUrl).play();
+            } else {
+              replay(turn?.raw_text ?? "");
+            }
+          }}
         />
       </div>
 
@@ -199,6 +250,56 @@ export function SpeakingClient() {
           </button>
         )}
       </div>
+
+      {/* Bottom sheet — word lookup */}
+      {sheet && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/30" onClick={() => setSheet(null)} />
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-[var(--color-surface)] border-t border-[var(--color-border)] rounded-t-3xl px-6 py-6 flex flex-col items-center gap-4 shadow-2xl">
+            <div className="w-10 h-1 rounded-full bg-[var(--color-border)]" />
+            <span className="text-5xl font-medium tracking-tight text-[var(--color-text-primary)]">
+              {sheet.word}
+            </span>
+            {sheet.pinyin ? (
+              <span className="text-lg text-[var(--color-text-secondary)]">{sheet.pinyin}</span>
+            ) : (
+              <span className="text-sm text-[var(--color-text-muted)] italic animate-pulse">
+                {t.lookingUp}
+              </span>
+            )}
+            {sheet.meaning ? (
+              <span className="text-base text-[var(--color-text-primary)] text-center">
+                {sheet.meaning}
+              </span>
+            ) : sheet.pinyin ? (
+              <span className="text-sm text-[var(--color-text-muted)] italic">
+                {t.noDefinition}
+              </span>
+            ) : null}
+            {sheet.saved ? (
+              <button
+                onClick={handleRemoveFromSaved}
+                className="w-full max-w-xs py-3 rounded-2xl text-sm font-medium transition-all mt-2 bg-red-50 hover:bg-red-100 text-red-500 border border-red-200 cursor-pointer"
+              >
+                {t.removeFromReview}
+              </button>
+            ) : (
+              <button
+                onClick={handleAddToSaved}
+                className="w-full max-w-xs py-3 rounded-2xl text-sm font-medium transition-all mt-2 bg-violet-50 hover:bg-violet-100 text-violet-600 border border-violet-200 cursor-pointer"
+              >
+                {t.queueForReview}
+              </button>
+            )}
+            <button
+              onClick={() => setSheet(null)}
+              className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors pb-2"
+            >
+              {t.dismiss}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

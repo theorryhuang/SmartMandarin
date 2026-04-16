@@ -19,6 +19,7 @@ interface SheetInfo {
   word: string;
   pinyin?: string;
   meaning?: string;
+  hsk_level?: number | null;
   saved: boolean;
 }
 
@@ -224,12 +225,12 @@ export function ConversationClient({ masteryMap }: Props) {
           const res = await fetch("/api/define-word", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ hanzi: word, hsk_level: hskLevel ?? 1 }),
+            body: JSON.stringify({ hanzi: word }),
           });
           const def = await res.json();
           if (def.pinyin || def.meaning) {
             setSheet((s) =>
-              s?.word === word ? { ...s, pinyin: def.pinyin || s.pinyin, meaning: def.meaning || s.meaning } : s
+              s?.word === word ? { ...s, pinyin: def.pinyin || s.pinyin, meaning: def.meaning || s.meaning, hsk_level: def.hsk_level ?? null } : s
             );
           }
         } catch {
@@ -237,7 +238,7 @@ export function ConversationClient({ masteryMap }: Props) {
         }
       }
     },
-    [savedWords, masteryMap, hskLevel]
+    [savedWords, masteryMap]
   );
 
   const handleAddToSaved = useCallback(async () => {
@@ -248,11 +249,11 @@ export function ConversationClient({ masteryMap }: Props) {
     setForcedWords((prev) => (prev.includes(word) ? prev : [...prev, word]));
     setSheet((s) => s ? { ...s, saved: true } : s);
     await logMistake(mastery?.id ?? word, {
-      pinyin: mastery?.pinyin,
-      meaning: mastery?.meaning,
-      hsk_level: mastery?.hsk_level ?? hskLevel ?? 1,
+      pinyin: mastery?.pinyin ?? sheet.pinyin,
+      meaning: mastery?.meaning ?? sheet.meaning,
+      hsk_level: mastery?.hsk_level ?? sheet.hsk_level ?? undefined,
     }).catch(() => {});
-  }, [sheet, masteryMap, hskLevel]);
+  }, [sheet, masteryMap]);
 
   const handleRemoveFromSaved = useCallback(async () => {
     if (!sheet) return;

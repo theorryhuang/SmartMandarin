@@ -31,7 +31,7 @@ interface SheetInfo {
   meaning?: string;
   mastery?: VocabularyMastery;
   queued: boolean;
-  _fetchedDef?: { pinyin: string; meaning: string };
+  _fetchedDef?: { pinyin: string; meaning: string; hsk_level?: number | null };
 }
 
 export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
@@ -90,7 +90,7 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
         const res = await fetch("/api/define-word", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ hanzi: char, hsk_level: hskLevel }),
+          body: JSON.stringify({ hanzi: char }),
         });
         const def = await res.json();
         if (def.pinyin || def.meaning) {
@@ -109,10 +109,11 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
   async function handleQueue(char: string, mastery: VocabularyMastery | undefined) {
     setQueuedWords((prev) => new Set([...prev, char]));
     setSheet((s) => s ? { ...s, queued: true } : s);
+    const sheet_ = sheet;
     await logMistake(mastery?.id ?? char, {
       pinyin: mastery?.pinyin,
       meaning: mastery?.meaning,
-      hsk_level: mastery?.hsk_level ?? hskLevel,
+      hsk_level: mastery?.hsk_level ?? sheet_?._fetchedDef?.hsk_level ?? undefined,
     }).catch(() => {});
   }
 

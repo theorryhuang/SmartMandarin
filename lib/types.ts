@@ -7,10 +7,9 @@ export interface VocabularyMastery {
   pinyin: string;
   meaning: string;
   /**
-   * HSK level stored as a float so we can represent sub-level placement.
-   * e.g. 3.0 = start of HSK 3, 3.7 = near the top of HSK 3.
+   * HSK level (1–6). Null when the word is not in the HSK curriculum.
    */
-  hsk_level: number;
+  hsk_level: number | null;
   /**
    * FSRS stability — number of days until retrievability drops to 90%.
    * A new card begins with a value derived from the first rating.
@@ -108,4 +107,6 @@ export interface ConversationTurn {
   tokens: TranscriptToken[];
   raw_text: string;
   timestamp: string;
+  /** Object URL for the user's recorded audio blob (user turns only) */
+  audioUrl?: string;
 }

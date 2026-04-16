@@ -7,18 +7,22 @@ import Database, { type Database as DB } from "better-sqlite3";
 
 // Lazy-loaded singleton connection
 let db: DB | null = null;
-let stmt: ReturnType<DB["prepare"]> | null = null;
+let dictStmt: ReturnType<DB["prepare"]> | null = null;
+let hskStmt: ReturnType<DB["prepare"]> | null = null;
 
 function getDb() {
   if (!db) {
     const dbPath = path.join(process.cwd(), "data", "cedict.db");
     db = new Database(dbPath, { readonly: true, fileMustExist: true });
     db.pragma("journal_mode = WAL");
-    stmt = db.prepare(
+    dictStmt = db.prepare(
       "SELECT traditional, pinyin, english FROM entries WHERE simplified = ? LIMIT 1"
     );
+    hskStmt = db.prepare(
+      "SELECT level FROM hsk WHERE hanzi = ? LIMIT 1"
+    );
   }
-  return stmt!;
+  return { dictStmt: dictStmt!, hskStmt: hskStmt! };
 }
 
 interface Row {
@@ -94,16 +98,17 @@ function toToneMarks(numbered: string): string {
 export interface DictResult {
   pinyin: string;
   meaning: string;
+  hsk_level: number | null;
   source: "cedict" | "ai";
 }
 
 /**
  * Look up a simplified Chinese word/phrase in CEDICT.
- * Returns null if not found.
+ * Returns null if not found. hsk_level is null if word not in HSK curriculum.
  */
 export function cedictLookup(hanzi: string): DictResult | null {
-  const query = getDb();
-  const row = query.get(hanzi) as Row | undefined;
+  const { dictStmt, hskStmt } = getDb();
+  const row = dictStmt.get(hanzi) as Row | undefined;
   if (!row) return null;
 
   const pinyin = toToneMarks(row.pinyin);
@@ -113,5 +118,18 @@ export function cedictLookup(hanzi: string): DictResult | null {
     .slice(0, 2)
     .join("; ");
 
-  return { pinyin, meaning, source: "cedict" };
+  const hskRow = hskStmt.get(hanzi) as { level: number } | undefined;
+  const hsk_level = hskRow?.level ?? null;
+
+  return { pinyin, meaning, hsk_level, source: "cedict" };
+}
+
+/**
+ * Look up only the HSK level for a hanzi (no CEDICT lookup).
+ * Returns null if word not in HSK curriculum.
+ */
+export function hskLookup(hanzi: string): number | null {
+  const { hskStmt } = getDb();
+  const row = hskStmt.get(hanzi) as { level: number } | undefined;
+  return row?.level ?? null;
 }

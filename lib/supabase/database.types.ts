@@ -22,7 +22,7 @@ export type Database = {
           hanzi: string;
           pinyin: string;
           meaning: string;
-          hsk_level: number;
+          hsk_level: number | null;
           stability: number;
           difficulty: number;
           last_reviewed: string | null;
@@ -39,7 +39,7 @@ export type Database = {
           hanzi: string;
           pinyin: string;
           meaning: string;
-          hsk_level?: number;
+          hsk_level?: number | null;
           stability?: number;
           difficulty?: number;
           last_reviewed?: string | null;
@@ -56,7 +56,7 @@ export type Database = {
           hanzi?: string;
           pinyin?: string;
           meaning?: string;
-          hsk_level?: number;
+          hsk_level?: number | null;
           stability?: number;
           difficulty?: number;
           last_reviewed?: string | null;

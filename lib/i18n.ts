@@ -125,6 +125,16 @@ const en = {
 
   // ── Review navigation ────────────────────────────────────────────────────────
   prevCard: "Previous",
+
+  // ── Vocabulary list ──────────────────────────────────────────────────────────
+  myVocabulary: "My Vocabulary",
+  vocabDesc: "Browse all your saved words",
+  vocabEmpty: "No words saved yet. Start chatting or reading to build your vocabulary.",
+  searchPlaceholder: "Search hanzi, pinyin, meaning…",
+  allLevels: "All",
+  hskLevel: (n: number) => `HSK ${n}`,
+  wordsCount: (n: number) => `${n} word${n !== 1 ? "s" : ""}`,
+  masteryDays: (n: number) => `${n}d stability`,
 };
 
 const zh: typeof en = {
@@ -252,6 +262,16 @@ const zh: typeof en = {
 
   // ── Review navigation ────────────────────────────────────────────────────────
   prevCard: "上一张",
+
+  // ── Vocabulary list ──────────────────────────────────────────────────────────
+  myVocabulary: "我的词汇",
+  vocabDesc: "浏览所有已保存单词",
+  vocabEmpty: "暂无保存单词。开始聊天或阅读来积累词汇。",
+  searchPlaceholder: "搜索汉字、拼音、含义…",
+  allLevels: "全部",
+  hskLevel: (n: number) => `HSK ${n}`,
+  wordsCount: (n: number) => `${n} 个单词`,
+  masteryDays: (n: number) => `${n}天稳定性`,
 };
 
 export const translations: Record<Lang, typeof en> = { en, zh };

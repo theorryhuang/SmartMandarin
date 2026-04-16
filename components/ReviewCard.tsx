@@ -36,7 +36,7 @@ export function ReviewCard({ card, onNext, onBack, canGoBack, currentIndex, tota
       fetch("/api/define-word", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hanzi: card.hanzi, hsk_level: card.hsk_level }),
+        body: JSON.stringify({ hanzi: card.hanzi }),
       })
         .then((r) => r.json())
         .then((def) => {
@@ -60,8 +60,17 @@ export function ReviewCard({ card, onNext, onBack, canGoBack, currentIndex, tota
 
   function rate(rating: FSRSRating) {
     startTransition(async () => {
-      const result = await submitReview(card.id, rating, "review_session");
-      onNext({ stability: result.stability, difficulty: result.difficulty, next_review: result.next_review });
+      try {
+        const result = await submitReview(card.id, rating, "review_session");
+        onNext({ stability: result.stability, difficulty: result.difficulty, next_review: result.next_review });
+      } catch (err) {
+        if (err instanceof Error && err.message === "WORD_DELETED") {
+          // Word was deleted externally — skip it as if reviewed
+          onNext({ stability: card.stability, difficulty: card.difficulty, next_review: new Date().toISOString() });
+        } else {
+          throw err;
+        }
+      }
     });
   }
 
@@ -158,7 +167,7 @@ export function ReviewCard({ card, onNext, onBack, canGoBack, currentIndex, tota
 
       {/* HSK level badge */}
       <div className="text-xs text-[var(--color-text-muted)]">
-        HSK {card.hsk_level.toFixed(1)}
+        {card.hsk_level !== null ? `HSK ${card.hsk_level.toFixed(1)}` : "No HSK level"}
         {card.review_count > 0 && <span className="ml-2">· {card.review_count} reviews</span>}
       </div>
 
