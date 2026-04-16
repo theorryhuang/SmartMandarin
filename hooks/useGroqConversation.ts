@@ -34,6 +34,7 @@ export interface GroqConvHandle {
   startRecording: () => void;
   stopRecording: () => void;
   cancel: () => void;
+  replay: (text: string) => void;
 }
 
 type HistoryEntry = { role: "user" | "assistant"; content: string };
@@ -99,11 +100,6 @@ export function useGroqConversation(opts: GroqConvOptions): GroqConvHandle {
       const mimeType = getSupportedMimeType();
       const rawBlob = new Blob(chunksRef.current, { type: mimeType });
       console.log("[recording] raw blob size:", rawBlob.size);
-      // DEBUG: play back raw recording to verify mic is capturing
-      const debugUrl = URL.createObjectURL(rawBlob);
-      const debugAudio = new Audio(debugUrl);
-      debugAudio.play().catch(() => {});
-      setTimeout(() => URL.revokeObjectURL(debugUrl), 10000);
       chunksRef.current = [];
 
       if (rawBlob.size < 3000) {
@@ -186,7 +182,11 @@ export function useGroqConversation(opts: GroqConvOptions): GroqConvHandle {
     recorder.stop();
   }, []);
 
-  return { state, error, startRecording, stopRecording, cancel };
+  const replay = useCallback((text: string) => {
+    speakText(text, () => {});
+  }, []);
+
+  return { state, error, startRecording, stopRecording, cancel, replay };
 }
 
 /** Speak text using the browser SpeechSynthesis API with a Chinese voice if available. */

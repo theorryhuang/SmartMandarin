@@ -58,7 +58,10 @@ export function SpeakingClient() {
 
   const handleAITurnEnd = useCallback(() => setForcedWords([]), []);
 
-  const { state, error, startRecording, stopRecording, cancel } = useGroqConversation({
+  const [revealedTurns, setRevealedTurns] = useState<Set<number>>(new Set());
+  const revealTurn = useCallback((i: number) => setRevealedTurns((s) => new Set(s).add(i)), []);
+
+  const { state, error, startRecording, stopRecording, cancel, replay } = useGroqConversation({
     slangMode,
     forcedWords,
     hskLevel,
@@ -136,7 +139,13 @@ export function SpeakingClient() {
 
       {/* Transcript */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
-        <TranscriptView turns={turns} onWordTap={handleWordTap} />
+        <TranscriptView
+          turns={turns}
+          revealedTurns={revealedTurns}
+          onWordTap={handleWordTap}
+          onRevealTurn={revealTurn}
+          onReplayTurn={(i) => replay(turns[i]?.raw_text ?? "")}
+        />
       </div>
 
       {/* Flagged words */}

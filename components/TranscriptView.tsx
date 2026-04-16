@@ -1,15 +1,17 @@
 "use client";
 
-import { useCallback } from "react";
+import { Play } from "lucide-react";
 import type { ConversationTurn, TranscriptToken } from "@/lib/types";
 
 interface Props {
   turns: ConversationTurn[];
-  /** Called when user taps a word they didn't understand */
+  revealedTurns: Set<number>;
   onWordTap: (token: TranscriptToken, turnIndex: number, tokenIndex: number) => void;
+  onRevealTurn: (turnIndex: number) => void;
+  onReplayTurn: (turnIndex: number) => void;
 }
 
-export function TranscriptView({ turns, onWordTap }: Props) {
+export function TranscriptView({ turns, revealedTurns, onWordTap, onRevealTurn, onReplayTurn }: Props) {
   if (turns.length === 0) {
     return (
       <div className="flex items-center justify-center h-32 text-sm text-[var(--color-text-muted)]">
@@ -21,7 +23,15 @@ export function TranscriptView({ turns, onWordTap }: Props) {
   return (
     <div className="flex flex-col gap-4 w-full overflow-y-auto max-h-[60vh] pb-4">
       {turns.map((turn, ti) => (
-        <TurnRow key={ti} turn={turn} turnIndex={ti} onWordTap={onWordTap} />
+        <TurnRow
+          key={ti}
+          turn={turn}
+          turnIndex={ti}
+          revealed={turn.role === "user" || revealedTurns.has(ti)}
+          onWordTap={onWordTap}
+          onReveal={() => onRevealTurn(ti)}
+          onReplay={() => onReplayTurn(ti)}
+        />
       ))}
     </div>
   );
@@ -30,11 +40,17 @@ export function TranscriptView({ turns, onWordTap }: Props) {
 function TurnRow({
   turn,
   turnIndex,
+  revealed,
   onWordTap,
+  onReveal,
+  onReplay,
 }: {
   turn: ConversationTurn;
   turnIndex: number;
+  revealed: boolean;
   onWordTap: Props["onWordTap"];
+  onReveal: () => void;
+  onReplay: () => void;
 }) {
   const isAI = turn.role === "assistant";
 
@@ -42,37 +58,57 @@ function TurnRow({
     <div className={`flex gap-3 ${isAI ? "flex-row" : "flex-row-reverse"}`}>
       <div
         className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-xs mt-1 ${
-          isAI
-            ? "bg-violet-100 text-violet-700"
-            : "bg-violet-600 text-white"
+          isAI ? "bg-violet-100 text-violet-700" : "bg-violet-600 text-white"
         }`}
       >
         {isAI ? "AI" : "你"}
       </div>
 
       <div
-        className={`flex flex-wrap gap-x-1 gap-y-2 max-w-[85%] rounded-2xl px-4 py-3 text-base leading-loose ${
+        className={`flex flex-col gap-2 max-w-[85%] rounded-2xl px-4 py-3 text-base leading-loose ${
           isAI
             ? "bg-[var(--color-surface)] border border-[var(--color-border)] shadow-sm"
             : "bg-violet-600 text-white"
         }`}
       >
-        {turn.tokens.map((token, idx) => (
-          <WordToken
-            key={idx}
-            token={token}
-            onTap={() => onWordTap(token, turnIndex, idx)}
-          />
-        ))}
+        {isAI && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onReplay}
+              className="flex items-center gap-1.5 text-xs text-violet-600 hover:text-violet-800 transition-colors"
+            >
+              <Play size={13} className="fill-violet-600" />
+              <span>Play</span>
+            </button>
+            {!revealed && (
+              <button
+                onClick={onReveal}
+                className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors underline underline-offset-2"
+              >
+                Show transcript
+              </button>
+            )}
+          </div>
+        )}
+
+        {revealed && (
+          <div className="flex flex-wrap gap-x-1 gap-y-2">
+            {turn.tokens.map((token, idx) => (
+              <WordToken
+                key={idx}
+                token={token}
+                onTap={() => onWordTap(token, turnIndex, idx)}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 function WordToken({ token, onTap }: { token: TranscriptToken; onTap: () => void }) {
-  const cls = token.flagged
-    ? "word-token word-token--mistake"
-    : "word-token";
+  const cls = token.flagged ? "word-token word-token--mistake" : "word-token";
 
   return (
     <span
@@ -82,9 +118,7 @@ function WordToken({ token, onTap }: { token: TranscriptToken; onTap: () => void
     >
       <span className="text-base">{token.hanzi}</span>
       {token.pinyin && (
-        <span className="text-[10px] text-[var(--color-text-muted)] leading-none">
-          {token.pinyin}
-        </span>
+        <span className="text-[10px] text-[var(--color-text-muted)] leading-none">{token.pinyin}</span>
       )}
     </span>
   );
