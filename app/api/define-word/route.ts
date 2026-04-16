@@ -1,22 +1,32 @@
 /**
  * POST /api/define-word
  * Body: { hanzi: string; hsk_level?: number }
- * Returns: { pinyin: string; meaning: string }
+ * Returns: { pinyin: string; meaning: string; source: "cedict" | "ai" }
+ *
+ * Lookup order: CC-CEDICT (authoritative) → Groq LLM fallback for phrases not in dict.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { cedictLookup } from "@/lib/cedict";
 
 const GROQ_MODEL = "llama-3.3-70b-versatile";
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: "GROQ_API_KEY not set" }, { status: 500 });
-  }
-
   const { hanzi, hsk_level = 3 } = await req.json().catch(() => ({}));
   if (!hanzi) {
     return NextResponse.json({ error: "hanzi required" }, { status: 400 });
+  }
+
+  // 1. Try CEDICT first
+  const cedictResult = cedictLookup(hanzi);
+  if (cedictResult) {
+    return NextResponse.json(cedictResult);
+  }
+
+  // 2. Groq fallback for multi-word phrases / proper nouns not in CEDICT
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json({ error: "GROQ_API_KEY not set" }, { status: 500 });
   }
 
   const prompt = `You are a Mandarin dictionary. Define the word or phrase "${hanzi}" for an HSK ${hsk_level} learner.
@@ -51,7 +61,11 @@ Return ONLY valid JSON (no markdown, no extra keys):
 
   try {
     const def = JSON.parse(text);
-    return NextResponse.json({ pinyin: def.pinyin ?? "", meaning: def.meaning ?? "" });
+    return NextResponse.json({
+      pinyin: def.pinyin ?? "",
+      meaning: def.meaning ?? "",
+      source: "ai",
+    });
   } catch {
     return NextResponse.json({ error: "Failed to parse response" }, { status: 500 });
   }
