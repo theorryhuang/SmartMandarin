@@ -37,13 +37,13 @@ export function SpeakingClient() {
 
   // ── Turns — initialised synchronously from localStorage ──────────────────
   const [turns, setTurns] = useState<ConversationTurn[]>(loadTurnsFromStorage);
-  const [revealedTurns, setRevealedTurns] = useState<Set<number>>(() => {
-    // Reveal all restored turns so history is immediately readable
-    const loaded = loadTurnsFromStorage();
-    return new Set(loaded.map((_, i) => i));
-  });
+  const [revealedTurns, setRevealedTurns] = useState<Set<number>>(new Set());
 
   const [slangMode, setSlangMode] = useState(false);
+  const [speechRate, setSpeechRate] = useState(1);
+  const [playingTurnIndex, setPlayingTurnIndex] = useState<number | null>(null);
+  const [isSpeechPaused, setIsSpeechPaused] = useState(false);
+  const activeAudioRef = useRef<HTMLAudioElement | null>(null);
   const [forcedWords, setForcedWords] = useState<string[]>([]);
   const [savedWords, setSavedWords] = useState<Set<string>>(new Set());
   const [hskLevel, setHskLevel] = useState(1);
@@ -73,6 +73,7 @@ export function SpeakingClient() {
     getConversationContext().then(({ hskLevel, unknownWords }) => {
       setHskLevel(hskLevel);
       setUnknownWords(unknownWords);
+      setSavedWords(new Set(unknownWords.map((w) => w.hanzi)));
     });
   }, []);
 
@@ -124,8 +125,6 @@ export function SpeakingClient() {
           timestamp: new Date().toISOString(),
           audioUrl,
         };
-        // Auto-reveal new turns
-        setRevealedTurns((s) => new Set([...s, prev.length]));
         return [...prev, newTurn];
       });
     },
@@ -147,6 +146,7 @@ export function SpeakingClient() {
     onTranscriptUpdate: handleTranscriptUpdate,
     onAITurnEnd: handleAITurnEnd,
     initialHistory: initialHistory.current,
+    speechRate,
   });
 
   // ── Word lookup sheet ─────────────────────────────────────────────────────
@@ -253,12 +253,48 @@ export function SpeakingClient() {
           savedWords={savedWords}
           onWordSelect={handleWordSelect}
           onRevealTurn={revealTurn}
+          playingTurnIndex={playingTurnIndex}
+          isSpeechPaused={isSpeechPaused}
           onReplayTurn={(i) => {
             const turn = turns[i];
-            if (turn?.role === "user" && turn.audioUrl) {
-              new Audio(turn.audioUrl).play();
+            const isUser = turn?.role === "user";
+
+            // Toggle pause/resume for the currently playing turn
+            if (playingTurnIndex === i) {
+              if (isSpeechPaused) {
+                if (isUser && activeAudioRef.current) {
+                  activeAudioRef.current.play();
+                } else {
+                  window.speechSynthesis?.resume();
+                }
+                setIsSpeechPaused(false);
+              } else {
+                if (isUser && activeAudioRef.current) {
+                  activeAudioRef.current.pause();
+                } else {
+                  window.speechSynthesis?.pause();
+                }
+                setIsSpeechPaused(true);
+              }
+              return;
+            }
+
+            // Stop whatever is currently playing
+            window.speechSynthesis?.cancel();
+            if (activeAudioRef.current) {
+              activeAudioRef.current.pause();
+              activeAudioRef.current = null;
+            }
+            setIsSpeechPaused(false);
+            setPlayingTurnIndex(i);
+
+            if (isUser && turn?.audioUrl) {
+              const audio = new Audio(turn.audioUrl);
+              activeAudioRef.current = audio;
+              audio.onended = () => { setPlayingTurnIndex(null); activeAudioRef.current = null; };
+              audio.play();
             } else {
-              replay(turn?.raw_text ?? "");
+              replay(turn?.raw_text ?? "", () => setPlayingTurnIndex(null));
             }
           }}
         />
@@ -287,6 +323,20 @@ export function SpeakingClient() {
 
       {/* Controls */}
       <div className="flex flex-col items-center gap-3 py-6 border-t border-[var(--color-border)] bg-[var(--color-surface)]">
+        <div className="flex items-center gap-2 w-48">
+          <span className="text-xs text-[var(--color-text-muted)] w-6">1x</span>
+          <input
+            type="range"
+            min={1}
+            max={2}
+            step={0.1}
+            value={speechRate}
+            onChange={(e) => setSpeechRate(parseFloat(e.target.value))}
+            className="flex-1 accent-violet-600 cursor-pointer"
+          />
+          <span className="text-xs text-[var(--color-text-muted)] w-6 text-right">2x</span>
+          <span className="text-xs text-violet-600 font-medium w-8 text-right">{speechRate.toFixed(1)}x</span>
+        </div>
         <p className="text-xs text-[var(--color-text-muted)]">{statusLabel[state]}</p>
 
         <button

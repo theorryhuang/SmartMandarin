@@ -281,6 +281,38 @@ export async function getAllWords(limit = 100): Promise<VocabularyMastery[]> {
     .from("vocabulary_mastery")
     .select("*")
     .eq("user_id", userId)
+    .eq("is_slang", false)
+    .order("next_review", { ascending: true, nullsFirst: true })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as VocabularyMastery[];
+}
+
+export async function getDueSlangWords(limit = 20): Promise<VocabularyMastery[]> {
+  const supabase = await createClient();
+  const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("vocabulary_mastery")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("is_slang", true)
+    .or(`flagged_for_immediate_use.eq.true,next_review.is.null,next_review.lte.${now}`)
+    .order("flagged_for_immediate_use", { ascending: false })
+    .order("next_review", { ascending: true, nullsFirst: true })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as VocabularyMastery[];
+}
+
+export async function getAllSlangWords(limit = 200): Promise<VocabularyMastery[]> {
+  const supabase = await createClient();
+  const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
+  const { data, error } = await supabase
+    .from("vocabulary_mastery")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("is_slang", true)
     .order("next_review", { ascending: true, nullsFirst: true })
     .limit(limit);
   if (error) throw new Error(error.message);

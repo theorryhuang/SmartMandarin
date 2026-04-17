@@ -58,6 +58,7 @@ export function ConversationClient({ masteryMap }: Props) {
     getConversationContext().then(({ hskLevel, unknownWords }) => {
       setHskLevel(hskLevel);
       setUnknownWords(unknownWords);
+      setSavedWords(new Set(unknownWords.map((w) => w.hanzi)));
     });
   }, []);
 

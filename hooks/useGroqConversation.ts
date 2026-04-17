@@ -26,6 +26,7 @@ export interface GroqConvOptions {
   unknownWords: { hanzi: string; pinyin: string; meaning: string }[];
   onTranscriptUpdate: (tokens: TranscriptToken[], role: "user" | "assistant", audioUrl?: string) => void;
   onAITurnEnd: () => void;
+  speechRate?: number; // multiplier: 1 = normal (0.9), 2 = fast (1.8)
 }
 
 export interface GroqConvHandle {
@@ -34,7 +35,7 @@ export interface GroqConvHandle {
   startRecording: () => void;
   stopRecording: () => void;
   cancel: () => void;
-  replay: (text: string) => void;
+  replay: (text: string, onEnd?: () => void) => void;
 }
 
 type HistoryEntry = { role: "user" | "assistant"; content: string };
@@ -175,21 +176,21 @@ export function useGroqConversation(opts: GroqConvOptions & { initialHistory?: H
       speakText(reply, () => {
         optsRef.current.onAITurnEnd();
         setState("idle");
-      });
+      }, optsRef.current.speechRate ?? 1);
     };
 
     recorder.stop();
   }, []);
 
-  const replay = useCallback((text: string) => {
-    speakText(text, () => {});
+  const replay = useCallback((text: string, onEnd?: () => void) => {
+    speakText(text, onEnd ?? (() => {}), optsRef.current.speechRate ?? 1);
   }, []);
 
   return { state, error, startRecording, stopRecording, cancel, replay };
 }
 
 /** Speak text using the browser SpeechSynthesis API with a Chinese voice if available. */
-function speakText(text: string, onEnd: () => void) {
+function speakText(text: string, onEnd: () => void, rateMultiplier = 1) {
   if (typeof window === "undefined" || !window.speechSynthesis) {
     onEnd();
     return;
@@ -200,7 +201,7 @@ function speakText(text: string, onEnd: () => void) {
 
   const utterance = new SpeechSynthesisUtterance(hanziOnly);
   utterance.lang = "zh-CN";
-  utterance.rate = 0.9;
+  utterance.rate = 0.9 * rateMultiplier;
   utterance.onend = onEnd;
   utterance.onerror = onEnd;
 

@@ -6,7 +6,7 @@ import { getAllWords } from "@/app/actions/vocabulary";
 import type { VocabularyMastery } from "@/lib/types";
 import { useLanguage } from "@/app/_components/LanguageContext";
 
-const SESSION_KEY = "sm_review_session";
+const DEFAULT_SESSION_KEY = "sm_review_session";
 
 interface SavedSession {
   cards: VocabularyMastery[];
@@ -22,22 +22,22 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-function saveSession(cards: VocabularyMastery[], index: number) {
+function saveSession(key: string, cards: VocabularyMastery[], index: number) {
   try {
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ cards, index }));
+    localStorage.setItem(key, JSON.stringify({ cards, index }));
   } catch {}
 }
 
-function clearSession() {
-  try { localStorage.removeItem(SESSION_KEY); } catch {}
+function clearSession(key: string) {
+  try { localStorage.removeItem(key); } catch {}
 }
 
-function initSession(incoming: VocabularyMastery[]): {
+function initSession(key: string, incoming: VocabularyMastery[]): {
   ordered: VocabularyMastery[];
   startIndex: number;
 } {
   try {
-    const raw = localStorage.getItem(SESSION_KEY);
+    const raw = localStorage.getItem(key);
     if (raw) {
       const saved: SavedSession = JSON.parse(raw);
       if (saved.cards?.length > 0 && saved.index < saved.cards.length) {
@@ -48,19 +48,21 @@ function initSession(incoming: VocabularyMastery[]): {
 
   // Fresh shuffle
   const ordered = shuffle(incoming);
-  saveSession(ordered, 0);
+  saveSession(key, ordered, 0);
   return { ordered, startIndex: 0 };
 }
 
 interface Props {
   initialCards: VocabularyMastery[];
+  sessionKey?: string;
+  getAllWordsFn?: () => Promise<VocabularyMastery[]>;
 }
 
-export function ReviewSession({ initialCards }: Props) {
+export function ReviewSession({ initialCards, sessionKey = DEFAULT_SESSION_KEY, getAllWordsFn }: Props) {
   const { t } = useLanguage();
 
   const [{ cards, index }, setSession] = useState(() => {
-    const { ordered, startIndex } = initSession(initialCards);
+    const { ordered, startIndex } = initSession(sessionKey, initialCards);
     return { cards: ordered, index: startIndex };
   });
 
@@ -89,7 +91,7 @@ export function ReviewSession({ initialCards }: Props) {
           ? { ...c, stability: result.stability, difficulty: result.difficulty }
           : c
       );
-      saveSession(updatedCards, next);
+      saveSession(sessionKey, updatedCards, next);
       return { cards: updatedCards, index: next };
     });
   }
@@ -100,14 +102,14 @@ export function ReviewSession({ initialCards }: Props) {
     setHistory((h) => h.slice(0, -1));
     setSessionResults((r) => r.slice(0, -1));
     setSession({ cards: prev.cards, index: prev.index });
-    saveSession(prev.cards, prev.index);
+    saveSession(sessionKey, prev.cards, prev.index);
   }
 
   function handleRestart() {
     setSession({ cards, index: 0 });
     setHistory([]);
     setSessionResults([]);
-    saveSession(cards, 0);
+    saveSession(sessionKey, cards, 0);
   }
 
   function handleReshuffle() {
@@ -115,17 +117,17 @@ export function ReviewSession({ initialCards }: Props) {
       const reviewed = s.cards.slice(0, s.index);
       const remaining = shuffle(s.cards.slice(s.index));
       const reshuffled = [...reviewed, ...remaining];
-      saveSession(reshuffled, s.index);
+      saveSession(sessionKey, reshuffled, s.index);
       return { cards: reshuffled, index: s.index };
     });
   }
 
   function practiceAll() {
     startLoadingMore(async () => {
-      const all = await getAllWords(200);
-      clearSession();
+      const all = await (getAllWordsFn ?? getAllWords)(200);
+      clearSession(sessionKey);
       const ordered = shuffle(all);
-      saveSession(ordered, 0);
+      saveSession(sessionKey, ordered, 0);
       setSession({ cards: ordered, index: 0 });
       setSessionResults([]);
     });
@@ -154,7 +156,7 @@ export function ReviewSession({ initialCards }: Props) {
   }
 
   if (done) {
-    clearSession();
+    clearSession(sessionKey);
     return (
       <div className="flex flex-col items-center gap-6 text-center max-w-sm">
         <h2 className="text-2xl font-medium">{t.sessionComplete}</h2>

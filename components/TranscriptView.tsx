@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Play } from "lucide-react";
+import { Play, Pause } from "lucide-react";
 import type { ConversationTurn } from "@/lib/types";
 
 interface Props {
@@ -11,6 +11,8 @@ interface Props {
   onWordSelect: (word: string, turnIndex: number) => void;
   onRevealTurn: (turnIndex: number) => void;
   onReplayTurn: (turnIndex: number) => void;
+  playingTurnIndex: number | null;
+  isSpeechPaused: boolean;
 }
 
 export function TranscriptView({
@@ -20,6 +22,8 @@ export function TranscriptView({
   onWordSelect,
   onRevealTurn,
   onReplayTurn,
+  playingTurnIndex,
+  isSpeechPaused,
 }: Props) {
   if (turns.length === 0) {
     return (
@@ -41,6 +45,7 @@ export function TranscriptView({
           onWordSelect={(word) => onWordSelect(word, ti)}
           onReveal={() => onRevealTurn(ti)}
           onReplay={() => onReplayTurn(ti)}
+          isPlaying={playingTurnIndex === ti && !isSpeechPaused}
         />
       ))}
     </div>
@@ -54,6 +59,7 @@ function TurnRow({
   onWordSelect,
   onReveal,
   onReplay,
+  isPlaying,
 }: {
   turn: ConversationTurn;
   turnIndex: number;
@@ -62,6 +68,7 @@ function TurnRow({
   onWordSelect: (word: string) => void;
   onReveal: () => void;
   onReplay: () => void;
+  isPlaying: boolean;
 }) {
   const isAI = turn.role === "assistant";
 
@@ -91,8 +98,12 @@ function TurnRow({
                 : "text-violet-200 hover:text-white"
             }`}
           >
-            <Play size={13} className={isAI ? "fill-violet-600" : "fill-violet-200"} />
-            <span>Play</span>
+            {isPlaying ? (
+              <Pause size={13} className={isAI ? "fill-violet-600" : "fill-violet-200"} />
+            ) : (
+              <Play size={13} className={isAI ? "fill-violet-600" : "fill-violet-200"} />
+            )}
+            <span>{isPlaying ? "Pause" : "Play"}</span>
           </button>
           {!revealed && (
             <button

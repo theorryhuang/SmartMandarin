@@ -26,28 +26,28 @@ export default async function Home() {
   }
 
   let dueCount = 0;
+  let slangDueCount = 0;
   let totalWords = 0;
   let masteredCount = 0;
 
   if (userId) {
     const { data } = await supabase
       .from("vocabulary_mastery")
-      .select("stability, next_review, flagged_for_immediate_use")
+      .select("stability, next_review, flagged_for_immediate_use, is_slang")
       .eq("user_id", userId);
 
     const words = (data ?? []) as Pick<
       VocabularyMastery,
-      "stability" | "next_review" | "flagged_for_immediate_use"
+      "stability" | "next_review" | "flagged_for_immediate_use" | "is_slang"
     >[];
+
+    const isDue = (w: typeof words[0]) =>
+      w.flagged_for_immediate_use || !w.next_review || new Date(w.next_review) <= new Date();
 
     totalWords = words.length;
     masteredCount = words.filter((w) => w.stability >= HIGH_STABILITY_THRESHOLD).length;
-    dueCount = words.filter(
-      (w) =>
-        w.flagged_for_immediate_use ||
-        !w.next_review ||
-        new Date(w.next_review) <= new Date()
-    ).length;
+    dueCount = words.filter((w) => !w.is_slang && isDue(w)).length;
+    slangDueCount = words.filter((w) => w.is_slang && isDue(w)).length;
   }
 
   const masteryPct = totalWords > 0 ? Math.round((masteredCount / totalWords) * 100) : 0;
@@ -56,6 +56,7 @@ export default async function Home() {
   return (
     <HomeClient
       dueCount={dueCount}
+      slangDueCount={slangDueCount}
       totalWords={totalWords}
       masteredCount={masteredCount}
       masteryPct={masteryPct}

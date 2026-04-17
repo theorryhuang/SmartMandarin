@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Brain, MessageCircle, BookOpen, TrendingUp, ChevronRight, User, Mic, List } from "lucide-react";
+import { Brain, MessageCircle, BookOpen, TrendingUp, ChevronRight, User, Mic, List, Flame } from "lucide-react";
 import { useLanguage } from "./LanguageContext";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 
 interface Props {
   dueCount: number;
+  slangDueCount: number;
   totalWords: number;
   masteredCount: number;
   masteryPct: number;
@@ -14,7 +15,7 @@ interface Props {
   DevResetButton?: React.ReactNode;
 }
 
-export function HomeClient({ dueCount, totalWords, masteredCount, masteryPct, devMode, DevResetButton }: Props) {
+export function HomeClient({ dueCount, slangDueCount, totalWords, masteredCount, masteryPct, devMode, DevResetButton }: Props) {
   const { t } = useLanguage();
 
   const modes = [
@@ -26,6 +27,15 @@ export function HomeClient({ dueCount, totalWords, masteredCount, masteryPct, de
       iconBg: "bg-violet-100",
       iconColor: "text-violet-600",
       badge: dueCount > 0 ? dueCount : null,
+    },
+    {
+      href: "/review/slang",
+      label: t.slangReview,
+      description: slangDueCount > 0 ? t.cardsDue(slangDueCount) : t.allCaughtUp,
+      icon: Flame,
+      iconBg: "bg-orange-100",
+      iconColor: "text-orange-500",
+      badge: slangDueCount > 0 ? slangDueCount : null,
     },
     {
       href: "/speaking",
@@ -86,9 +96,9 @@ export function HomeClient({ dueCount, totalWords, masteredCount, masteryPct, de
               className="relative w-10 h-10 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-center hover:border-violet-300 transition-colors shadow-sm"
             >
               <User size={18} className="text-[var(--color-text-secondary)]" />
-              {dueCount > 0 && (
+              {(dueCount + slangDueCount) > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-orange-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
-                  {dueCount}
+                  {dueCount + slangDueCount}
                 </span>
               )}
             </Link>
