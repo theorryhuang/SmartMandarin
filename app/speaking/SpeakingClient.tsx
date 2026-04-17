@@ -31,13 +31,27 @@ function loadTurnsFromStorage(): ConversationTurn[] {
   }
 }
 
+function initRevealedTurns(turns: ConversationTurn[]): Set<number> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = localStorage.getItem("sm_revealed_turns");
+    if (!raw) return new Set();
+    const timestamps = new Set(JSON.parse(raw) as string[]);
+    const revealed = new Set<number>();
+    turns.forEach((t, i) => { if (timestamps.has(t.timestamp)) revealed.add(i); });
+    return revealed;
+  } catch {
+    return new Set();
+  }
+}
+
 export function SpeakingClient() {
   const router = useRouter();
   const { t } = useLanguage();
 
   // ── Turns — initialised synchronously from localStorage ──────────────────
   const [turns, setTurns] = useState<ConversationTurn[]>(loadTurnsFromStorage);
-  const [revealedTurns, setRevealedTurns] = useState<Set<number>>(new Set());
+  const [revealedTurns, setRevealedTurns] = useState<Set<number>>(() => initRevealedTurns(loadTurnsFromStorage()));
 
   const [slangMode, setSlangMode] = useState(false);
   useEffect(() => {
@@ -136,8 +150,18 @@ export function SpeakingClient() {
 
   const handleAITurnEnd = useCallback(() => setForcedWords([]), []);
 
+  useEffect(() => {
+    const timestamps = [...revealedTurns].map((i) => turns[i]?.timestamp).filter(Boolean);
+    localStorage.setItem("sm_revealed_turns", JSON.stringify(timestamps));
+  }, [revealedTurns, turns]);
+
   const revealTurn = useCallback(
     (i: number) => setRevealedTurns((s) => new Set(s).add(i)),
+    []
+  );
+
+  const hideTurn = useCallback(
+    (i: number) => setRevealedTurns((s) => { const next = new Set(s); next.delete(i); return next; }),
     []
   );
 
@@ -260,6 +284,7 @@ export function SpeakingClient() {
           savedWords={savedWords}
           onWordSelect={handleWordSelect}
           onRevealTurn={revealTurn}
+          onHideTurn={hideTurn}
           playingTurnIndex={playingTurnIndex}
           isSpeechPaused={isSpeechPaused}
           onReplayTurn={(i) => {

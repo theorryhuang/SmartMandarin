@@ -10,6 +10,7 @@ interface Props {
   savedWords: Set<string>;
   onWordSelect: (word: string, turnIndex: number) => void;
   onRevealTurn: (turnIndex: number) => void;
+  onHideTurn: (turnIndex: number) => void;
   onReplayTurn: (turnIndex: number) => void;
   playingTurnIndex: number | null;
   isSpeechPaused: boolean;
@@ -21,6 +22,7 @@ export function TranscriptView({
   savedWords,
   onWordSelect,
   onRevealTurn,
+  onHideTurn,
   onReplayTurn,
   playingTurnIndex,
   isSpeechPaused,
@@ -44,6 +46,7 @@ export function TranscriptView({
           savedWords={savedWords}
           onWordSelect={(word) => onWordSelect(word, ti)}
           onReveal={() => onRevealTurn(ti)}
+          onHide={() => onHideTurn(ti)}
           onReplay={() => onReplayTurn(ti)}
           isPlaying={playingTurnIndex === ti && !isSpeechPaused}
         />
@@ -58,6 +61,7 @@ function TurnRow({
   savedWords,
   onWordSelect,
   onReveal,
+  onHide,
   onReplay,
   isPlaying,
 }: {
@@ -67,6 +71,7 @@ function TurnRow({
   savedWords: Set<string>;
   onWordSelect: (word: string) => void;
   onReveal: () => void;
+  onHide: () => void;
   onReplay: () => void;
   isPlaying: boolean;
 }) {
@@ -105,18 +110,16 @@ function TurnRow({
             )}
             <span>{isPlaying ? "Pause" : "Play"}</span>
           </button>
-          {!revealed && (
-            <button
-              onClick={onReveal}
-              className={`text-xs transition-colors underline underline-offset-2 ${
-                isAI
-                  ? "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
-                  : "text-violet-200 hover:text-white"
-              }`}
-            >
-              Show transcript
-            </button>
-          )}
+          <button
+            onClick={revealed ? onHide : onReveal}
+            className={`text-xs transition-colors underline underline-offset-2 ${
+              isAI
+                ? "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
+                : "text-violet-200 hover:text-white"
+            }`}
+          >
+            {revealed ? "Hide transcript" : "Show transcript"}
+          </button>
         </div>
 
         {revealed && (
