@@ -87,6 +87,14 @@ const en = {
   cardsReviewed: (n: number) => `${n} card${n !== 1 ? "s" : ""} reviewed`,
   cardsRemaining: (n: number) => `${n} card${n !== 1 ? "s" : ""} remaining`,
   cardProgress: (current: number, total: number) => `Word ${current} / ${total}`,
+  filterTitle: "Choose cards to review",
+  filterHard: "Hard only",
+  filterHardGood: "Hard + Good",
+  filterAll: "All due",
+  filterHardDesc: "Cards you rated 困难 last time",
+  filterHardGoodDesc: "Cards you rated 困难 or 良好 last time",
+  filterAllDesc: "All cards currently due",
+  noCardsMatchFilter: "No cards match this filter.",
 
   // ── Speaking ─────────────────────────────────────────────────────────────────
   holdToSpeak: "Hold to speak",
@@ -227,6 +235,14 @@ const zh: typeof en = {
   cardsReviewed: (n: number) => `已复习 ${n} 张卡片`,
   cardsRemaining: (n: number) => `剩余 ${n} 张卡片`,
   cardProgress: (current: number, total: number) => `第 ${current} / ${total} 词`,
+  filterTitle: "选择复习模式",
+  filterHard: "只复习困难",
+  filterHardGood: "困难 + 良好",
+  filterAll: "复习全部到期",
+  filterHardDesc: "上次标记为困难的卡片",
+  filterHardGoodDesc: "上次标记为困难或良好的卡片",
+  filterAllDesc: "所有当前到期的卡片",
+  noCardsMatchFilter: "没有卡片符合此筛选条件。",
 
   // ── Speaking ─────────────────────────────────────────────────────────────────
   holdToSpeak: "按住说话",

@@ -274,6 +274,49 @@ export async function removeFromReviewQueue(wordIdOrHanzi: string): Promise<void
   }
 }
 
+export async function getDueWordsByLastRating(
+  ratings: number[],
+  isSlang = false,
+  limit = 100
+): Promise<VocabularyMastery[]> {
+  const supabase = await createClient();
+  const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
+
+  // Fetch recent review_log entries to find last rating per word
+  const { data: logRows, error: logErr } = await supabase
+    .from("review_log")
+    .select("word_id, rating, reviewed_at")
+    .eq("user_id", userId)
+    .order("reviewed_at", { ascending: false })
+    .limit(10000);
+  if (logErr) throw new Error(logErr.message);
+
+  // Keep only the most recent entry per word
+  const lastRatingMap = new Map<string, number>();
+  for (const row of logRows ?? []) {
+    if (!lastRatingMap.has(row.word_id)) {
+      lastRatingMap.set(row.word_id, row.rating);
+    }
+  }
+
+  const matchingIds = Array.from(lastRatingMap.entries())
+    .filter(([, r]) => ratings.includes(r))
+    .map(([id]) => id);
+
+  if (matchingIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("vocabulary_mastery")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("is_slang", isSlang)
+    .in("id", matchingIds)
+    .order("next_review", { ascending: true, nullsFirst: true })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as VocabularyMastery[];
+}
+
 export async function getAllWords(limit = 100): Promise<VocabularyMastery[]> {
   const supabase = await createClient();
   const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
