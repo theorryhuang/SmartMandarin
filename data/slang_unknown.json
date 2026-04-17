@@ -1,80 +1,608 @@
 [
   {
-    "hanzi": "这是个好事儿啊",
-    "pinyin": "",
-    "meaning": "",
-    "category": "network slang"
-  },
-  {
     "hanzi": "sqgg/pljj",
-    "pinyin": "",
+    "pinyin": "s q g g / p l j j",
     "meaning": "",
     "category": "network slang"
-  },
-  {
-    "hanzi": "顶你个肺",
-    "pinyin": "",
-    "meaning": "",
-    "category": "network slang"
-  },
-  {
-    "hanzi": "摔",
-    "pinyin": "",
-    "meaning": "",
-    "category": "网络用语"
   },
   {
     "hanzi": "dbq/drl",
-    "pinyin": "",
+    "pinyin": "d b q / d r l",
     "meaning": "",
     "category": "network slang"
-  },
-  {
-    "hanzi": "马兰坡",
-    "pinyin": "",
-    "meaning": "",
-    "category": "network slang"
-  },
-  {
-    "hanzi": "翔",
-    "pinyin": "",
-    "meaning": "",
-    "category": "网络用语"
   },
   {
     "hanzi": "hin",
-    "pinyin": "",
+    "pinyin": "h i n",
     "meaning": "",
     "category": "拼音缩写"
   },
   {
-    "hanzi": "牢得很",
-    "pinyin": "",
-    "meaning": "",
-    "category": "network slang"
+    "hanzi": ".com",
+    "pinyin": ". c o m",
+    "meaning": "Secretary Li Dakang, the cutest character in the anti-corruption TV series 'In the Name of the People'. Purely pursuing GDP, professional scapegoat for 10,000 years.",
+    "category": "流行文化"
   },
   {
-    "hanzi": "吃藕",
-    "pinyin": "",
-    "meaning": "",
+    "hanzi": "'+1s",
+    "pinyin": "' + 1 s",
+    "meaning": "Abbreviation for 'add one second for the elder'.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "=3",
+    "pinyin": "= 3",
+    "meaning": "'The famous YouTube channel Equal 3, which introduces three recent funny videos in each episode.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "0",
+    "pinyin": "0",
+    "meaning": "A homophone for 'I love you,' one of the new holidays created by the internet.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "1",
+    "pinyin": "1",
+    "meaning": "Refers to Japan. In the anime <Code Geass>, Japan was invaded and destroyed by the Britannian Empire, becoming the overseas territory of the Britannian Empire, 'Area 11'.",
     "category": "网络用语"
   },
   {
-    "hanzi": "转需",
-    "pinyin": "",
-    "meaning": "",
-    "category": "network slang"
+    "hanzi": "233",
+    "pinyin": "2 3 3",
+    "meaning": "Internet slang, expressing laughter. Origin: The 233rd emoji GIF image from the original Mop forum.",
+    "category": "拼音缩写"
   },
   {
-    "hanzi": "叫兽",
-    "pinyin": "",
-    "meaning": "",
-    "category": "network slang"
+    "hanzi": "271",
+    "pinyin": "2 7 1",
+    "meaning": "Another name for iQiyi (because iQiyi's internal number is 271), usually used for teasing.",
+    "category": "拼音缩写"
   },
   {
-    "hanzi": "胸蛋面",
-    "pinyin": "",
-    "meaning": "",
-    "category": "network slang"
+    "hanzi": "403",
+    "pinyin": "4 0 3",
+    "meaning": "HTTP 403 Error – Forbidden",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "45",
+    "pinyin": "4 5",
+    "meaning": "A derogatory term for the 45th President of the United States, Donald Trump. It was first used by South African-born comedian Trevor Noah; '4-5' is a slang term for male genitalia in South Africa.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "520",
+    "pinyin": "5 2 0",
+    "meaning": "A homophone for 'I love you,' one of the new holidays created by the internet.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "666",
+    "pinyin": "6 6 6",
+    "meaning": "'liu liu liu', describes someone or something as very awesome and powerful.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "AB",
+    "pinyin": "A B",
+    "meaning": "Abbreviation for entertainer and model Angelababy.",
+    "category": "流行文化"
+  },
+  {
+    "hanzi": "af",
+    "pinyin": "a f",
+    "meaning": "Means 'away from keyboard', an abbreviation for 'away from keyboard'. Mostly used when temporarily leaving an online game/chat due to something.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "afk",
+    "pinyin": "a f k",
+    "meaning": "Means 'away from keyboard', an abbreviation for 'away from keyboard'. Mostly used when temporarily leaving an online game/chat due to something.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "AV",
+    "pinyin": "A V",
+    "meaning": "Abbreviation for the English 'Adult Video', i.e., adult film. Also commonly known as 'xiao huang pian' (little yellow movies).",
+    "category": "流行文化"
+  },
+  {
+    "hanzi": "BAT",
+    "pinyin": "B A T",
+    "meaning": "The three giants of the Chinese internet: Baidu, Alibaba, and Tencent. The order is not ranked.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "bbl",
+    "pinyin": "b b l",
+    "meaning": "Abbreviation for 'ball ball le', which means 'please please'. It is used in situations of extreme helplessness or desire, to pitifully beg the other person.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "bdjw",
+    "pinyin": "b d j w",
+    "meaning": "Abbreviation for 'bù dǒng jiù wèn' (if you don't understand, just ask), usually a magical opening phrase used by everyone in a group chat when seeking knowledge. It can also be teasing, pretending to ask a question but actually to complain.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "BDSM",
+    "pinyin": "B D S M",
+    "meaning": "Abbreviation for Bondage, Discipline, Dominance & Submission, which refers to various sadomasochistic behaviors related to sex.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "be",
+    "pinyin": "b e",
+    "meaning": "Abbreviation for 'bad ending', referring to a bad ending, mostly used in romantic relationships.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "bhys",
+    "pinyin": "b h y s",
+    "meaning": "Abbreviation for 'bù hǎo yì si' (excuse me), used to express a small apology or shyness.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "blx",
+    "pinyin": "b l x",
+    "meaning": "Abbreviation for 'bōlí xīn' (glass heart), referring to people who are easily hurt and cannot accept criticism, and who shatter at the slightest touch on the internet.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "bp",
+    "pinyin": "b p",
+    "meaning": "Abbreviation for 'bái piáo' (white prostitute), referring to the act of not supporting idols with money or effort in the fan circle.",
+    "category": "流行文化"
+  },
+  {
+    "hanzi": "BS",
+    "pinyin": "B S",
+    "meaning": "Abbreviation for 'bull shit', meaning nonsense, full of shit.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "Call",
+    "pinyin": "C a l l",
+    "meaning": "From the Japanese 'コール', a term used to support Japanese idols. It refers to the act of fans in the audience collectively shouting the name/group name/slogan of the performer on stage to attract their attention. 'Seno' is usually used as a guide before shouting a call, and in China, a longer call is",
+    "category": "流行文化"
+  },
+  {
+    "hanzi": "CD",
+    "pinyin": "C D",
+    "meaning": "The 'skill cooldown time' in a game, an abbreviation for 'Cool Down'. That is, the waiting time required to activate a skill again after it has been activated. It can also be extended to refer to various time intervals in life.",
+    "category": "游戏术语"
+  },
+  {
+    "hanzi": "cp",
+    "pinyin": "c p",
+    "meaning": "Abbreviation for 'couple', referring to on-screen or real-life couples.",
+    "category": "流行文化"
+  },
+  {
+    "hanzi": "CP",
+    "pinyin": "C P",
+    "meaning": "Coterie partner, a couple created through fantasy.",
+    "category": "流行文化"
+  },
+  {
+    "hanzi": "D8",
+    "pinyin": "D 8",
+    "meaning": "Di Ba, which is the Li Yi Bar on Baidu Tieba. Known for its original and spoof content, it is one of the most popular and substantive forums on Baidu.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "darkcom",
+    "pinyin": "d a r k c o m",
+    "meaning": "Same as .com, the nickname of Secretary Li Dakang in the TV series 'In the Name of the People'.",
+    "category": "流行文化"
+  },
+  {
+    "hanzi": "dbq",
+    "pinyin": "d b q",
+    "meaning": "Abbreviation for 'duì bu qǐ' (sorry) and 'dǎ rǎo le' (sorry to bother you), used to politely end a topic or express apologies. 'dbq' is more sincere, while 'drl' is more humorous and helpless.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "diss",
+    "pinyin": "d i s s",
+    "meaning": "To belittle others, to attack someone with words.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "djll",
+    "pinyin": "d j l l",
+    "meaning": "Abbreviation for 'dǐng jí liú liàng' (top traffic), used to describe a very popular idol or topic.",
+    "category": "流行文化"
+  },
+  {
+    "hanzi": "duang",
+    "pinyin": "d u a n g",
+    "meaning": "From a spoof of a Bawang shampoo commercial endorsed by Hong Kong movie star Jackie Chan, used to describe a certain action effect, imitate a certain special effect sound effect, and mostly refers to a special effect achieved in an instant.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "dy",
+    "pinyin": "d y",
+    "meaning": "Abbreviation for 'duì you' (teammate), referring to a partner in a team, especially in games.",
+    "category": "游戏术语"
+  },
+  {
+    "hanzi": "Ex",
+    "pinyin": "E x",
+    "meaning": "English prefix, meaning 'ex-'. Now refers to an ex (boyfriend/girlfriend).",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "flag",
+    "pinyin": "f l a g",
+    "meaning": "Based on the characteristic that flags in text adventure games determine the development of the plot, the practice of doing something that will definitely/very likely cause something to happen next is called an XX flag. Fixed collocations include\nSetting a flag: Saying or doing certain things to mee",
+    "category": "游戏术语"
+  },
+  {
+    "hanzi": "freestyle",
+    "pinyin": "f r e e s t y l e",
+    "meaning": "Improvisational rap in hip-hop culture. In a certain show, Kris Wu asked a contestant, 'Do you have a freestyle?' which instantly went viral, and WeChat Moments was filled with various freestyle formats.",
+    "category": "社交媒体"
+  },
+  {
+    "hanzi": "gd",
+    "pinyin": "g d",
+    "meaning": "Abbreviation for 'guāng diàn' (photoelectric), referring to the light stick calls between idols and fans.",
+    "category": "流行文化"
+  },
+  {
+    "hanzi": "get",
+    "pinyin": "g e t",
+    "meaning": "Or get√, fixed phrase: skill get. Means to have acquired (a certain skill).",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "GG",
+    "pinyin": "G G",
+    "meaning": "good game, a synonym for admitting defeat in e-sports competitions, indicating that the opponent played well.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "GL",
+    "pinyin": "G L",
+    "meaning": "good luck, a polite greeting to the opponent at the beginning of an e-sports competition.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "gs",
+    "pinyin": "g s",
+    "meaning": "Abbreviation for 'gōng sī' (company), usually refers to the decision-making behavior of an entertainment company.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "gta",
+    "pinyin": "g t a",
+    "meaning": "A gangster game, full name Grand Theft Auto, translated into Chinese as 'Grand Theft Auto' or 'Grand Theft Auto'.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "GV",
+    "pinyin": "G V",
+    "meaning": "Gay video, refers to pornographic films with male-male sexual behavior as the main content.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "gzs",
+    "pinyin": "g z s",
+    "meaning": "Abbreviation for 'gōngzuòshì' (studio), usually refers to the personal team of an artist or internet celebrity, responsible for operations, marketing, and other affairs. Fans often discuss their operational strategies.",
+    "category": "流行文化"
+  },
+  {
+    "hanzi": "HDboys",
+    "pinyin": "H D b o y s",
+    "meaning": "The Handong boys, the leaders of Handong City in the TV series 'In the Name of the People'.",
+    "category": "流行文化"
+  },
+  {
+    "hanzi": "he",
+    "pinyin": "h e",
+    "meaning": "Abbreviation for 'happy ending', referring to a good ending, often used in film and television works.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "HF",
+    "pinyin": "H F",
+    "meaning": "have fun, often used as a polite greeting to the opponent at the beginning of a competition.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "hot fuck face",
+    "pinyin": "h o t   f u c k   f a c e",
+    "meaning": "Wuhan hot dry noodles.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "IDFK",
+    "pinyin": "I D F K",
+    "meaning": "Abbreviation for 'I don't f**king know', literally 'I f**king don't know'.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "jbdxbl",
+    "pinyin": "j b d x b l",
+    "meaning": "Laughed my dick off. It's synonymous with 'Awesome Elephant Tribe'.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "jdl",
+    "pinyin": "j d l",
+    "meaning": "Abbreviation for 'jiǎng dàolǐ' (to be reasonable), usually used to start a sentence to express an objective point of view or a serious comment, and sometimes with a persuasive tone.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "John Doe",
+    "pinyin": "J o h n   D o e",
+    "meaning": "The 'John Doe' of the English-speaking world, the usage can refer to 'Zhang San', 'Xiao Ming', 'so-and-so', 'so-and-so', 'anonymous', etc. In news reports and court trials, unidentified victims are called John Doe, and the corresponding female anonymous is Jane Doe.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "ju",
+    "pinyin": "j u",
+    "meaning": "Abbreviation for 'judge', used to refer to the evaluation or criticism of others or things.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "kkw",
+    "pinyin": "k k w",
+    "meaning": "A well-known male actor in China, Wang Kai, whose Weibo registered name is Wang Kai kkw, so kkw became his nickname.",
+    "category": "社交媒体"
+  },
+  {
+    "hanzi": "LMAO",
+    "pinyin": "L M A O",
+    "meaning": "Abbreviation for 'Laughing My Ass Off', literally 'laughing so hard my butthole fell off'. Commonly used by foreigners, with a greater degree than LOL. The meaning is roughly equivalent to 233 in China.",
+    "category": "游戏术语"
+  },
+  {
+    "hanzi": "LOL",
+    "pinyin": "L O L",
+    "meaning": "Abbreviation for 'Laughing Out Loud', literally means laughing out loud. Common on the English internet, similar to 233 in Chinese. But because it is overused, it can have a 'hehe' feel in some situations.",
+    "category": "游戏术语"
+  },
+  {
+    "hanzi": "Mogic",
+    "pinyin": "M o g i c",
+    "meaning": "The standard English translation of 'mofa' (membrane magic). There is only one kind of mofa in this world, and the spell is '+1s'. Every time the spell is cast, the elder's life is extended by one second.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "muji",
+    "pinyin": "m u j i",
+    "meaning": "The Japanese brand Muji, famous for its simple, comfortable, and pretentious style.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "nbcs",
+    "pinyin": "n b c s",
+    "meaning": "Abbreviation for Nobody Cares, used to express 'nobody cares', usually in response to someone rambling on about unnecessary information, with a slightly indifferent tone.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "NC",
+    "pinyin": "N C",
+    "meaning": "Brain dead, the pinyin initials. To scold someone for having a bad brain, being blind, or mentally retarded.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "NPC",
+    "pinyin": "N P C",
+    "meaning": "A non-player character in a game, an abbreviation for the English 'Non-Player Character'.",
+    "category": "游戏术语"
+  },
+  {
+    "hanzi": "nsdd",
+    "pinyin": "n s d d",
+    "meaning": "Abbreviation for 'nǐ shuō de duì' (you're right), used to express agreement with someone's point of view, and sometimes with a hint of perfunctoriness.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "NSFW",
+    "pinyin": "N S F W",
+    "meaning": "Abbreviation for Not Safe For Work, a common tag for posts with benefits. It reminds people at work not to open it at the company, because the content usually includes busty girls or various benefits. It would be bad if the boss saw it...",
+    "category": "职场用语"
+  },
+  {
+    "hanzi": "oppa",
+    "pinyin": "o p p a",
+    "meaning": "Korean for 'older brother', an affectionate term for men. Can be used between couples.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "P",
+    "pinyin": "P",
+    "meaning": "Coterie partner, a couple created through fantasy.",
+    "category": "流行文化"
+  },
+  {
+    "hanzi": "paotner",
+    "pinyin": "p a o t n e r",
+    "meaning": "The authentic English translation of 'pàoyǒu' (fuck buddy).",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "pb",
+    "pinyin": "p b",
+    "meaning": "Abbreviation for 'photobook', referring to an idol's photo album.",
+    "category": "流行文化"
+  },
+  {
+    "hanzi": "PMGO",
+    "pinyin": "P M G O",
+    "meaning": "Abbreviation for the mobile game Pokémon Go, produced by Nintendo, which allows users to catch Pokémon while walking on the street!",
+    "category": "游戏术语"
+  },
+  {
+    "hanzi": "PPAP",
+    "pinyin": "P P A P",
+    "meaning": "Japanese advertising masterpiece 'Pen Pineapple Apple Pen'.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "py",
+    "pinyin": "p y",
+    "meaning": "Abbreviation for 'péng you quān' (circle of friends), often refers to WeChat Moments, a social platform for sharing life.",
+    "category": "社交媒体"
+  },
+  {
+    "hanzi": "pyq",
+    "pinyin": "p y q",
+    "meaning": "Abbreviation for 'péng you quān' (circle of friends), often refers to WeChat Moments, a social platform for sharing life.",
+    "category": "社交媒体"
+  },
+  {
+    "hanzi": "QAQ",
+    "pinyin": "Q A Q",
+    "meaning": "Emoticon, representing eyes full of tears.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "rio",
+    "pinyin": "r i o",
+    "meaning": "Pronounced like 'real,' meaning 'real' in English.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "rmb",
+    "pinyin": "r m b",
+    "meaning": "Abbreviation for Renminbi, but in the fan circle, it is sometimes teased as 'money is the father', used to describe fans with outstanding financial resources who are willing to spend money on their idols.",
+    "category": "流行文化"
+  },
+  {
+    "hanzi": "rnb",
+    "pinyin": "r n b",
+    "meaning": "Abbreviation for 'real niubi' (really awesome), often used to express great admiration for someone or something, feeling that they/it is truly awesome! Sometimes with a bit of a teasing tone.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "RP",
+    "pinyin": "R P",
+    "meaning": "Character, similar to luck. Unlike luck, character can be accumulated and lost. Giving benefits or sharing experience is the most common way to accumulate RP.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "rs",
+    "pinyin": "r s",
+    "meaning": "Abbreviation for 'rè sōu' (hot search) or 'rén shēn gōng jī' (personal attack), which can refer to the Weibo hot search list or describe personal attacks on the internet.",
+    "category": "社交媒体"
+  },
+  {
+    "hanzi": "rz",
+    "pinyin": "r z",
+    "meaning": "Abbreviation for 'ruò zhì' (mentally retarded), referring to unintelligent or foolish behavior, with a slight sarcastic tone.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "seno",
+    "pinyin": "s e n o",
+    "meaning": "Pronunciation: se~no. From the Japanese 'せーのっ', used as a command before multiple people perform the same action together, equivalent to the Chinese 'yùbèi qǐ' (ready, set, go) or 'sān èr yī' (three, two, one). In China, it is mainly used as a command before shouting calls for Japanese idols.",
+    "category": "流行文化"
+  },
+  {
+    "hanzi": "sj",
+    "pinyin": "s j",
+    "meaning": "Abbreviation for 'shì jiān' (visual rape), referring to secretly viewing someone's social media updates.",
+    "category": "社交媒体"
+  },
+  {
+    "hanzi": "sjb",
+    "pinyin": "s j b",
+    "meaning": "Abbreviation for 'shén jīng bìng' (crazy person), used to tease others for their strange behavior.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "soka",
+    "pinyin": "s o k a",
+    "meaning": "Catchphrase: So that's how it is. I see! Imitating the pronunciation of the Japanese [そうか], but because か is voiced at the end of the word, a closer pronunciation should be Soga.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "spa, spa, spa",
+    "pinyin": "s p a ,   s p a ,   s p a",
+    "meaning": "The Reaper's ultimate. The Chinese voice line is 'sǐ ba, sǐ ba, sǐ ba,' which sounds like 'spa, spa, spa'.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "ssfd",
+    "pinyin": "s s f d",
+    "meaning": "Pinyin abbreviation for 'shivering'.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "SSR",
+    "pinyin": "S S R",
+    "meaning": "Superior super rare. In the mobile game 'Onmyoji', the Shikigami are divided into N, R, SR, and SSR according to their rarity. SSR is the rarest level.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "szd",
+    "pinyin": "s z d",
+    "meaning": "Abbreviation for 'shì zhēn de' (it's true), used to emphasize that what is said is true.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "T",
+    "pinyin": "T",
+    "meaning": "Abbreviation for Throwback Thursday, a commonly used post tag.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "TB",
+    "pinyin": "T B",
+    "meaning": "Abbreviation for Throwback Thursday, a commonly used post tag.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "TBT",
+    "pinyin": "T B T",
+    "meaning": "Abbreviation for Throwback Thursday, a commonly used post tag.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "tc",
+    "pinyin": "t c",
+    "meaning": "Abbreviation for 'tiān cháo' (Celestial Empire), a teasing way to refer to China on the internet.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "TIL",
+    "pinyin": "T I L",
+    "meaning": "Abbreviation for Today I Learned, which literally translates to 'Today I learned'. To put it bluntly, it means 'to gain knowledge'. It is a commonly used tag when posting, for example, there is a dedicated TIL section on Reddit.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "u1s1",
+    "pinyin": "u 1 s 1",
+    "meaning": "Abbreviation for 'yǒu yī shuō yī' (to be fair), used to objectively state one's opinion.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "whks",
+    "pinyin": "w h k s",
+    "meaning": "It’s that mentally-unplug-the-WiFi kind of vibe — a passive self-defense mechanism for surviving the internet’s daily chaos. Think of it as an emotional abbreviation: more defeated than ‘speechless’, but not as dramatic as ‘I’m losing it’.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "wuli",
+    "pinyin": "w u l i",
+    "meaning": "Means 'we' or 'our/my' in Korean. Used to refer to one's favorite celebrity, e.g., Wuli Taotao.",
+    "category": "流行文化"
+  },
+  {
+    "hanzi": "xfxy",
+    "pinyin": "x f x y",
+    "meaning": "Abbreviation for 'xīng fēng xuè yǔ' (bloody storm), describing a situation that is extremely intense, like a disaster.",
+    "category": "拼音缩写"
+  },
+  {
+    "hanzi": "you can you up",
+    "pinyin": "y o u   c a n   y o u   u p",
+    "meaning": "You can you up. Fixed phrase: you can you up, no can no bibi (If you can do it, you go do it. If you can't, then shut up).",
+    "category": "拼音缩写"
   }
 ]

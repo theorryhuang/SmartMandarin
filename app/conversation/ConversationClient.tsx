@@ -37,7 +37,10 @@ export function ConversationClient({ masteryMap }: Props) {
   const [isLoading, setIsLoading] = useState(false);
   const [sheet, setSheet] = useState<SheetInfo | null>(null);
   const [savedWords, setSavedWords] = useState<Set<string>>(new Set());
-  const [slangMode, setSlangMode] = useState(false);
+  const [slangMode, setSlangMode] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("sm_slang_mode") === "1";
+  });
   const [hskLevel, setHskLevel] = useState<number | null>(null);
   const [unknownWords, setUnknownWords] = useState<
     { hanzi: string; pinyin: string; meaning: string }[]
@@ -226,7 +229,7 @@ export function ConversationClient({ masteryMap }: Props) {
           const res = await fetch("/api/define-word", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ hanzi: word }),
+            body: JSON.stringify({ hanzi: word, slang_mode: slangMode }),
           });
           const def = await res.json();
           if (def.pinyin || def.meaning) {
@@ -239,7 +242,7 @@ export function ConversationClient({ masteryMap }: Props) {
         }
       }
     },
-    [savedWords, masteryMap]
+    [savedWords, masteryMap, slangMode]
   );
 
   const handleAddToSaved = useCallback(async () => {
@@ -292,7 +295,11 @@ export function ConversationClient({ masteryMap }: Props) {
         </div>
 
         <button
-          onClick={() => setSlangMode((s) => !s)}
+          onClick={() => setSlangMode((s) => {
+            const next = !s;
+            localStorage.setItem("sm_slang_mode", next ? "1" : "0");
+            return next;
+          })}
           className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all flex-shrink-0 ${
             slangMode
               ? "bg-violet-100 border-violet-300 text-violet-700"

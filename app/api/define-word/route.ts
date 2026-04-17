@@ -1,29 +1,56 @@
 /**
  * POST /api/define-word
- * Body: { hanzi: string; hsk_level?: number }
- * Returns: { pinyin: string; meaning: string; source: "cedict" | "ai" }
+ * Body: { hanzi: string; slang_mode?: boolean }
+ * Returns: { pinyin: string; meaning: string; source: "cedict" | "slang" | "ai" }
  *
- * Lookup order: CC-CEDICT (authoritative) → Groq LLM fallback for phrases not in dict.
+ * Lookup order:
+ *   textbook mode (default): CEDICT → slang_bank → AI
+ *   slang mode: slang_bank → CEDICT → AI
  */
 import { NextRequest, NextResponse } from "next/server";
 import { cedictLookup, hskLookup } from "@/lib/cedict";
+import { createClient } from "@/lib/supabase/server";
 
 const GROQ_MODEL = "llama-3.3-70b-versatile";
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
+async function slangBankLookup(hanzi: string) {
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("slang_bank")
+      .select("pinyin, meaning")
+      .eq("hanzi", hanzi)
+      .single() as { data: { pinyin: string | null; meaning: string } | null };
+    if (data?.meaning) {
+      const hsk_level = hskLookup(hanzi);
+      return { pinyin: data.pinyin ?? "", meaning: data.meaning, hsk_level, source: "slang" as const };
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
 export async function POST(req: NextRequest) {
-  const { hanzi } = await req.json().catch(() => ({}));
+  const { hanzi, slang_mode } = await req.json().catch(() => ({}));
   if (!hanzi) {
     return NextResponse.json({ error: "hanzi required" }, { status: 400 });
   }
 
-  // 1. Try CEDICT first
-  const cedictResult = cedictLookup(hanzi);
-  if (cedictResult) {
-    return NextResponse.json(cedictResult);
+  if (slang_mode) {
+    // Slang mode: slang_bank first, then CEDICT
+    const slangResult = await slangBankLookup(hanzi);
+    if (slangResult) return NextResponse.json(slangResult);
+    const cedictResult = cedictLookup(hanzi);
+    if (cedictResult) return NextResponse.json(cedictResult);
+  } else {
+    // Textbook mode: CEDICT first, then slang_bank
+    const cedictResult = cedictLookup(hanzi);
+    if (cedictResult) return NextResponse.json(cedictResult);
+    const slangResult = await slangBankLookup(hanzi);
+    if (slangResult) return NextResponse.json(slangResult);
   }
 
-  // Not in CEDICT — look up HSK level independently before AI fallback
+  // Not in either DB — look up HSK level independently before AI fallback
   const hsk_level = hskLookup(hanzi);
 
   // 2. Groq fallback for multi-word phrases / proper nouns not in CEDICT

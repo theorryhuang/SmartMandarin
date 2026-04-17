@@ -40,6 +40,9 @@ export function SpeakingClient() {
   const [revealedTurns, setRevealedTurns] = useState<Set<number>>(new Set());
 
   const [slangMode, setSlangMode] = useState(false);
+  useEffect(() => {
+    setSlangMode(localStorage.getItem("sm_slang_mode") === "1");
+  }, []);
   const [speechRate, setSpeechRate] = useState(1);
   const [playingTurnIndex, setPlayingTurnIndex] = useState<number | null>(null);
   const [isSpeechPaused, setIsSpeechPaused] = useState(false);
@@ -165,7 +168,7 @@ export function SpeakingClient() {
           const res = await fetch("/api/define-word", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ hanzi: word }),
+            body: JSON.stringify({ hanzi: word, slang_mode: slangMode }),
           });
           const def = await res.json();
           if (def.pinyin || def.meaning) {
@@ -178,7 +181,7 @@ export function SpeakingClient() {
         } catch { /* ignore */ }
       }
     },
-    [unknownWords, savedWords]
+    [unknownWords, savedWords, slangMode]
   );
 
   const handleAddToSaved = useCallback(async () => {
@@ -234,7 +237,11 @@ export function SpeakingClient() {
           </p>
         </div>
         <button
-          onClick={() => setSlangMode((s) => !s)}
+          onClick={() => setSlangMode((s) => {
+            const next = !s;
+            localStorage.setItem("sm_slang_mode", next ? "1" : "0");
+            return next;
+          })}
           className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all flex-shrink-0 ${
             slangMode
               ? "bg-violet-100 border-violet-300 text-violet-700"
