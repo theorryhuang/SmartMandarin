@@ -14,7 +14,6 @@ function getDb() {
   if (!db) {
     const dbPath = path.join(process.cwd(), "data", "cedict.db");
     db = new Database(dbPath, { readonly: true, fileMustExist: true });
-    db.pragma("journal_mode = WAL");
     dictStmt = db.prepare(
       "SELECT traditional, pinyin, english FROM entries WHERE simplified = ? LIMIT 1"
     );
