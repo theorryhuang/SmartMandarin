@@ -77,6 +77,103 @@ export type Database = {
           }
         ];
       };
+      slang_bank: {
+        Row: {
+          id: string;
+          hanzi: string;
+          pinyin: string | null;
+          meaning: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          hanzi: string;
+          pinyin?: string | null;
+          meaning: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          hanzi?: string;
+          pinyin?: string | null;
+          meaning?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      speaking_turns: {
+        Row: {
+          id: string;
+          user_id: string;
+          client_id: string;
+          role: "user" | "assistant";
+          raw_text: string;
+          tokens: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          client_id: string;
+          role: "user" | "assistant";
+          raw_text: string;
+          tokens: Json;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          client_id?: string;
+          role?: "user" | "assistant";
+          raw_text?: string;
+          tokens?: Json;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "speaking_turns_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      chat_messages: {
+        Row: {
+          id: string;
+          user_id: string;
+          client_id: string;
+          role: "user" | "assistant";
+          content: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          client_id: string;
+          role: "user" | "assistant";
+          content: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          client_id?: string;
+          role?: "user" | "assistant";
+          content?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
       review_log: {
         Row: {
           id: string;

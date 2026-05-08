@@ -18,7 +18,7 @@ export async function saveSpeakingTurns(turns: ConversationTurn[]): Promise<void
     client_id: t.timestamp,
     role: t.role,
     raw_text: t.raw_text,
-    tokens: t.tokens,
+    tokens: t.tokens as unknown as import("@/lib/supabase/database.types").Json,
   }));
 
   const { error } = await supabase
@@ -51,7 +51,7 @@ export async function loadRecentSpeakingTurns(limit = 60): Promise<ConversationT
     .map((r) => ({
       role: r.role as "user" | "assistant",
       raw_text: r.raw_text,
-      tokens: r.tokens as ConversationTurn["tokens"],
+      tokens: r.tokens as unknown as ConversationTurn["tokens"],
       timestamp: r.client_id,
     }));
 }
