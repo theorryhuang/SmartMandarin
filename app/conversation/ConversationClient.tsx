@@ -534,16 +534,11 @@ function TappableMessage({
     }
   }
 
-  const [selStart, setSelStart] = useState<number | null>(null);
-  const [selEnd, setSelEnd] = useState<number | null>(null);
-  const isSelectingRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  const selLo = selStart !== null && selEnd !== null ? Math.min(selStart, selEnd) : null;
-  const selHi = selStart !== null && selEnd !== null ? Math.max(selStart, selEnd) : null;
+  const onWordSelectRef = useRef(onWordSelect);
+  useEffect(() => { onWordSelectRef.current = onWordSelect; }, [onWordSelect]);
 
   // Precompute which hanzi-indices are covered by a saved multi-char compound
-  // that actually appears at that position in the text (not just any occurrence of the char).
   const hanziSegs = segments.filter((s) => s.type === "hanzi");
   const hanziStr = hanziSegs.map((s) => s.content).join("");
   const savedCoveredIndices = new Set<number>();
@@ -558,50 +553,34 @@ function TappableMessage({
     }
   }
 
-  // Non-passive touchmove listener so we can preventDefault and block scroll during drag
+  // Native selection: on mouseup/touchend, read window.getSelection() for multi-char words.
+  // Single-char taps are handled by onClick on individual spans below.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const onTouchMove = (e: TouchEvent) => {
-      if (!isSelectingRef.current) return;
-      e.preventDefault();
-      const touch = e.touches[0];
-      const target = document.elementFromPoint(touch.clientX, touch.clientY);
-      const hidx = target?.getAttribute("data-hidx");
-      if (hidx != null) setSelEnd(parseInt(hidx));
+    const onEnd = () => {
+      setTimeout(() => {
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed) return;
+        const text = sel.toString().replace(/[^一-鿿㐀-䶿]/g, "");
+        if (text.length > 1) {
+          onWordSelectRef.current(text);
+          setTimeout(() => sel.removeAllRanges(), 150);
+        }
+      }, 50);
     };
-    el.addEventListener("touchmove", onTouchMove, { passive: false });
-    return () => el.removeEventListener("touchmove", onTouchMove);
+    el.addEventListener("mouseup", onEnd);
+    el.addEventListener("touchend", onEnd);
+    return () => {
+      el.removeEventListener("mouseup", onEnd);
+      el.removeEventListener("touchend", onEnd);
+    };
   }, []);
-
-  function handlePointerDown(hanziI: number) {
-    isSelectingRef.current = true;
-    setSelStart(hanziI);
-    setSelEnd(hanziI);
-  }
-
-  function handlePointerEnter(hanziI: number) {
-    if (isSelectingRef.current) setSelEnd(hanziI);
-  }
-
-  function handlePointerUp() {
-    if (!isSelectingRef.current || selLo === null || selHi === null) return;
-    isSelectingRef.current = false;
-    const word = segments
-      .filter((s) => s.type === "hanzi" && s.idx >= selLo && s.idx <= selHi)
-      .map((s) => s.content)
-      .join("");
-    if (word) onWordSelect(word);
-    setSelStart(null);
-    setSelEnd(null);
-  }
 
   return (
     <div
       ref={containerRef}
-      className="leading-loose text-[15px] select-none"
-      onPointerUp={handlePointerUp}
-      onPointerLeave={() => { if (isSelectingRef.current) handlePointerUp(); }}
+      className="leading-loose text-[15px]"
     >
       {segments.map((seg, i) => {
         if (seg.type === "punct") {
@@ -615,9 +594,6 @@ function TappableMessage({
           return <span key={i}>{seg.content}</span>;
         }
 
-        // hanzi
-        const isInSel = selLo !== null && selHi !== null && seg.idx >= selLo && seg.idx <= selHi;
-        // Highlight if this exact char is saved, or if it's covered by a saved compound at this position
         const isSaved = savedWords.has(seg.content) || savedCoveredIndices.has(seg.idx);
         const mastery = masteryMap[seg.content];
         const isLearning = mastery && mastery.stability < HIGH_STABILITY_THRESHOLD;
@@ -625,16 +601,13 @@ function TappableMessage({
         return (
           <span
             key={i}
-            data-hidx={String(seg.idx)}
-            onPointerDown={(e) => {
-              e.currentTarget.releasePointerCapture(e.pointerId);
-              handlePointerDown(seg.idx);
+            onClick={() => {
+              const sel = window.getSelection();
+              if (sel && !sel.isCollapsed) return; // multi-char selection handled by onEnd
+              onWordSelect(seg.content);
             }}
-            onPointerEnter={() => handlePointerEnter(seg.idx)}
             className={`cursor-pointer rounded-sm transition-colors ${
-              isInSel
-                ? "bg-violet-200 text-violet-900"
-                : isSaved
+              isSaved
                 ? "word-token word-token--mistake"
                 : isLearning
                 ? "word-token word-token--unknown"
