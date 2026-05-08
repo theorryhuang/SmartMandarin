@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Brain, MessageCircle, BookOpen, TrendingUp, ChevronRight, User, Mic, List, Flame } from "lucide-react";
+import { Brain, MessageCircle, BookOpen, TrendingUp, ChevronRight, User, Mic, List, Flame, Plus, X, Search, Check } from "lucide-react";
 import { useLanguage } from "./LanguageContext";
 import { LanguageSwitcher } from "./LanguageSwitcher";
+import { useState, useRef } from "react";
+import { logMistake } from "@/app/actions/vocabulary";
 
 interface Props {
   dueCount: number;
@@ -15,8 +17,68 @@ interface Props {
   DevResetButton?: React.ReactNode;
 }
 
+type LookupState = "idle" | "loading" | "found" | "not_found" | "added";
+interface LookupResult { pinyin: string; meaning: string; hsk_level: number | null; source?: string; alreadySaved?: boolean }
+
 export function HomeClient({ dueCount, slangDueCount, totalWords, masteredCount, masteryPct, devMode, DevResetButton }: Props) {
   const { t } = useLanguage();
+  const [showAddWord, setShowAddWord] = useState(false);
+  const [hanziInput, setHanziInput] = useState("");
+  const [lookupState, setLookupState] = useState<LookupState>("idle");
+  const [lookupResult, setLookupResult] = useState<LookupResult | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function handleLookup() {
+    const hanzi = hanziInput.trim();
+    if (!hanzi) return;
+    setLookupState("loading");
+    setLookupResult(null);
+    try {
+      const res = await fetch("/api/define-word", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hanzi }),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      if (data.pinyin && data.meaning) {
+        setLookupResult({ pinyin: data.pinyin, meaning: data.meaning, hsk_level: data.hsk_level ?? null, source: data.source, alreadySaved: data.already_saved ?? false });
+        setLookupState("found");
+      } else {
+        setLookupState("not_found");
+      }
+    } catch {
+      setLookupState("not_found");
+    }
+  }
+
+  async function handleAdd() {
+    if (!lookupResult) return;
+    await logMistake(hanziInput.trim(), {
+      pinyin: lookupResult.pinyin,
+      meaning: lookupResult.meaning,
+      hsk_level: lookupResult.hsk_level ?? undefined,
+    });
+    setLookupState("added");
+    setTimeout(() => {
+      setShowAddWord(false);
+      setHanziInput("");
+      setLookupState("idle");
+      setLookupResult(null);
+    }, 1500);
+  }
+
+  function handleOpen() {
+    setShowAddWord(true);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }
+
+  function handleClose() {
+    setShowAddWord(false);
+    setHanziInput("");
+    setLookupState("idle");
+    setLookupResult(null);
+  }
 
   const modes = [
     {
@@ -147,6 +209,98 @@ export function HomeClient({ dueCount, slangDueCount, totalWords, masteredCount,
               style={{ width: `${masteryPct}%` }}
             />
           </div>
+        </div>
+
+        {/* ── Add Word ── */}
+        <div className="mb-6">
+          {!showAddWord ? (
+            <button
+              onClick={handleOpen}
+              className="w-full flex items-center gap-3 bg-[var(--color-surface)] rounded-2xl px-4 py-3.5 border border-dashed border-[var(--color-border)] hover:border-violet-300 hover:shadow-sm transition-all text-left"
+            >
+              <div className="w-11 h-11 rounded-xl bg-violet-50 flex items-center justify-center flex-shrink-0">
+                <Plus size={22} className="text-violet-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm text-[var(--color-text-primary)]">{t.addWord}</div>
+                <div className="text-xs text-[var(--color-text-muted)] mt-0.5">{t.addWordDesc}</div>
+              </div>
+            </button>
+          ) : (
+            <div className="bg-[var(--color-surface)] rounded-2xl p-4 border border-violet-200 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <span className="font-medium text-sm text-[var(--color-text-primary)]">{t.addWord}</span>
+                <button onClick={handleClose} className="p-1 rounded-lg hover:bg-[var(--color-background)] transition-colors">
+                  <X size={16} className="text-[var(--color-text-muted)]" />
+                </button>
+              </div>
+
+              <div className="flex gap-2 mb-3">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={hanziInput}
+                  onChange={(e) => { setHanziInput(e.target.value); setLookupState("idle"); setLookupResult(null); }}
+                  onKeyDown={(e) => e.key === "Enter" && handleLookup()}
+                  placeholder={t.addWordPlaceholder}
+                  className="flex-1 bg-[var(--color-background)] border border-[var(--color-border)] rounded-xl px-3 py-2.5 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-violet-400 transition-colors"
+                />
+                <button
+                  onClick={handleLookup}
+                  disabled={!hanziInput.trim() || lookupState === "loading"}
+                  className="px-3 py-2.5 bg-violet-500 hover:bg-violet-600 disabled:opacity-40 text-white rounded-xl transition-colors flex items-center gap-1.5 text-sm font-medium"
+                >
+                  {lookupState === "loading" ? (
+                    <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <Search size={15} />
+                  )}
+                  {lookupState === "loading" ? t.lookingUpWord : t.lookupWord}
+                </button>
+              </div>
+
+              {lookupState === "found" && lookupResult && (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-3 bg-[var(--color-background)] rounded-xl px-3 py-2.5">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-base font-semibold text-[var(--color-text-primary)]">{hanziInput.trim()}</div>
+                      <div className="text-xs text-violet-600 font-medium">{lookupResult.pinyin}</div>
+                      <div className="text-xs text-[var(--color-text-muted)] mt-0.5 leading-snug">{lookupResult.meaning}</div>
+                    </div>
+                    {lookupResult.alreadySaved ? (
+                      <div className="flex items-center gap-1 px-3 py-2 bg-violet-100 text-violet-700 rounded-xl text-xs font-medium flex-shrink-0">
+                        <Check size={13} />
+                        {t.wordAlreadySaved}
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleAdd}
+                        className="px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-medium transition-colors flex-shrink-0"
+                      >
+                        {t.addToReview}
+                      </button>
+                    )}
+                  </div>
+                  {lookupResult.source === "ai" && !lookupResult.alreadySaved && (
+                    <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-snug">
+                      {t.aiDefinitionWarning}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {lookupState === "added" && (
+                <div className="flex items-center gap-2 bg-emerald-50 rounded-xl px-3 py-2.5 text-emerald-700 text-sm">
+                  <Check size={16} />
+                  {t.wordAdded}
+                </div>
+              )}
+
+              {lookupState === "not_found" && (
+                <div className="text-xs text-[var(--color-text-muted)] px-1">{t.wordNotFound}</div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ── Learning modes ── */}

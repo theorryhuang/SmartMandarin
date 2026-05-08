@@ -137,6 +137,18 @@ const en = {
   restartSession: "Restart",
   reshuffleSession: "Shuffle",
 
+  // ── Add Word ─────────────────────────────────────────────────────────────────
+  addWord: "Add Word",
+  addWordPlaceholder: "Enter Chinese characters…",
+  lookupWord: "Look up",
+  lookingUpWord: "Looking up…",
+  addToReview: "Add to review",
+  wordAdded: "Added to review",
+  wordNotFound: "Word not found",
+  wordAlreadySaved: "Already saved",
+  aiDefinitionWarning: "AI-generated definition — verify accuracy before adding",
+  addWordDesc: "Manually add a word to your review queue",
+
   // ── Vocabulary list ──────────────────────────────────────────────────────────
   myVocabulary: "My Vocabulary",
   vocabDesc: "Browse all your saved words",
@@ -284,6 +296,18 @@ const zh: typeof en = {
   prevCard: "上一张",
   restartSession: "重新开始",
   reshuffleSession: "重新洗牌",
+
+  // ── Add Word ─────────────────────────────────────────────────────────────────
+  addWord: "添加单词",
+  addWordPlaceholder: "输入汉字…",
+  lookupWord: "查询",
+  lookingUpWord: "查询中…",
+  addToReview: "加入复习",
+  wordAdded: "已加入复习",
+  wordNotFound: "未找到该词",
+  wordAlreadySaved: "已保存",
+  aiDefinitionWarning: "AI 生成的释义 — 添加前请核实准确性",
+  addWordDesc: "手动添加单词到复习队列",
 
   // ── Vocabulary list ──────────────────────────────────────────────────────────
   myVocabulary: "我的词汇",

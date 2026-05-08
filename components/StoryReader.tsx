@@ -31,6 +31,7 @@ interface SheetInfo {
   meaning?: string;
   mastery?: VocabularyMastery;
   queued: boolean;
+  source?: string;
   _fetchedDef?: { pinyin: string; meaning: string; hsk_level?: number | null };
 }
 
@@ -73,7 +74,7 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
   }
 
   async function handleCharTap(char: string, mastery: VocabularyMastery | undefined) {
-    const isQueued = queuedWords.has(char) || (mastery?.flagged_for_immediate_use ?? false);
+    const isQueued = queuedWords.has(char) || !!mastery;
 
     // Show sheet — let user decide to add/remove
     setSheet({
@@ -96,7 +97,7 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
         if (def.pinyin || def.meaning) {
           setSheet((s) =>
             s && s.char === char
-              ? { ...s, pinyin: s.pinyin || def.pinyin, meaning: s.meaning || def.meaning, _fetchedDef: def }
+              ? { ...s, pinyin: s.pinyin || def.pinyin, meaning: s.meaning || def.meaning, source: def.source, queued: s.queued || !!def.already_saved, _fetchedDef: def }
               : s
           );
         }
@@ -220,6 +221,11 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
               <span className="text-sm text-[var(--color-text-muted)] italic">{t.notInVocab}</span>
             )}
 
+            {sheet.source === "ai" && !sheet.queued && (
+              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-center max-w-xs">
+                {t.aiDefinitionWarning}
+              </p>
+            )}
             {sheet.queued ? (
               <button
                 onClick={() => handleUnqueue(sheet.char, sheet.mastery)}

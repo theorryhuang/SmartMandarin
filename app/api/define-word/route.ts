@@ -36,6 +36,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "hanzi required" }, { status: 400 });
   }
 
+  // Check if word already saved in user's vocabulary
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    const { data: existing } = await supabase
+      .from("vocabulary_mastery")
+      .select("pinyin, meaning, hsk_level")
+      .eq("user_id", user.id)
+      .eq("hanzi", hanzi)
+      .maybeSingle();
+    if (existing?.meaning) {
+      return NextResponse.json({
+        pinyin: existing.pinyin ?? "",
+        meaning: existing.meaning,
+        hsk_level: existing.hsk_level ?? null,
+        source: "saved",
+        already_saved: true,
+      });
+    }
+  }
+
   if (slang_mode) {
     // Slang mode: slang_bank first, then CEDICT
     const slangResult = await slangBankLookup(hanzi);

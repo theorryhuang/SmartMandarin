@@ -21,6 +21,7 @@ interface SheetInfo {
   meaning?: string;
   hsk_level?: number | null;
   saved: boolean;
+  source?: string;
 }
 
 interface Props {
@@ -213,7 +214,7 @@ export function ConversationClient({ masteryMap }: Props) {
     async (word: string) => {
       if (!word) return;
       const mastery = masteryMap[word];
-      const isSaved = savedWords.has(word) || (mastery?.flagged_for_immediate_use ?? false);
+      const isSaved = savedWords.has(word) || !!mastery;
 
       // Show sheet — let user decide to add/remove
       setSheet({
@@ -234,7 +235,9 @@ export function ConversationClient({ masteryMap }: Props) {
           const def = await res.json();
           if (def.pinyin || def.meaning) {
             setSheet((s) =>
-              s?.word === word ? { ...s, pinyin: def.pinyin || s.pinyin, meaning: def.meaning || s.meaning, hsk_level: def.hsk_level ?? null } : s
+              s?.word === word
+                ? { ...s, pinyin: def.pinyin || s.pinyin, meaning: def.meaning || s.meaning, hsk_level: def.hsk_level ?? null, source: def.source, saved: s.saved || !!def.already_saved }
+                : s
             );
           }
         } catch {
@@ -453,6 +456,11 @@ export function ConversationClient({ masteryMap }: Props) {
                 {t.noDefinition}
               </span>
             ) : null}
+            {sheet.source === "ai" && !sheet.saved && (
+              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-center max-w-xs">
+                {t.aiDefinitionWarning}
+              </p>
+            )}
             {sheet.saved ? (
               <button
                 onClick={handleRemoveFromSaved}
