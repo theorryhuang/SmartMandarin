@@ -23,7 +23,7 @@ async function slangBankLookup(hanzi: string) {
       .eq("hanzi", hanzi)
       .single() as { data: { pinyin: string | null; meaning: string } | null };
     if (data?.meaning) {
-      const hsk_level = hskLookup(hanzi);
+      const hsk_level = await hskLookup(hanzi);
       return { pinyin: data.pinyin ?? "", meaning: data.meaning, hsk_level, source: "slang" as const };
     }
   } catch { /* ignore */ }
@@ -61,18 +61,18 @@ export async function POST(req: NextRequest) {
     // Slang mode: slang_bank first, then CEDICT
     const slangResult = await slangBankLookup(hanzi);
     if (slangResult) return NextResponse.json(slangResult);
-    const cedictResult = cedictLookup(hanzi);
+    const cedictResult = await cedictLookup(hanzi);
     if (cedictResult) return NextResponse.json(cedictResult);
   } else {
     // Textbook mode: CEDICT first, then slang_bank
-    const cedictResult = cedictLookup(hanzi);
+    const cedictResult = await cedictLookup(hanzi);
     if (cedictResult) return NextResponse.json(cedictResult);
     const slangResult = await slangBankLookup(hanzi);
     if (slangResult) return NextResponse.json(slangResult);
   }
 
   // Not in either DB — look up HSK level independently before AI fallback
-  const hsk_level = hskLookup(hanzi);
+  const hsk_level = await hskLookup(hanzi);
 
   // 2. Groq fallback for multi-word phrases / proper nouns not in CEDICT
   const apiKey = process.env.GROQ_API_KEY;

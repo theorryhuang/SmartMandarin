@@ -1,7 +1,7 @@
 {
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/build-cedict-db.mjs && next build",
+    "build": "next build",
     "start": "next start",
     "type-check": "tsc --noEmit",
     "build-cedict-db": "node scripts/build-cedict-db.mjs"

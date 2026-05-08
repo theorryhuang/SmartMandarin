@@ -77,6 +77,36 @@ export type Database = {
           }
         ];
       };
+      cedict: {
+        Row: {
+          id: number;
+          simplified: string;
+          traditional: string;
+          pinyin: string;
+          english: string;
+        };
+        Insert: {
+          id?: number;
+          simplified: string;
+          traditional: string;
+          pinyin: string;
+          english: string;
+        };
+        Update: {
+          id?: number;
+          simplified?: string;
+          traditional?: string;
+          pinyin?: string;
+          english?: string;
+        };
+        Relationships: [];
+      };
+      hsk_vocabulary: {
+        Row: { hanzi: string; level: number };
+        Insert: { hanzi: string; level: number };
+        Update: { hanzi?: string; level?: number };
+        Relationships: [];
+      };
       slang_bank: {
         Row: {
           id: string;

@@ -1,34 +1,14 @@
 /**
- * CEDICT lookup module — SQLite-backed, O(log n) per query.
- * Server-side only (uses better-sqlite3 native addon).
+ * CEDICT lookup module — Supabase-backed.
+ * Server-side only (called from API routes).
  */
-import path from "path";
-import Database, { type Database as DB } from "better-sqlite3";
+import { createClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/supabase/database.types";
 
-// Lazy-loaded singleton connection
-let db: DB | null = null;
-let dictStmt: ReturnType<DB["prepare"]> | null = null;
-let hskStmt: ReturnType<DB["prepare"]> | null = null;
-
-function getDb() {
-  if (!db) {
-    const dbPath = path.join(process.cwd(), "data", "cedict.db");
-    db = new Database(dbPath, { readonly: true, fileMustExist: true });
-    dictStmt = db.prepare(
-      "SELECT traditional, pinyin, english FROM entries WHERE simplified = ? LIMIT 1"
-    );
-    hskStmt = db.prepare(
-      "SELECT level FROM hsk WHERE hanzi = ? LIMIT 1"
-    );
-  }
-  return { dictStmt: dictStmt!, hskStmt: hskStmt! };
-}
-
-interface Row {
-  traditional: string;
-  pinyin: string;
-  english: string;
-}
+const supabase = createClient<Database>(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 /** Tone-number pinyin → tone-mark pinyin. e.g. "qing2 jie2" → "qíng jié" */
 function toToneMarks(numbered: string): string {
@@ -49,8 +29,6 @@ function toToneMarks(numbered: string): string {
       if (!toneMatch) return syllable;
       const tone = parseInt(toneMatch[1]);
       const base = syllable.slice(0, -1);
-
-      // Find the vowel to mark (priority: a > e > ou > last vowel)
       const lower = base.toLowerCase();
       let result = base;
 
@@ -70,7 +48,6 @@ function toToneMarks(numbered: string): string {
           return c === "O" ? m.toUpperCase() : m;
         });
       } else {
-        // Mark the last vowel (u, i, ü/v)
         const vowels = ["a", "e", "i", "o", "u", "ü", "v"];
         let lastIdx = -1;
         let lastVowel = "";
@@ -101,34 +78,30 @@ export interface DictResult {
   source: "cedict" | "ai";
 }
 
-/**
- * Look up a simplified Chinese word/phrase in CEDICT.
- * Returns null if not found. hsk_level is null if word not in HSK curriculum.
- */
-export function cedictLookup(hanzi: string): DictResult | null {
-  const { dictStmt, hskStmt } = getDb();
-  const row = dictStmt.get(hanzi) as Row | undefined;
-  if (!row) return null;
+export async function cedictLookup(hanzi: string): Promise<DictResult | null> {
+  const { data } = await supabase
+    .from("cedict")
+    .select("traditional, pinyin, english")
+    .eq("simplified", hanzi)
+    .limit(1)
+    .maybeSingle();
 
-  const pinyin = toToneMarks(row.pinyin);
-  const meaning = row.english
-    .split("/")
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("; ");
+  if (!data) return null;
 
-  const hskRow = hskStmt.get(hanzi) as { level: number } | undefined;
-  const hsk_level = hskRow?.level ?? null;
+  const pinyin = toToneMarks(data.pinyin);
+  const meaning = data.english.split("/").filter(Boolean).slice(0, 2).join("; ");
+  const hsk_level = await hskLookup(hanzi);
 
   return { pinyin, meaning, hsk_level, source: "cedict" };
 }
 
-/**
- * Look up only the HSK level for a hanzi (no CEDICT lookup).
- * Returns null if word not in HSK curriculum.
- */
-export function hskLookup(hanzi: string): number | null {
-  const { hskStmt } = getDb();
-  const row = hskStmt.get(hanzi) as { level: number } | undefined;
-  return row?.level ?? null;
+export async function hskLookup(hanzi: string): Promise<number | null> {
+  const { data } = await supabase
+    .from("hsk_vocabulary")
+    .select("level")
+    .eq("hanzi", hanzi)
+    .limit(1)
+    .maybeSingle();
+
+  return data ? Math.round(Number(data.level)) : null;
 }

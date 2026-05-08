@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git push *)",
+      "Bash(xargs ls)",
+      "Bash(npm run *)",
+      "Bash(grep -v \"^#\\\\|^$\" /Users/orryhuang/Documents/SmartMandarin/.env.local)",
+      "Bash(sqlite3 /Users/orryhuang/Documents/SmartMandarin/data/cedict.db \".tables\")",
+      "Bash(sqlite3 /Users/orryhuang/Documents/SmartMandarin/data/cedict.db \".schema hsk\")",
+      "Bash(sqlite3 /Users/orryhuang/Documents/SmartMandarin/data/cedict.db \"SELECT COUNT\\(*\\), MIN\\(level\\), MAX\\(level\\) FROM hsk\")",
+      "Bash(sqlite3 /Users/orryhuang/Documents/SmartMandarin/data/cedict.db \"SELECT hanzi, level FROM hsk LIMIT 5\")",
+      "Bash(sqlite3 /Users/orryhuang/Documents/SmartMandarin/data/cedict.db \"SELECT level, COUNT\\(*\\) FROM hsk GROUP BY level ORDER BY level\")",
+      "Bash(sqlite3 /Users/orryhuang/Documents/SmartMandarin/data/cedict.db \"SELECT hanzi, level FROM hsk ORDER BY level, hanzi\")",
+      "Bash(sqlite3 /Users/orryhuang/Documents/SmartMandarin/data/cedict.db \"SELECT COUNT\\(*\\) FROM hsk\")",
+      "Bash(sqlite3 /Users/orryhuang/Documents/SmartMandarin/data/cedict.db \"SELECT hanzi || '|' || level FROM hsk ORDER BY level, hanzi\")"
+    ]
+  }
+}

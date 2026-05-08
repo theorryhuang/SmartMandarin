@@ -18,7 +18,8 @@ tsconfig.tsbuildinfo
 # OS
 .DS_Store
 
-# WAL files only — cedict.db is committed so Vercel can deploy it
+# Generated CEDICT SQLite database (rebuild with: npm run build-cedict-db)
+data/cedict.db
 data/cedict.db-shm
 data/cedict.db-wal
 
