@@ -536,7 +536,8 @@ function TappableMessage({
 
   const [selStart, setSelStart] = useState<number | null>(null);
   const [selEnd, setSelEnd] = useState<number | null>(null);
-  const [isSelecting, setIsSelecting] = useState(false);
+  const isSelectingRef = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const selLo = selStart !== null && selEnd !== null ? Math.min(selStart, selEnd) : null;
   const selHi = selStart !== null && selEnd !== null ? Math.max(selStart, selEnd) : null;
@@ -557,19 +558,35 @@ function TappableMessage({
     }
   }
 
+  // Non-passive touchmove listener so we can preventDefault and block scroll during drag
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onTouchMove = (e: TouchEvent) => {
+      if (!isSelectingRef.current) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      const target = document.elementFromPoint(touch.clientX, touch.clientY);
+      const hidx = target?.getAttribute("data-hidx");
+      if (hidx != null) setSelEnd(parseInt(hidx));
+    };
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    return () => el.removeEventListener("touchmove", onTouchMove);
+  }, []);
+
   function handlePointerDown(hanziI: number) {
+    isSelectingRef.current = true;
     setSelStart(hanziI);
     setSelEnd(hanziI);
-    setIsSelecting(true);
   }
 
   function handlePointerEnter(hanziI: number) {
-    if (isSelecting) setSelEnd(hanziI);
+    if (isSelectingRef.current) setSelEnd(hanziI);
   }
 
   function handlePointerUp() {
-    if (!isSelecting || selLo === null || selHi === null) return;
-    setIsSelecting(false);
+    if (!isSelectingRef.current || selLo === null || selHi === null) return;
+    isSelectingRef.current = false;
     const word = segments
       .filter((s) => s.type === "hanzi" && s.idx >= selLo && s.idx <= selHi)
       .map((s) => s.content)
@@ -581,17 +598,10 @@ function TappableMessage({
 
   return (
     <div
+      ref={containerRef}
       className="leading-loose text-[15px] select-none"
       onPointerUp={handlePointerUp}
-      onPointerLeave={() => { if (isSelecting) handlePointerUp(); }}
-      onTouchMove={(e) => {
-        if (!isSelecting) return;
-        e.preventDefault();
-        const touch = e.touches[0];
-        const el = document.elementFromPoint(touch.clientX, touch.clientY);
-        const hidx = el?.getAttribute("data-hidx");
-        if (hidx != null) setSelEnd(parseInt(hidx));
-      }}
+      onPointerLeave={() => { if (isSelectingRef.current) handlePointerUp(); }}
     >
       {segments.map((seg, i) => {
         if (seg.type === "punct") {
