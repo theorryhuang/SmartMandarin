@@ -584,6 +584,14 @@ function TappableMessage({
       className="leading-loose text-[15px] select-none"
       onPointerUp={handlePointerUp}
       onPointerLeave={() => { if (isSelecting) handlePointerUp(); }}
+      onTouchMove={(e) => {
+        if (!isSelecting) return;
+        e.preventDefault();
+        const touch = e.touches[0];
+        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+        const hidx = el?.getAttribute("data-hidx");
+        if (hidx != null) setSelEnd(parseInt(hidx));
+      }}
     >
       {segments.map((seg, i) => {
         if (seg.type === "punct") {
@@ -607,6 +615,7 @@ function TappableMessage({
         return (
           <span
             key={i}
+            data-hidx={String(seg.idx)}
             onPointerDown={(e) => {
               e.currentTarget.releasePointerCapture(e.pointerId);
               handlePointerDown(seg.idx);
