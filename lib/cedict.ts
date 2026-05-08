@@ -13,7 +13,6 @@ let hskStmt: ReturnType<DB["prepare"]> | null = null;
 function getDb() {
   if (!db) {
     const dbPath = path.join(process.cwd(), "data", "cedict.db");
-    console.log("[cedict] cwd:", process.cwd(), "dbPath:", dbPath);
     db = new Database(dbPath, { readonly: true, fileMustExist: true });
     dictStmt = db.prepare(
       "SELECT traditional, pinyin, english FROM entries WHERE simplified = ? LIMIT 1"

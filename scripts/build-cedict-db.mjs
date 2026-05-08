@@ -8,7 +8,7 @@
  */
 
 import Database from "better-sqlite3";
-import { createReadStream } from "fs";
+import { createReadStream, readFileSync } from "fs";
 import { createInterface } from "readline";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -81,7 +81,27 @@ rl.on("line", (line) => {
 rl.on("close", () => {
   if (batch.length) insertMany(batch);
 
-  // Switch back to WAL checkpoint and close
+  // Populate HSK level table from data/hsk.txt
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS hsk (
+      id    INTEGER PRIMARY KEY AUTOINCREMENT,
+      hanzi TEXT NOT NULL,
+      level TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_hsk_hanzi ON hsk(hanzi);
+  `);
+  const insertHsk = db.prepare("INSERT INTO hsk (hanzi, level) VALUES (?, ?)");
+  const hskPath = join(root, "data", "hsk.txt");
+  const hskLines = readFileSync(hskPath, "utf8").split("\n");
+  const insertManyHsk = db.transaction((lines) => {
+    for (const line of lines) {
+      const [hanzi, level] = line.split("|");
+      if (hanzi && level) insertHsk.run(hanzi.trim(), level.trim());
+    }
+  });
+  insertManyHsk(hskLines);
+  console.log(`  HSK table: ${hskLines.length} entries loaded.`);
+
   db.pragma("wal_checkpoint(TRUNCATE)");
   db.close();
 
