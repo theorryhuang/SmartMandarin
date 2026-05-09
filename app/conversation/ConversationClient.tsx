@@ -563,7 +563,7 @@ function TappableMessage({
         const sel = window.getSelection();
         if (!sel || sel.isCollapsed) return;
         const text = sel.toString().replace(/[^一-鿿㐀-䶿]/g, "");
-        if (text.length > 1) {
+        if (text.length >= 1) {
           onWordSelectRef.current(text);
           setTimeout(() => sel.removeAllRanges(), 150);
         }
