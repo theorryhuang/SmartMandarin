@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef } from "react";
 import { ReviewCard } from "@/components/ReviewCard";
 import { getAllWords } from "@/app/actions/vocabulary";
 import type { VocabularyMastery } from "@/lib/types";
@@ -60,6 +60,7 @@ interface Props {
 
 export function ReviewSession({ initialCards, sessionKey = DEFAULT_SESSION_KEY, getAllWordsFn }: Props) {
   const { t } = useLanguage();
+  const activeKeyRef = useRef(sessionKey);
 
   const [{ cards, index }, setSession] = useState(() => {
     const { ordered, startIndex } = initSession(sessionKey, initialCards);
@@ -91,7 +92,7 @@ export function ReviewSession({ initialCards, sessionKey = DEFAULT_SESSION_KEY, 
           ? { ...c, stability: result.stability, difficulty: result.difficulty }
           : c
       );
-      saveSession(sessionKey, updatedCards, next);
+      saveSession(activeKeyRef.current, updatedCards, next);
       return { cards: updatedCards, index: next };
     });
   }
@@ -102,14 +103,14 @@ export function ReviewSession({ initialCards, sessionKey = DEFAULT_SESSION_KEY, 
     setHistory((h) => h.slice(0, -1));
     setSessionResults((r) => r.slice(0, -1));
     setSession({ cards: prev.cards, index: prev.index });
-    saveSession(sessionKey, prev.cards, prev.index);
+    saveSession(activeKeyRef.current, prev.cards, prev.index);
   }
 
   function handleRestart() {
     setSession({ cards, index: 0 });
     setHistory([]);
     setSessionResults([]);
-    saveSession(sessionKey, cards, 0);
+    saveSession(activeKeyRef.current, cards, 0);
   }
 
   function handleReshuffle() {
@@ -117,7 +118,7 @@ export function ReviewSession({ initialCards, sessionKey = DEFAULT_SESSION_KEY, 
       const reviewed = s.cards.slice(0, s.index);
       const remaining = shuffle(s.cards.slice(s.index));
       const reshuffled = [...reviewed, ...remaining];
-      saveSession(sessionKey, reshuffled, s.index);
+      saveSession(activeKeyRef.current, reshuffled, s.index);
       return { cards: reshuffled, index: s.index };
     });
   }
@@ -127,7 +128,8 @@ export function ReviewSession({ initialCards, sessionKey = DEFAULT_SESSION_KEY, 
       const all = await (getAllWordsFn ?? getAllWords)(200);
       clearSession(sessionKey);
       const ordered = shuffle(all);
-      saveSession(sessionKey, ordered, 0);
+      activeKeyRef.current = DEFAULT_SESSION_KEY;
+      saveSession(DEFAULT_SESSION_KEY, ordered, 0);
       setSession({ cards: ordered, index: 0 });
       setSessionResults([]);
     });
