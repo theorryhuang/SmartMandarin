@@ -41,7 +41,20 @@ function initSession(key: string, incoming: VocabularyMastery[]): {
     if (raw) {
       const saved: SavedSession = JSON.parse(raw);
       if (saved.cards?.length > 0 && saved.index < saved.cards.length) {
-        return { ordered: saved.cards, startIndex: saved.index };
+        // If incoming is non-empty, validate that the saved session contains
+        // only cards from the incoming set — guards against stale "practice all"
+        // data overwriting a filtered session key.
+        if (incoming.length > 0) {
+          const incomingIds = new Set(incoming.map((c) => c.id));
+          const valid = saved.cards.every((c: VocabularyMastery) => incomingIds.has(c.id));
+          if (!valid) {
+            clearSession(key);
+          } else {
+            return { ordered: saved.cards, startIndex: saved.index };
+          }
+        } else {
+          return { ordered: saved.cards, startIndex: saved.index };
+        }
       }
     }
   } catch {}
