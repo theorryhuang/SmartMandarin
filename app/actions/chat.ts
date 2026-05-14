@@ -12,7 +12,7 @@ export interface ChatMessage {
  * Upsert an array of messages into Supabase.
  * Safe to call with duplicates — client_id uniqueness prevents double-inserts.
  */
-export async function saveMessages(messages: ChatMessage[]): Promise<void> {
+export async function saveMessages(messages: ChatMessage[], conversationId?: string): Promise<void> {
   if (messages.length === 0) return;
   const supabase = await createClient();
   const user = (await supabase.auth.getUser()).data.user;
@@ -23,6 +23,7 @@ export async function saveMessages(messages: ChatMessage[]): Promise<void> {
     client_id: m.id,
     role: m.role,
     content: m.content,
+    conversation_id: conversationId ?? null,
   }));
 
   const { error } = await supabase
@@ -38,6 +39,7 @@ export async function saveMessages(messages: ChatMessage[]): Promise<void> {
  */
 export async function loadOlderMessages(
   beforeClientId: string | null,
+  conversationId?: string,
   limit = 100
 ): Promise<ChatMessage[]> {
   const supabase = await createClient();
@@ -50,6 +52,10 @@ export async function loadOlderMessages(
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(limit);
+
+  if (conversationId) {
+    query = query.eq("conversation_id", conversationId);
+  }
 
   if (beforeClientId) {
     // Get the created_at of the anchor message so we can fetch before it

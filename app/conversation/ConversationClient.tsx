@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { ArrowUp, ChevronLeft, Mic } from "lucide-react";
+import { ArrowUp, ChevronLeft, LayoutList, Mic, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getConversationContext, logMistake, removeFromReviewQueue } from "@/app/actions/vocabulary";
 import { saveMessages } from "@/app/actions/chat";
@@ -13,6 +13,13 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   id: string;
+}
+
+interface ConversationMeta {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
 }
 
 interface SheetInfo {
@@ -29,6 +36,10 @@ interface Props {
 }
 
 const MAX_LOCAL_MESSAGES = 100;
+
+function autoTitle(text: string): string {
+  return text.length > 28 ? text.slice(0, 28) + "…" : text;
+}
 
 export function ConversationClient({ masteryMap }: Props) {
   const router = useRouter();
@@ -47,16 +58,23 @@ export function ConversationClient({ masteryMap }: Props) {
     { hanzi: string; pinyin: string; meaning: string }[]
   >([]);
   const [forcedWords, setForcedWords] = useState<string[]>([]);
-
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+
+  const [conversations, setConversations] = useState<ConversationMeta[]>([]);
+  const [activeConvId, setActiveConvId] = useState<string>("");
+  const [showChatList, setShowChatList] = useState(false);
 
   const historyRef = useRef<{ role: "user" | "assistant"; content: string }[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const isFirstRender = useRef(true);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const activeConvIdRef = useRef<string>("");
+
+  useEffect(() => {
+    activeConvIdRef.current = activeConvId;
+  }, [activeConvId]);
 
   useEffect(() => {
     getConversationContext().then(({ hskLevel, unknownWords }) => {
@@ -66,34 +84,73 @@ export function ConversationClient({ masteryMap }: Props) {
     });
   }, []);
 
-  // Restore persisted chat on mount
+  // Init: migrate old single-chat format, then load conversations
   useEffect(() => {
+    const oldMsgs = localStorage.getItem("sm_conv_messages");
+    const existingConvs = localStorage.getItem("sm_conversations");
+
+    if (oldMsgs && !existingConvs) {
+      let msgs: Message[] = [];
+      try { msgs = JSON.parse(oldMsgs); } catch {}
+      const id = `conv_${Date.now()}`;
+      const firstUserMsg = msgs.find((m) => m.role === "user");
+      const title = firstUserMsg ? autoTitle(firstUserMsg.content) : "Chat 1";
+      const meta: ConversationMeta = { id, title, createdAt: Date.now(), updatedAt: Date.now() };
+      localStorage.setItem("sm_conversations", JSON.stringify([meta]));
+      localStorage.setItem(`sm_conv_messages_${id}`, oldMsgs);
+      const oldHistory = localStorage.getItem("sm_conv_history");
+      if (oldHistory) {
+        localStorage.setItem(`sm_conv_history_${id}`, oldHistory);
+        localStorage.removeItem("sm_conv_history");
+      }
+      localStorage.removeItem("sm_conv_messages");
+      localStorage.setItem("sm_active_conv", id);
+    }
+
+    let convs: ConversationMeta[] = [];
     try {
-      const savedMsgs = localStorage.getItem("sm_conv_messages");
-      const savedHistory = localStorage.getItem("sm_conv_history");
-      if (savedMsgs) setMessages(JSON.parse(savedMsgs));
-      if (savedHistory) historyRef.current = JSON.parse(savedHistory);
-    } catch { /* ignore */ }
+      const data = localStorage.getItem("sm_conversations");
+      convs = data ? JSON.parse(data) : [];
+    } catch {}
+
+    let activeId = localStorage.getItem("sm_active_conv") ?? "";
+
+    if (convs.length === 0) {
+      const id = `conv_${Date.now()}`;
+      convs = [{ id, title: "New Chat", createdAt: Date.now(), updatedAt: Date.now() }];
+      localStorage.setItem("sm_conversations", JSON.stringify(convs));
+      activeId = id;
+    }
+
+    if (!activeId || !convs.find((c) => c.id === activeId)) {
+      activeId = convs[0].id;
+    }
+
+    localStorage.setItem("sm_active_conv", activeId);
+
+    try {
+      const msgs = localStorage.getItem(`sm_conv_messages_${activeId}`);
+      const hist = localStorage.getItem(`sm_conv_history_${activeId}`);
+      if (msgs) setMessages(JSON.parse(msgs));
+      if (hist) historyRef.current = JSON.parse(hist);
+    } catch {}
+
+    setConversations(convs);
+    setActiveConvId(activeId);
   }, []);
 
-  // Persist messages whenever they change (skip first render to avoid wiping saved data)
+  // Persist messages whenever they change
   useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
+    if (!activeConvId) return;
     try {
-      // Keep only the last MAX_LOCAL_MESSAGES in localStorage
       const toStore = messages.slice(-MAX_LOCAL_MESSAGES);
-      localStorage.setItem("sm_conv_messages", JSON.stringify(toStore));
-
-      // Persist any overflow (older messages) to Supabase
+      localStorage.setItem(`sm_conv_messages_${activeConvId}`, JSON.stringify(toStore));
       if (messages.length > MAX_LOCAL_MESSAGES) {
         const overflow = messages.slice(0, messages.length - MAX_LOCAL_MESSAGES);
-        saveMessages(overflow).catch(() => {});
+        saveMessages(overflow, activeConvId).catch(() => {});
       }
-    } catch { /* ignore */ }
-  }, [messages]);
+    } catch {}
+  }, [messages, activeConvId]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -101,22 +158,125 @@ export function ConversationClient({ masteryMap }: Props) {
     }
   }, [messages, isLoading]);
 
+  const switchConversation = useCallback((convId: string) => {
+    const currentId = activeConvIdRef.current;
+    if (convId === currentId) { setShowChatList(false); return; }
+
+    if (currentId) {
+      try { localStorage.setItem(`sm_conv_history_${currentId}`, JSON.stringify(historyRef.current)); } catch {}
+    }
+
+    let newMsgs: Message[] = [];
+    let newHist: { role: "user" | "assistant"; content: string }[] = [];
+    try {
+      const msgs = localStorage.getItem(`sm_conv_messages_${convId}`);
+      const hist = localStorage.getItem(`sm_conv_history_${convId}`);
+      if (msgs) newMsgs = JSON.parse(msgs);
+      if (hist) newHist = JSON.parse(hist);
+    } catch {}
+
+    historyRef.current = newHist;
+    setMessages(newMsgs);
+    setActiveConvId(convId);
+    localStorage.setItem("sm_active_conv", convId);
+    setShowChatList(false);
+  }, []);
+
+  const createNewConversation = useCallback(() => {
+    const id = `conv_${Date.now()}`;
+    const meta: ConversationMeta = { id, title: "New Chat", createdAt: Date.now(), updatedAt: Date.now() };
+
+    setConversations((prev) => {
+      const updated = [meta, ...prev];
+      localStorage.setItem("sm_conversations", JSON.stringify(updated));
+      return updated;
+    });
+
+    const currentId = activeConvIdRef.current;
+    if (currentId) {
+      try { localStorage.setItem(`sm_conv_history_${currentId}`, JSON.stringify(historyRef.current)); } catch {}
+    }
+
+    historyRef.current = [];
+    setMessages([]);
+    setActiveConvId(id);
+    localStorage.setItem("sm_active_conv", id);
+    setShowChatList(false);
+  }, []);
+
+  const deleteConversation = useCallback((convId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    localStorage.removeItem(`sm_conv_messages_${convId}`);
+    localStorage.removeItem(`sm_conv_history_${convId}`);
+
+    let remaining: ConversationMeta[] = [];
+    try {
+      const data = localStorage.getItem("sm_conversations");
+      const all: ConversationMeta[] = data ? JSON.parse(data) : [];
+      remaining = all.filter((c) => c.id !== convId);
+    } catch {}
+
+    localStorage.setItem("sm_conversations", JSON.stringify(remaining));
+    setConversations(remaining);
+
+    if (activeConvIdRef.current === convId) {
+      if (remaining.length > 0) {
+        const target = remaining[0];
+        let newMsgs: Message[] = [];
+        let newHist: { role: "user" | "assistant"; content: string }[] = [];
+        try {
+          const msgs = localStorage.getItem(`sm_conv_messages_${target.id}`);
+          const hist = localStorage.getItem(`sm_conv_history_${target.id}`);
+          if (msgs) newMsgs = JSON.parse(msgs);
+          if (hist) newHist = JSON.parse(hist);
+        } catch {}
+        historyRef.current = newHist;
+        setMessages(newMsgs);
+        setActiveConvId(target.id);
+        localStorage.setItem("sm_active_conv", target.id);
+      } else {
+        const newId = `conv_${Date.now()}`;
+        const meta: ConversationMeta = { id: newId, title: "New Chat", createdAt: Date.now(), updatedAt: Date.now() };
+        localStorage.setItem("sm_conversations", JSON.stringify([meta]));
+        localStorage.setItem("sm_active_conv", newId);
+        setConversations([meta]);
+        historyRef.current = [];
+        setMessages([]);
+        setActiveConvId(newId);
+      }
+    }
+  }, []);
+
   const sendMessage = useCallback(async () => {
     const text = input.trim();
-    if (!text || isLoading || hskLevel === null) return;
+    if (!text || isLoading || hskLevel === null || !activeConvId) return;
 
     setInput("");
     inputRef.current?.focus();
 
     const userMsg: Message = { role: "user", content: text, id: Date.now().toString() };
+
+    // Auto-title on first message; update updatedAt on subsequent ones
+    setConversations((prev) => {
+      const isFirst = !prev.find((c) => c.id === activeConvId)?.title || prev.find((c) => c.id === activeConvId)?.title === "New Chat";
+      const updated = prev.map((c) =>
+        c.id === activeConvId
+          ? { ...c, updatedAt: Date.now(), title: isFirst ? autoTitle(text) : c.title }
+          : c
+      );
+      localStorage.setItem("sm_conversations", JSON.stringify(updated));
+      return updated;
+    });
+
     setMessages((prev) => [...prev, userMsg]);
-    saveMessages([userMsg]).catch(() => {});
+    saveMessages([userMsg], activeConvId).catch(() => {});
 
     historyRef.current = [
       ...historyRef.current,
       { role: "user" as const, content: text },
     ].slice(-20);
-    try { localStorage.setItem("sm_conv_history", JSON.stringify(historyRef.current)); } catch { /* ignore */ }
+    try { localStorage.setItem(`sm_conv_history_${activeConvId}`, JSON.stringify(historyRef.current)); } catch {}
 
     setIsLoading(true);
     try {
@@ -140,12 +300,12 @@ export function ConversationClient({ masteryMap }: Props) {
           id: (Date.now() + 1).toString(),
         };
         setMessages((prev) => [...prev, aiMsg]);
-        saveMessages([aiMsg]).catch(() => {});
+        saveMessages([aiMsg], activeConvId).catch(() => {});
         historyRef.current = [
           ...historyRef.current,
           { role: "assistant" as const, content: data.reply },
         ].slice(-20);
-        try { localStorage.setItem("sm_conv_history", JSON.stringify(historyRef.current)); } catch { /* ignore */ }
+        try { localStorage.setItem(`sm_conv_history_${activeConvId}`, JSON.stringify(historyRef.current)); } catch {}
         setForcedWords([]);
       }
     } catch {
@@ -153,7 +313,7 @@ export function ConversationClient({ masteryMap }: Props) {
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, hskLevel, slangMode, forcedWords, unknownWords]);
+  }, [input, isLoading, hskLevel, slangMode, forcedWords, unknownWords, activeConvId]);
 
   const startRecording = useCallback(async () => {
     try {
@@ -163,7 +323,6 @@ export function ConversationClient({ masteryMap }: Props) {
           audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
         });
       } catch {
-        // Constraints not supported — fall back to plain audio
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       }
       const mimeType = getSupportedMimeType();
@@ -187,7 +346,6 @@ export function ConversationClient({ masteryMap }: Props) {
           console.log("[transcribe] raw:", JSON.stringify(text));
           console.log("[transcribe] blob size:", blob.size, "mime:", mimeType);
           console.log("[transcribe] boilerplate blocked:", blocked);
-          // Reject known background-audio boilerplate
           if (text && !blocked) {
             setInput(text);
             inputRef.current?.focus();
@@ -216,7 +374,6 @@ export function ConversationClient({ masteryMap }: Props) {
       const mastery = masteryMap[word];
       const isSaved = savedWords.has(word) || !!mastery;
 
-      // Show sheet — let user decide to add/remove
       setSheet({
         word,
         saved: isSaved,
@@ -224,7 +381,6 @@ export function ConversationClient({ masteryMap }: Props) {
         meaning: mastery?.meaning,
       });
 
-      // Fetch definition in background if missing
       if (!mastery?.pinyin && !mastery?.meaning) {
         try {
           const res = await fetch("/api/define-word", {
@@ -240,9 +396,7 @@ export function ConversationClient({ masteryMap }: Props) {
                 : s
             );
           }
-        } catch {
-          // ignore
-        }
+        } catch {}
       }
     },
     [savedWords, masteryMap, slangMode]
@@ -272,6 +426,8 @@ export function ConversationClient({ masteryMap }: Props) {
     await removeFromReviewQueue(mastery?.id ?? word).catch(() => {});
   }, [sheet, masteryMap]);
 
+  const activeConvTitle = conversations.find((c) => c.id === activeConvId)?.title ?? "";
+
   return (
     <div className="flex flex-col h-full bg-[var(--color-background)]">
       {/* ── Header ── */}
@@ -291,11 +447,19 @@ export function ConversationClient({ masteryMap }: Props) {
           <div className="font-semibold text-sm text-[var(--color-text-primary)]">小灵</div>
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
-            <span className="text-xs text-[var(--color-text-muted)]">
-              {hskLevel !== null ? `HSK ${hskLevel}` : "…"}
+            <span className="text-xs text-[var(--color-text-muted)] truncate">
+              {activeConvTitle || (hskLevel !== null ? `HSK ${hskLevel}` : "…")}
             </span>
           </div>
         </div>
+
+        <button
+          onClick={() => setShowChatList(true)}
+          className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--color-background)] transition-colors flex-shrink-0"
+          title="All chats"
+        >
+          <LayoutList size={18} className="text-[var(--color-text-muted)]" />
+        </button>
 
         <button
           onClick={() => setSlangMode((s) => {
@@ -431,6 +595,48 @@ export function ConversationClient({ masteryMap }: Props) {
         </p>
       </div>
 
+      {/* ── Chat list panel ── */}
+      {showChatList && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/30" onClick={() => setShowChatList(false)} />
+          <div className="fixed inset-y-0 left-0 z-50 w-[280px] bg-[var(--color-surface)] flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
+              <span className="font-semibold text-sm text-[var(--color-text-primary)]">Chats</span>
+              <button
+                onClick={createNewConversation}
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--color-background)] transition-colors text-violet-600"
+                title="New chat"
+              >
+                <Plus size={18} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto py-1">
+              {conversations.map((conv) => (
+                <button
+                  key={conv.id}
+                  onClick={() => switchConversation(conv.id)}
+                  className={`w-full px-4 py-3 text-left flex items-center gap-3 group transition-colors ${
+                    conv.id === activeConvId
+                      ? "bg-violet-50 border-r-2 border-violet-500"
+                      : "hover:bg-[var(--color-background)]"
+                  }`}
+                >
+                  <span className="flex-1 text-sm text-[var(--color-text-primary)] truncate">
+                    {conv.title}
+                  </span>
+                  <span
+                    onClick={(e) => deleteConversation(conv.id, e)}
+                    className="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded hover:text-red-500 text-[var(--color-text-muted)] transition-all flex-shrink-0"
+                  >
+                    <Trash2 size={14} />
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
       {/* ── Bottom sheet ── */}
       {sheet && (
         <>
@@ -516,16 +722,14 @@ function TappableMessage({
   savedWords: Set<string>;
   onWordSelect: (word: string) => void;
 }) {
-  // Parse into Chinese chars vs. punctuation/other segments
   type Seg = { type: "hanzi" | "punct" | "other"; content: string; idx: number };
   const segments: Seg[] = [];
   let hanziIdx = 0;
 
-  // Strip parenthetical pinyin the model might sneak in
   const cleaned = text.replace(/\s*\([^)]{1,30}\)/g, "");
 
   for (const char of cleaned) {
-    if (/[\u4e00-\u9fff\u3400-\u4dbf]/.test(char)) {
+    if (/[一-鿿㐀-䶿]/.test(char)) {
       segments.push({ type: "hanzi", content: char, idx: hanziIdx++ });
     } else if (/[，。！？、…]/.test(char)) {
       segments.push({ type: "punct", content: char, idx: -1 });
@@ -538,7 +742,6 @@ function TappableMessage({
   const onWordSelectRef = useRef(onWordSelect);
   useEffect(() => { onWordSelectRef.current = onWordSelect; }, [onWordSelect]);
 
-  // Precompute which hanzi-indices are covered by a saved multi-char compound
   const hanziSegs = segments.filter((s) => s.type === "hanzi");
   const hanziStr = hanziSegs.map((s) => s.content).join("");
   const savedCoveredIndices = new Set<number>();
@@ -553,8 +756,6 @@ function TappableMessage({
     }
   }
 
-  // Native selection: on mouseup/touchend, read window.getSelection() for multi-char words.
-  // Single-char taps are handled by onClick on individual spans below.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -603,7 +804,7 @@ function TappableMessage({
             key={i}
             onClick={() => {
               const sel = window.getSelection();
-              if (sel && !sel.isCollapsed) return; // multi-char selection handled by onEnd
+              if (sel && !sel.isCollapsed) return;
               onWordSelect(seg.content);
             }}
             className={`cursor-pointer rounded-sm transition-colors ${
