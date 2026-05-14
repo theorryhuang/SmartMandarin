@@ -255,6 +255,17 @@ export async function markAssessmentComplete(): Promise<void> {
   });
 }
 
+export async function deleteWord(wordIdOrHanzi: string): Promise<void> {
+  const supabase = await createClient();
+  const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
+  const isUUID = /^[0-9a-f-]{36}$/i.test(wordIdOrHanzi);
+  if (isUUID) {
+    await supabase.from("vocabulary_mastery").delete().eq("id", wordIdOrHanzi).eq("user_id", userId);
+  } else {
+    await supabase.from("vocabulary_mastery").delete().eq("hanzi", wordIdOrHanzi).eq("user_id", userId);
+  }
+}
+
 export async function removeFromReviewQueue(wordIdOrHanzi: string): Promise<void> {
   const supabase = await createClient();
   const userId = (await supabase.auth.getUser()).data.user?.id ?? "";

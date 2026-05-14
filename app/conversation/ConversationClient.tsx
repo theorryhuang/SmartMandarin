@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { ArrowUp, ChevronLeft, LayoutList, Mic, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { getConversationContext, logMistake, removeFromReviewQueue } from "@/app/actions/vocabulary";
+import { getConversationContext, logMistake, deleteWord } from "@/app/actions/vocabulary";
 import { saveMessages } from "@/app/actions/chat";
 import type { VocabularyMastery } from "@/lib/types";
 import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
@@ -423,7 +423,7 @@ export function ConversationClient({ masteryMap }: Props) {
     setForcedWords((prev) => prev.filter((w) => w !== word));
     setSheet((s) => s ? { ...s, saved: false } : s);
     const mastery = masteryMap[word];
-    await removeFromReviewQueue(mastery?.id ?? word).catch(() => {});
+    await deleteWord(mastery?.id ?? word).catch(() => {});
   }, [sheet, masteryMap]);
 
   const activeConvTitle = conversations.find((c) => c.id === activeConvId)?.title || t.newChat;

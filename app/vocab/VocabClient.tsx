@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
-import { Search } from "lucide-react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { Search, Trash2 } from "lucide-react";
 import type { VocabularyMastery } from "@/lib/types";
 import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
 import { createClient } from "@/lib/supabase/client";
+import { deleteWord } from "@/app/actions/vocabulary";
 
 const HSK_COLORS: Record<number, { bg: string; text: string }> = {
   1: { bg: "bg-emerald-100", text: "text-emerald-700" },
@@ -28,6 +29,11 @@ export function VocabClient() {
   const [sort, setSort] = useState<"hsk" | "alpha" | "mastery">("hsk");
   const backfillQueueRef = useRef<string[]>([]);
   const backfillRunningRef = useRef(false);
+
+  const handleDelete = useCallback(async (wordId: string) => {
+    setWords((prev) => prev.filter((w) => w.id !== wordId));
+    await deleteWord(wordId).catch(() => {});
+  }, []);
 
   // ── Initial fetch + realtime subscription ──────────────────────────────────
   useEffect(() => {
@@ -240,7 +246,7 @@ export function VocabClient() {
       ) : (
         <div className="flex flex-col divide-y divide-[var(--color-border)]">
           {filtered.map((word) => (
-            <WordRow key={word.id} word={word} />
+            <WordRow key={word.id} word={word} onDelete={() => handleDelete(word.id)} />
           ))}
         </div>
       )}
@@ -273,14 +279,14 @@ function FilterTab({
   );
 }
 
-function WordRow({ word }: { word: VocabularyMastery }) {
+function WordRow({ word, onDelete }: { word: VocabularyMastery; onDelete: () => void }) {
   const level = word.hsk_level !== null ? Math.floor(word.hsk_level) : null;
   const c = hskColor(level);
   const isMastered = word.stability >= HIGH_STABILITY_THRESHOLD;
   const stabilityPct = Math.min(100, (word.stability / HIGH_STABILITY_THRESHOLD) * 100);
 
   return (
-    <div className="flex items-center gap-3 py-3">
+    <div className="flex items-center gap-3 py-3 group">
       {/* HSK badge */}
       <span className={`flex-shrink-0 w-12 text-center text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${c.bg} ${c.text}`}>
         {level !== null ? `HSK ${level}` : "—"}
@@ -314,6 +320,13 @@ function WordRow({ word }: { word: VocabularyMastery }) {
           )}
         </div>
       </div>
+
+      <button
+        onClick={onDelete}
+        className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded text-[var(--color-text-muted)] active:text-red-500 transition-colors"
+      >
+        <Trash2 size={14} />
+      </button>
     </div>
   );
 }
