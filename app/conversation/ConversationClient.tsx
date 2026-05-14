@@ -626,7 +626,7 @@ export function ConversationClient({ masteryMap }: Props) {
                   </span>
                   <span
                     onClick={(e) => deleteConversation(conv.id, e)}
-                    className="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded hover:text-red-500 text-[var(--color-text-muted)] transition-all flex-shrink-0"
+                    className="w-6 h-6 flex items-center justify-center rounded text-[var(--color-text-muted)] active:text-red-500 flex-shrink-0"
                   >
                     <Trash2 size={14} />
                   </span>
