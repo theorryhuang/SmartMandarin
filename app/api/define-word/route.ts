@@ -99,8 +99,13 @@ export async function POST(req: NextRequest) {
 
   const resolveCedict = async (entries: DictResult[]) => {
     if (entries.length === 0) return null;
-    if (entries.length === 1 || !context || !apiKey) return entries[0];
-    return aiTiebreaker(hanzi, entries, context, apiKey);
+    // Strip pure redirect entries (variant of / see / abbr. for)
+    const substantive = entries.filter(
+      (e) => !/^(variant of|old variant of|see |abbr\.? for)/i.test(e.meaning.trim())
+    );
+    const candidates = substantive.length > 0 ? substantive : entries;
+    if (candidates.length === 1 || !context || !apiKey) return candidates[0];
+    return aiTiebreaker(hanzi, candidates, context, apiKey);
   };
 
   if (slang_mode) {
