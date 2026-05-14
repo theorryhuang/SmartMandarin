@@ -643,7 +643,7 @@ export function ConversationClient({ masteryMap }: Props) {
       {sheet && (
         <>
           <div className="fixed inset-0 z-40 bg-black/30" onClick={() => setSheet(null)} />
-          <div className="fixed bottom-0 left-0 right-0 z-50 bg-[var(--color-surface)] border-t border-[var(--color-border)] rounded-t-3xl px-6 py-6 flex flex-col items-center gap-4 shadow-2xl">
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-[var(--color-surface)] border-t border-[var(--color-border)] rounded-t-3xl px-6 py-6 flex flex-col items-center gap-4 shadow-2xl max-h-[85vh] overflow-y-auto">
             <div className="w-10 h-1 rounded-full bg-[var(--color-border)]" />
             <span className="text-5xl font-medium tracking-tight text-[var(--color-text-primary)]">
               {sheet.word}
@@ -657,10 +657,10 @@ export function ConversationClient({ masteryMap }: Props) {
             )}
             {sheet.meaning ? (
               <div className="text-center w-full max-w-xs">
-                <span className={`text-base text-[var(--color-text-primary)] ${!showFullMeaning && sheet.meaning.length > 80 ? "line-clamp-3" : ""}`}>
+                <span className={`text-base text-[var(--color-text-primary)] ${!showFullMeaning && sheet.meaning.length > 60 ? "line-clamp-3" : ""}`}>
                   {sheet.meaning}
                 </span>
-                {sheet.meaning.length > 80 && (
+                {sheet.meaning.length > 60 && (
                   <button
                     onClick={() => setShowFullMeaning((s) => !s)}
                     className="text-xs text-violet-500 mt-1 block mx-auto"
