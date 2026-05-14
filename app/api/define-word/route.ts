@@ -8,7 +8,7 @@
  *   slang mode: slang_bank → CEDICT → AI
  */
 import { NextRequest, NextResponse } from "next/server";
-import { cedictLookup, hskLookup } from "@/lib/cedict";
+import { cedictLookupAll, hskLookup } from "@/lib/cedict";
 import { createClient } from "@/lib/supabase/server";
 
 const GROQ_MODEL = "llama-3.3-70b-versatile";
@@ -61,12 +61,16 @@ export async function POST(req: NextRequest) {
     // Slang mode: slang_bank first, then CEDICT
     const slangResult = await slangBankLookup(hanzi);
     if (slangResult) return NextResponse.json(slangResult);
-    const cedictResult = await cedictLookup(hanzi);
-    if (cedictResult) return NextResponse.json(cedictResult);
+    const cedictResults = await cedictLookupAll(hanzi);
+    if (cedictResults.length > 0) {
+      return NextResponse.json({ ...cedictResults[0], definitions: cedictResults });
+    }
   } else {
     // Textbook mode: CEDICT first, then slang_bank
-    const cedictResult = await cedictLookup(hanzi);
-    if (cedictResult) return NextResponse.json(cedictResult);
+    const cedictResults = await cedictLookupAll(hanzi);
+    if (cedictResults.length > 0) {
+      return NextResponse.json({ ...cedictResults[0], definitions: cedictResults });
+    }
     const slangResult = await slangBankLookup(hanzi);
     if (slangResult) return NextResponse.json(slangResult);
   }

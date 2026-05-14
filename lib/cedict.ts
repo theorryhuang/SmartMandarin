@@ -79,20 +79,27 @@ export interface DictResult {
 }
 
 export async function cedictLookup(hanzi: string): Promise<DictResult | null> {
+  const results = await cedictLookupAll(hanzi);
+  return results[0] ?? null;
+}
+
+export async function cedictLookupAll(hanzi: string): Promise<DictResult[]> {
   const { data } = await supabase
     .from("cedict")
-    .select("traditional, pinyin, english")
+    .select("pinyin, english")
     .eq("simplified", hanzi)
-    .limit(1)
-    .maybeSingle();
+    .limit(10);
 
-  if (!data) return null;
+  if (!data || data.length === 0) return [];
 
-  const pinyin = toToneMarks(data.pinyin);
-  const meaning = data.english.split("/").filter(Boolean).slice(0, 2).join("; ");
   const hsk_level = await hskLookup(hanzi);
 
-  return { pinyin, meaning, hsk_level, source: "cedict" };
+  return data.map((row) => ({
+    pinyin: toToneMarks(row.pinyin),
+    meaning: row.english.split("/").filter(Boolean).join("; "),
+    hsk_level,
+    source: "cedict" as const,
+  }));
 }
 
 export async function hskLookup(hanzi: string): Promise<number | null> {

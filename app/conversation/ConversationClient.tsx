@@ -29,6 +29,8 @@ interface SheetInfo {
   hsk_level?: number | null;
   saved: boolean;
   source?: string;
+  definitions?: { pinyin: string; meaning: string }[];
+  selectedDef: number;
 }
 
 interface Props {
@@ -379,6 +381,7 @@ export function ConversationClient({ masteryMap }: Props) {
         saved: isSaved,
         pinyin: mastery?.pinyin,
         meaning: mastery?.meaning,
+        selectedDef: 0,
       });
 
       if (!mastery?.pinyin && !mastery?.meaning) {
@@ -392,7 +395,16 @@ export function ConversationClient({ masteryMap }: Props) {
           if (def.pinyin || def.meaning) {
             setSheet((s) =>
               s?.word === word
-                ? { ...s, pinyin: def.pinyin || s.pinyin, meaning: def.meaning || s.meaning, hsk_level: def.hsk_level ?? null, source: def.source, saved: s.saved || !!def.already_saved }
+                ? {
+                    ...s,
+                    pinyin: def.pinyin || s.pinyin,
+                    meaning: def.meaning || s.meaning,
+                    hsk_level: def.hsk_level ?? null,
+                    source: def.source,
+                    saved: s.saved || !!def.already_saved,
+                    definitions: def.definitions ?? undefined,
+                    selectedDef: 0,
+                  }
                 : s
             );
           }
@@ -406,12 +418,15 @@ export function ConversationClient({ masteryMap }: Props) {
     if (!sheet) return;
     const { word } = sheet;
     const mastery = masteryMap[word];
+    const selected = sheet.definitions?.[sheet.selectedDef];
+    const pinyin = selected?.pinyin ?? mastery?.pinyin ?? sheet.pinyin;
+    const meaning = selected?.meaning ?? mastery?.meaning ?? sheet.meaning;
     setSavedWords((prev) => new Set([...prev, word]));
     setForcedWords((prev) => (prev.includes(word) ? prev : [...prev, word]));
     setSheet((s) => s ? { ...s, saved: true } : s);
     await logMistake(mastery?.id ?? word, {
-      pinyin: mastery?.pinyin ?? sheet.pinyin,
-      meaning: mastery?.meaning ?? sheet.meaning,
+      pinyin,
+      meaning,
       hsk_level: mastery?.hsk_level ?? sheet.hsk_level ?? undefined,
     }).catch(() => {});
   }, [sheet, masteryMap]);
@@ -646,22 +661,44 @@ export function ConversationClient({ masteryMap }: Props) {
             <span className="text-5xl font-medium tracking-tight text-[var(--color-text-primary)]">
               {sheet.word}
             </span>
-            {sheet.pinyin ? (
-              <span className="text-lg text-[var(--color-text-secondary)]">{sheet.pinyin}</span>
-            ) : (
+            {!sheet.pinyin && (
               <span className="text-sm text-[var(--color-text-muted)] italic animate-pulse">
                 {t.lookingUp}
               </span>
             )}
-            {sheet.meaning ? (
-              <span className="text-base text-[var(--color-text-primary)] text-center">
-                {sheet.meaning}
-              </span>
-            ) : sheet.pinyin ? (
-              <span className="text-sm text-[var(--color-text-muted)] italic">
-                {t.noDefinition}
-              </span>
-            ) : null}
+            {sheet.definitions && sheet.definitions.length > 1 ? (
+              <div className="w-full max-w-xs flex flex-col gap-2">
+                {sheet.definitions.map((def, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setSheet((s) => s ? { ...s, pinyin: def.pinyin, meaning: def.meaning, selectedDef: i } : s)}
+                    className={`w-full text-left px-4 py-3 rounded-xl border transition-all ${
+                      sheet.selectedDef === i
+                        ? "border-violet-400 bg-violet-50"
+                        : "border-[var(--color-border)] bg-[var(--color-background)]"
+                    }`}
+                  >
+                    <p className="text-sm font-medium text-[var(--color-text-secondary)]">{def.pinyin}</p>
+                    <p className="text-sm text-[var(--color-text-primary)] mt-0.5">{def.meaning}</p>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <>
+                {sheet.pinyin && (
+                  <span className="text-lg text-[var(--color-text-secondary)]">{sheet.pinyin}</span>
+                )}
+                {sheet.meaning ? (
+                  <span className="text-base text-[var(--color-text-primary)] text-center">
+                    {sheet.meaning}
+                  </span>
+                ) : sheet.pinyin ? (
+                  <span className="text-sm text-[var(--color-text-muted)] italic">
+                    {t.noDefinition}
+                  </span>
+                ) : null}
+              </>
+            )}
             {sheet.source === "ai" && !sheet.saved && (
               <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-center max-w-xs">
                 {t.aiDefinitionWarning}
