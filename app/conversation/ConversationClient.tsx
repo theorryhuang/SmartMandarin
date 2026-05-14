@@ -29,8 +29,6 @@ interface SheetInfo {
   hsk_level?: number | null;
   saved: boolean;
   source?: string;
-  definitions?: { pinyin: string; meaning: string }[];
-  selectedDef: number;
 }
 
 interface Props {
@@ -371,7 +369,7 @@ export function ConversationClient({ masteryMap }: Props) {
   }, []);
 
   const handleWordSelect = useCallback(
-    async (word: string) => {
+    async (word: string, context?: string) => {
       if (!word) return;
       const mastery = masteryMap[word];
       const isSaved = savedWords.has(word) || !!mastery;
@@ -381,7 +379,6 @@ export function ConversationClient({ masteryMap }: Props) {
         saved: isSaved,
         pinyin: mastery?.pinyin,
         meaning: mastery?.meaning,
-        selectedDef: 0,
       });
 
       if (!mastery?.pinyin && !mastery?.meaning) {
@@ -389,22 +386,13 @@ export function ConversationClient({ masteryMap }: Props) {
           const res = await fetch("/api/define-word", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ hanzi: word, slang_mode: slangMode }),
+            body: JSON.stringify({ hanzi: word, slang_mode: slangMode, context }),
           });
           const def = await res.json();
           if (def.pinyin || def.meaning) {
             setSheet((s) =>
               s?.word === word
-                ? {
-                    ...s,
-                    pinyin: def.pinyin || s.pinyin,
-                    meaning: def.meaning || s.meaning,
-                    hsk_level: def.hsk_level ?? null,
-                    source: def.source,
-                    saved: s.saved || !!def.already_saved,
-                    definitions: def.definitions ?? undefined,
-                    selectedDef: 0,
-                  }
+                ? { ...s, pinyin: def.pinyin || s.pinyin, meaning: def.meaning || s.meaning, hsk_level: def.hsk_level ?? null, source: def.source, saved: s.saved || !!def.already_saved }
                 : s
             );
           }
@@ -418,15 +406,12 @@ export function ConversationClient({ masteryMap }: Props) {
     if (!sheet) return;
     const { word } = sheet;
     const mastery = masteryMap[word];
-    const selected = sheet.definitions?.[sheet.selectedDef];
-    const pinyin = selected?.pinyin ?? mastery?.pinyin ?? sheet.pinyin;
-    const meaning = selected?.meaning ?? mastery?.meaning ?? sheet.meaning;
     setSavedWords((prev) => new Set([...prev, word]));
     setForcedWords((prev) => (prev.includes(word) ? prev : [...prev, word]));
     setSheet((s) => s ? { ...s, saved: true } : s);
     await logMistake(mastery?.id ?? word, {
-      pinyin,
-      meaning,
+      pinyin: mastery?.pinyin ?? sheet.pinyin,
+      meaning: mastery?.meaning ?? sheet.meaning,
       hsk_level: mastery?.hsk_level ?? sheet.hsk_level ?? undefined,
     }).catch(() => {});
   }, [sheet, masteryMap]);
@@ -661,44 +646,22 @@ export function ConversationClient({ masteryMap }: Props) {
             <span className="text-5xl font-medium tracking-tight text-[var(--color-text-primary)]">
               {sheet.word}
             </span>
-            {!sheet.pinyin && (
+            {sheet.pinyin ? (
+              <span className="text-lg text-[var(--color-text-secondary)]">{sheet.pinyin}</span>
+            ) : (
               <span className="text-sm text-[var(--color-text-muted)] italic animate-pulse">
                 {t.lookingUp}
               </span>
             )}
-            {sheet.definitions && sheet.definitions.length > 1 ? (
-              <div className="w-full max-w-xs flex flex-col gap-2">
-                {sheet.definitions.map((def, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setSheet((s) => s ? { ...s, pinyin: def.pinyin, meaning: def.meaning, selectedDef: i } : s)}
-                    className={`w-full text-left px-4 py-3 rounded-xl border transition-all ${
-                      sheet.selectedDef === i
-                        ? "border-violet-400 bg-violet-50"
-                        : "border-[var(--color-border)] bg-[var(--color-background)]"
-                    }`}
-                  >
-                    <p className="text-sm font-medium text-[var(--color-text-secondary)]">{def.pinyin}</p>
-                    <p className="text-sm text-[var(--color-text-primary)] mt-0.5">{def.meaning}</p>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <>
-                {sheet.pinyin && (
-                  <span className="text-lg text-[var(--color-text-secondary)]">{sheet.pinyin}</span>
-                )}
-                {sheet.meaning ? (
-                  <span className="text-base text-[var(--color-text-primary)] text-center">
-                    {sheet.meaning}
-                  </span>
-                ) : sheet.pinyin ? (
-                  <span className="text-sm text-[var(--color-text-muted)] italic">
-                    {t.noDefinition}
-                  </span>
-                ) : null}
-              </>
-            )}
+            {sheet.meaning ? (
+              <span className="text-base text-[var(--color-text-primary)] text-center">
+                {sheet.meaning}
+              </span>
+            ) : sheet.pinyin ? (
+              <span className="text-sm text-[var(--color-text-muted)] italic">
+                {t.noDefinition}
+              </span>
+            ) : null}
             {sheet.source === "ai" && !sheet.saved && (
               <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-center max-w-xs">
                 {t.aiDefinitionWarning}
@@ -757,7 +720,7 @@ function TappableMessage({
   text: string;
   masteryMap: Record<string, VocabularyMastery>;
   savedWords: Set<string>;
-  onWordSelect: (word: string) => void;
+  onWordSelect: (word: string, context: string) => void;
 }) {
   type Seg = { type: "hanzi" | "punct" | "other"; content: string; idx: number };
   const segments: Seg[] = [];
@@ -800,9 +763,9 @@ function TappableMessage({
       setTimeout(() => {
         const sel = window.getSelection();
         if (!sel || sel.isCollapsed) return;
-        const text = sel.toString().replace(/[^一-鿿㐀-䶿]/g, "");
-        if (text.length >= 1) {
-          onWordSelectRef.current(text);
+        const selected = sel.toString().replace(/[^一-鿿㐀-䶿]/g, "");
+        if (selected.length >= 1) {
+          onWordSelectRef.current(selected, text);
           setTimeout(() => sel.removeAllRanges(), 150);
         }
       }, 50);
@@ -842,7 +805,7 @@ function TappableMessage({
             onClick={() => {
               const sel = window.getSelection();
               if (sel && !sel.isCollapsed) return;
-              onWordSelect(seg.content);
+              onWordSelect(seg.content, text);
             }}
             className={`cursor-pointer rounded-sm transition-colors ${
               isSaved

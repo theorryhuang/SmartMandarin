@@ -1,14 +1,15 @@
 /**
  * POST /api/define-word
- * Body: { hanzi: string; slang_mode?: boolean }
+ * Body: { hanzi: string; slang_mode?: boolean; context?: string }
  * Returns: { pinyin: string; meaning: string; source: "cedict" | "slang" | "ai" }
  *
  * Lookup order:
  *   textbook mode (default): CEDICT → slang_bank → AI
  *   slang mode: slang_bank → CEDICT → AI
+ * When CEDICT returns multiple entries, AI picks the right one using sentence context.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { cedictLookupAll, hskLookup } from "@/lib/cedict";
+import { cedictLookupAll, hskLookup, type DictResult } from "@/lib/cedict";
 import { createClient } from "@/lib/supabase/server";
 
 const GROQ_MODEL = "llama-3.3-70b-versatile";
@@ -30,11 +31,50 @@ async function slangBankLookup(hanzi: string) {
   return null;
 }
 
+async function aiTiebreaker(
+  hanzi: string,
+  entries: DictResult[],
+  context: string,
+  apiKey: string,
+): Promise<DictResult> {
+  const choices = entries.map((e, i) => `${i + 1}. ${e.pinyin}: ${e.meaning}`).join("\n");
+  const prompt = `Sentence: "${context}"
+Word in sentence: "${hanzi}"
+
+Pick the correct definition:
+${choices}
+
+Reply with ONLY valid JSON: {"index": <1-based number>}`;
+
+  try {
+    const res = await fetch(GROQ_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0,
+        max_tokens: 16,
+        response_format: { type: "json_object" },
+      }),
+    });
+    if (res.ok) {
+      const raw = await res.json();
+      const parsed = JSON.parse(raw.choices?.[0]?.message?.content ?? "{}");
+      const idx = (parsed.index ?? 1) - 1;
+      return entries[idx] ?? entries[0];
+    }
+  } catch { /* fall through */ }
+  return entries[0];
+}
+
 export async function POST(req: NextRequest) {
-  const { hanzi, slang_mode } = await req.json().catch(() => ({}));
+  const { hanzi, slang_mode, context } = await req.json().catch(() => ({}));
   if (!hanzi) {
     return NextResponse.json({ error: "hanzi required" }, { status: 400 });
   }
+
+  const apiKey = process.env.GROQ_API_KEY;
 
   // Check if word already saved in user's vocabulary
   const supabase = await createClient();
@@ -57,29 +97,26 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const resolveCedict = async (entries: DictResult[]) => {
+    if (entries.length === 0) return null;
+    if (entries.length === 1 || !context || !apiKey) return entries[0];
+    return aiTiebreaker(hanzi, entries, context, apiKey);
+  };
+
   if (slang_mode) {
-    // Slang mode: slang_bank first, then CEDICT
     const slangResult = await slangBankLookup(hanzi);
     if (slangResult) return NextResponse.json(slangResult);
-    const cedictResults = await cedictLookupAll(hanzi);
-    if (cedictResults.length > 0) {
-      return NextResponse.json({ ...cedictResults[0], definitions: cedictResults });
-    }
+    const cedictResult = await resolveCedict(await cedictLookupAll(hanzi));
+    if (cedictResult) return NextResponse.json(cedictResult);
   } else {
-    // Textbook mode: CEDICT first, then slang_bank
-    const cedictResults = await cedictLookupAll(hanzi);
-    if (cedictResults.length > 0) {
-      return NextResponse.json({ ...cedictResults[0], definitions: cedictResults });
-    }
+    const cedictResult = await resolveCedict(await cedictLookupAll(hanzi));
+    if (cedictResult) return NextResponse.json(cedictResult);
     const slangResult = await slangBankLookup(hanzi);
     if (slangResult) return NextResponse.json(slangResult);
   }
 
-  // Not in either DB — look up HSK level independently before AI fallback
+  // Not in either DB — AI fallback for phrases / proper nouns
   const hsk_level = await hskLookup(hanzi);
-
-  // 2. Groq fallback for multi-word phrases / proper nouns not in CEDICT
-  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: "GROQ_API_KEY not set" }, { status: 500 });
   }
@@ -94,10 +131,7 @@ Return ONLY valid JSON (no markdown, no extra keys):
 
   const res = await fetch(GROQ_API_URL, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
       model: GROQ_MODEL,
       messages: [{ role: "user", content: prompt }],
@@ -116,12 +150,7 @@ Return ONLY valid JSON (no markdown, no extra keys):
 
   try {
     const def = JSON.parse(text);
-    return NextResponse.json({
-      pinyin: def.pinyin ?? "",
-      meaning: def.meaning ?? "",
-      hsk_level,
-      source: "ai",
-    });
+    return NextResponse.json({ pinyin: def.pinyin ?? "", meaning: def.meaning ?? "", hsk_level, source: "ai" });
   } catch {
     return NextResponse.json({ error: "Failed to parse response" }, { status: 500 });
   }
