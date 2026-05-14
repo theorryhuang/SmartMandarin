@@ -246,7 +246,7 @@ export function SpeakingClient() {
   return (
     <div className="flex flex-col h-full bg-[var(--color-background)]">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+      <div className="flex items-center gap-3 px-4 pt-[max(12px,env(safe-area-inset-top))] pb-3 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
         <button
           onClick={() => router.push("/")}
           className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--color-background)] transition-colors flex-shrink-0"

@@ -27,7 +27,7 @@ export default async function ReaderPage() {
 
   return (
     <main className="min-h-screen bg-[var(--color-background)]">
-      <div className="max-w-2xl mx-auto px-4 py-8">
+      <div className="max-w-2xl mx-auto px-4 pt-[max(32px,env(safe-area-inset-top))] pb-8">
         <div className="mb-6">
           <BackButton href="/" />
         </div>
