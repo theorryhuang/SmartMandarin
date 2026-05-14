@@ -600,7 +600,7 @@ export function ConversationClient({ masteryMap }: Props) {
         <>
           <div className="fixed inset-0 z-40 bg-black/30" onClick={() => setShowChatList(false)} />
           <div className="fixed inset-y-0 left-0 z-50 w-[280px] bg-[var(--color-surface)] flex flex-col shadow-2xl">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
+            <div className="flex items-center justify-between px-4 pt-[max(12px,env(safe-area-inset-top))] pb-3 border-b border-[var(--color-border)]">
               <span className="font-semibold text-sm text-[var(--color-text-primary)]">Chats</span>
               <button
                 onClick={createNewConversation}
