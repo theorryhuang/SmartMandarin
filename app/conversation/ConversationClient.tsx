@@ -117,7 +117,7 @@ export function ConversationClient({ masteryMap }: Props) {
 
     if (convs.length === 0) {
       const id = `conv_${Date.now()}`;
-      convs = [{ id, title: "New Chat", createdAt: Date.now(), updatedAt: Date.now() }];
+      convs = [{ id, title: "", createdAt: Date.now(), updatedAt: Date.now() }];
       localStorage.setItem("sm_conversations", JSON.stringify(convs));
       activeId = id;
     }
@@ -184,7 +184,7 @@ export function ConversationClient({ masteryMap }: Props) {
 
   const createNewConversation = useCallback(() => {
     const id = `conv_${Date.now()}`;
-    const meta: ConversationMeta = { id, title: "New Chat", createdAt: Date.now(), updatedAt: Date.now() };
+    const meta: ConversationMeta = { id, title: "", createdAt: Date.now(), updatedAt: Date.now() };
 
     setConversations((prev) => {
       const updated = [meta, ...prev];
@@ -237,7 +237,7 @@ export function ConversationClient({ masteryMap }: Props) {
         localStorage.setItem("sm_active_conv", target.id);
       } else {
         const newId = `conv_${Date.now()}`;
-        const meta: ConversationMeta = { id: newId, title: "New Chat", createdAt: Date.now(), updatedAt: Date.now() };
+        const meta: ConversationMeta = { id: newId, title: "", createdAt: Date.now(), updatedAt: Date.now() };
         localStorage.setItem("sm_conversations", JSON.stringify([meta]));
         localStorage.setItem("sm_active_conv", newId);
         setConversations([meta]);
@@ -259,7 +259,7 @@ export function ConversationClient({ masteryMap }: Props) {
 
     // Auto-title on first message; update updatedAt on subsequent ones
     setConversations((prev) => {
-      const isFirst = !prev.find((c) => c.id === activeConvId)?.title || prev.find((c) => c.id === activeConvId)?.title === "New Chat";
+      const isFirst = !prev.find((c) => c.id === activeConvId)?.title;
       const updated = prev.map((c) =>
         c.id === activeConvId
           ? { ...c, updatedAt: Date.now(), title: isFirst ? autoTitle(text) : c.title }
@@ -426,7 +426,7 @@ export function ConversationClient({ masteryMap }: Props) {
     await removeFromReviewQueue(mastery?.id ?? word).catch(() => {});
   }, [sheet, masteryMap]);
 
-  const activeConvTitle = conversations.find((c) => c.id === activeConvId)?.title ?? "";
+  const activeConvTitle = conversations.find((c) => c.id === activeConvId)?.title || t.newChat;
 
   return (
     <div className="flex flex-col h-full bg-[var(--color-background)]">
@@ -448,7 +448,7 @@ export function ConversationClient({ masteryMap }: Props) {
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
             <span className="text-xs text-[var(--color-text-muted)] truncate">
-              {activeConvTitle || (hskLevel !== null ? `HSK ${hskLevel}` : "…")}
+              {activeConvTitle}
             </span>
           </div>
         </div>
@@ -622,7 +622,7 @@ export function ConversationClient({ masteryMap }: Props) {
                   }`}
                 >
                   <span className="flex-1 text-sm text-[var(--color-text-primary)] truncate">
-                    {conv.title}
+                    {conv.title || t.newChat}
                   </span>
                   <span
                     onClick={(e) => deleteConversation(conv.id, e)}
