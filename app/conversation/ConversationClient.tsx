@@ -60,6 +60,7 @@ export function ConversationClient({ masteryMap }: Props) {
   const [forcedWords, setForcedWords] = useState<string[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [showFullMeaning, setShowFullMeaning] = useState(false);
 
   const [conversations, setConversations] = useState<ConversationMeta[]>([]);
   const [activeConvId, setActiveConvId] = useState<string>("");
@@ -374,6 +375,7 @@ export function ConversationClient({ masteryMap }: Props) {
       const mastery = masteryMap[word];
       const isSaved = savedWords.has(word) || !!mastery;
 
+      setShowFullMeaning(false);
       setSheet({
         word,
         saved: isSaved,
@@ -654,9 +656,19 @@ export function ConversationClient({ masteryMap }: Props) {
               </span>
             )}
             {sheet.meaning ? (
-              <span className="text-base text-[var(--color-text-primary)] text-center">
-                {sheet.meaning}
-              </span>
+              <div className="text-center w-full max-w-xs">
+                <span className={`text-base text-[var(--color-text-primary)] ${!showFullMeaning && sheet.meaning.length > 80 ? "line-clamp-3" : ""}`}>
+                  {sheet.meaning}
+                </span>
+                {sheet.meaning.length > 80 && (
+                  <button
+                    onClick={() => setShowFullMeaning((s) => !s)}
+                    className="text-xs text-violet-500 mt-1 block mx-auto"
+                  >
+                    {showFullMeaning ? t.showLess : t.showMore}
+                  </button>
+                )}
+              </div>
             ) : sheet.pinyin ? (
               <span className="text-sm text-[var(--color-text-muted)] italic">
                 {t.noDefinition}
