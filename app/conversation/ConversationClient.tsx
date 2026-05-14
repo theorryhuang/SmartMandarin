@@ -601,11 +601,11 @@ export function ConversationClient({ masteryMap }: Props) {
           <div className="fixed inset-0 z-40 bg-black/30" onClick={() => setShowChatList(false)} />
           <div className="fixed inset-y-0 left-0 z-50 w-[280px] bg-[var(--color-surface)] flex flex-col shadow-2xl">
             <div className="flex items-center justify-between px-4 pt-[max(12px,env(safe-area-inset-top))] pb-3 border-b border-[var(--color-border)]">
-              <span className="font-semibold text-sm text-[var(--color-text-primary)]">Chats</span>
+              <span className="font-semibold text-sm text-[var(--color-text-primary)]">{t.chats}</span>
               <button
                 onClick={createNewConversation}
                 className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--color-background)] transition-colors text-violet-600"
-                title="New chat"
+                title={t.newChat}
               >
                 <Plus size={18} />
               </button>
