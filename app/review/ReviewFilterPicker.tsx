@@ -79,14 +79,14 @@ export function ReviewFilterPicker({ isSlang = false }: Props) {
         label: t.filterEasy,
         desc: t.filterEasyDesc,
         color: "border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700",
-        fn: () => getDueWordsByLastRating([3, 4], isSlang, 200, min, max),
+        fn: () => getDueWordsByLastRating([3], isSlang, 200, min, max),
       },
       {
         key: `${filterKey}_hardeasy`,
         label: t.filterHardEasy,
         desc: t.filterHardEasyDesc,
         color: "border-violet-200 bg-violet-50 hover:bg-violet-100 text-violet-700",
-        fn: () => getDueWordsByLastRating([2, 3, 4], isSlang, 200, min, max),
+        fn: () => getDueWordsByLastRating([2, 3], isSlang, 200, min, max),
       },
       {
         key: `${filterKey}_new`,
