@@ -259,6 +259,8 @@ export function calculateNextReview(
     newDifficulty = nextDifficulty(difficulty, rating, w);
   }
 
+  newStability = Math.min(newStability, maxInterval);
+
   const intervalDays = targetInterval(newStability, maxInterval);
   const nextReview = new Date(now.getTime() + intervalDays * 86_400_000);
 
