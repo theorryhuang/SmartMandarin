@@ -107,6 +107,7 @@ const en = {
   filterHardEasy: "困难 + 良好",
   filterHardEasyDesc: "Cards you rated 困难 or 良好 last time",
   filterNonHSK: "Non-HSK",
+  filterContinue: "Continue",
   selectHSKLevel: "Select a level",
   noCardsMatchFilter: "No cards match this filter.",
 
@@ -283,6 +284,7 @@ const zh: typeof en = {
   filterHardEasy: "困难 + 良好",
   filterHardEasyDesc: "上次标记为困难或良好的卡片",
   filterNonHSK: "非HSK词汇",
+  filterContinue: "继续",
   selectHSKLevel: "选择等级",
   noCardsMatchFilter: "没有卡片符合此筛选条件。",
 
