@@ -110,12 +110,6 @@ export function ReviewFilterPicker({ isSlang = false }: Props) {
 
     return (
       <div className="flex flex-col items-center gap-6 text-center max-w-sm w-full">
-        <button
-          onClick={() => setSelectedHSK(null)}
-          className="self-start text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
-        >
-          ← {t.back}
-        </button>
         <h2 className="text-xl font-medium">{selectedHSK.label}</h2>
         <div className="flex flex-col gap-3 w-full">
           {filterOptions.map((opt) => (
