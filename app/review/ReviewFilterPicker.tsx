@@ -7,6 +7,7 @@ import {
   getDueWordsByLastRating,
   getAllWords,
   getWordsByHSKRange,
+  getNoHSKWords,
   getUnreviewedWords,
 } from "@/app/actions/vocabulary";
 import type { VocabularyMastery } from "@/lib/types";
@@ -16,6 +17,7 @@ interface HSKLevel {
   label: string;
   min?: number;
   max?: number;
+  noHSK?: boolean; // words with hsk_level = null
 }
 
 const HSK_LEVELS: HSKLevel[] = [
@@ -26,6 +28,7 @@ const HSK_LEVELS: HSKLevel[] = [
   { label: "HSK 5", min: 5, max: 6 },
   { label: "HSK 6", min: 6, max: 7 },
   { label: "HSK 7+", min: 7, max: undefined },
+  { label: "Non-HSK", min: undefined, max: undefined, noHSK: true },
   { label: "All Words", min: undefined, max: undefined },
 ];
 
@@ -63,8 +66,8 @@ export function ReviewFilterPicker({ isSlang = false }: Props) {
 
   // ── Filter sub-picker (after HSK level chosen) ─────────────────────────────
   if (selectedHSK !== null) {
-    const { min, max } = selectedHSK;
-    const filterKey = selectedHSK.label.replace(/\s/g, "_").toLowerCase();
+    const { min, max, noHSK } = selectedHSK;
+    const filterKey = selectedHSK.label.replace(/\s+/g, "_").toLowerCase();
 
     const filterOptions = [
       {
@@ -72,28 +75,28 @@ export function ReviewFilterPicker({ isSlang = false }: Props) {
         label: t.filterHard,
         desc: t.filterHardDesc,
         color: "border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700",
-        fn: () => getDueWordsByLastRating([2], isSlang, 200, min, max),
+        fn: () => getDueWordsByLastRating([2], isSlang, 200, min, max, noHSK),
       },
       {
         key: `${filterKey}_easy`,
         label: t.filterEasy,
         desc: t.filterEasyDesc,
         color: "border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700",
-        fn: () => getDueWordsByLastRating([3], isSlang, 200, min, max),
+        fn: () => getDueWordsByLastRating([3], isSlang, 200, min, max, noHSK),
       },
       {
         key: `${filterKey}_hardeasy`,
         label: t.filterHardEasy,
         desc: t.filterHardEasyDesc,
         color: "border-violet-200 bg-violet-50 hover:bg-violet-100 text-violet-700",
-        fn: () => getDueWordsByLastRating([2, 3], isSlang, 200, min, max),
+        fn: () => getDueWordsByLastRating([2, 3], isSlang, 200, min, max, noHSK),
       },
       {
         key: `${filterKey}_new`,
         label: t.filterUnreviewed,
         desc: t.filterUnreviewedDesc,
         color: "border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700",
-        fn: () => getUnreviewedWords(200, min, max),
+        fn: () => getUnreviewedWords(200, min, max, noHSK),
       },
       {
         key: `${filterKey}_all`,
@@ -101,9 +104,7 @@ export function ReviewFilterPicker({ isSlang = false }: Props) {
         desc: t.filterAllDesc,
         color: "border-sky-200 bg-sky-50 hover:bg-sky-100 text-sky-700",
         fn: () =>
-          min !== undefined
-            ? getWordsByHSKRange(min, max, 200)
-            : getAllWords(200),
+          noHSK ? getNoHSKWords(200) : min !== undefined ? getWordsByHSKRange(min, max, 200) : getAllWords(200),
       },
     ];
 

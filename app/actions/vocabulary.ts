@@ -282,6 +282,19 @@ export async function getWordsByHSK(hskLevel: number, limit = 200): Promise<Voca
 }
 
 // For 7+ (covers 7, 8, 9) pass no maxLevel
+export async function getNoHSKWords(limit = 200): Promise<VocabularyMastery[]> {
+  const supabase = await createClient();
+  const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
+  const { data } = await supabase
+    .from("vocabulary_mastery")
+    .select("*")
+    .eq("user_id", userId)
+    .is("hsk_level", null)
+    .order("stability", { ascending: true })
+    .limit(limit);
+  return (data ?? []) as VocabularyMastery[];
+}
+
 export async function getWordsByHSKRange(minLevel: number, maxLevel?: number, limit = 200): Promise<VocabularyMastery[]> {
   const supabase = await createClient();
   const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
@@ -307,7 +320,7 @@ export async function getWordsByMastery(limit = 200): Promise<VocabularyMastery[
   return (data ?? []) as VocabularyMastery[];
 }
 
-export async function getUnreviewedWords(limit = 200, minHSK?: number, maxHSK?: number): Promise<VocabularyMastery[]> {
+export async function getUnreviewedWords(limit = 200, minHSK?: number, maxHSK?: number, noHSK?: boolean): Promise<VocabularyMastery[]> {
   const supabase = await createClient();
   const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
   let query = supabase
@@ -315,8 +328,12 @@ export async function getUnreviewedWords(limit = 200, minHSK?: number, maxHSK?: 
     .select("*")
     .eq("user_id", userId)
     .eq("review_count", 0);
-  if (minHSK !== undefined) query = query.gte("hsk_level", minHSK);
-  if (maxHSK !== undefined) query = query.lt("hsk_level", maxHSK);
+  if (noHSK) {
+    query = query.is("hsk_level", null);
+  } else {
+    if (minHSK !== undefined) query = query.gte("hsk_level", minHSK);
+    if (maxHSK !== undefined) query = query.lt("hsk_level", maxHSK);
+  }
   const { data } = await query.limit(limit);
   return (data ?? []) as VocabularyMastery[];
 }
@@ -357,6 +374,7 @@ export async function getDueWordsByLastRating(
   limit = 100,
   minHSK?: number,
   maxHSK?: number,
+  noHSK?: boolean,
 ): Promise<VocabularyMastery[]> {
   const supabase = await createClient();
   const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
@@ -390,8 +408,12 @@ export async function getDueWordsByLastRating(
     .eq("user_id", userId)
     .eq("is_slang", isSlang)
     .in("id", matchingIds);
-  if (minHSK !== undefined) query = query.gte("hsk_level", minHSK);
-  if (maxHSK !== undefined) query = query.lt("hsk_level", maxHSK);
+  if (noHSK) {
+    query = query.is("hsk_level", null);
+  } else {
+    if (minHSK !== undefined) query = query.gte("hsk_level", minHSK);
+    if (maxHSK !== undefined) query = query.lt("hsk_level", maxHSK);
+  }
   const { data, error } = await query.order("next_review", { ascending: true, nullsFirst: true }).limit(limit);
   if (error) throw new Error(error.message);
   return (data ?? []) as VocabularyMastery[];
