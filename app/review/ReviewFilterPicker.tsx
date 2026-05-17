@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { ChevronLeft, Home } from "lucide-react";
 import { ReviewSession } from "./ReviewSession";
 import {
   getDueWordsByLastRating,
@@ -44,8 +46,39 @@ function mergeDeduped(arrays: VocabularyMastery[][]): VocabularyMastery[] {
   });
 }
 
+function NavHeader({
+  onBack,
+  onHome,
+}: {
+  onBack: () => void;
+  onHome: () => void;
+}) {
+  const { t } = useLanguage();
+  return (
+    <div
+      className="flex items-center justify-between px-5 pb-3"
+      style={{ paddingTop: "max(20px, env(safe-area-inset-top))" }}
+    >
+      <button
+        onClick={onBack}
+        className="flex items-center gap-1 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+      >
+        <ChevronLeft size={18} />
+        {t.back}
+      </button>
+      <button
+        onClick={onHome}
+        className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+      >
+        <Home size={18} />
+      </button>
+    </div>
+  );
+}
+
 export function ReviewFilterPicker({ isSlang = false }: Props) {
   const { t } = useLanguage();
+  const router = useRouter();
   const [selectedLabels, setSelectedLabels] = useState<Set<string>>(new Set());
   const [showSubFilter, setShowSubFilter] = useState(false);
   const [cards, setCards] = useState<VocabularyMastery[] | null>(null);
@@ -98,6 +131,8 @@ export function ReviewFilterPicker({ isSlang = false }: Props) {
         initialCards={cards}
         sessionKey={sessionKey}
         getAllWordsFn={getAllWordsFn}
+        onExit={() => setCards(null)}
+        onHome={() => router.push("/")}
       />
     );
   }
@@ -178,29 +213,26 @@ export function ReviewFilterPicker({ isSlang = false }: Props) {
     ];
 
     return (
-      <div className="flex flex-col items-center gap-6 text-center max-w-sm w-full">
-        <button
-          onClick={() => setShowSubFilter(false)}
-          className="self-start text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
-        >
-          ← {t.back}
-        </button>
-        <h2 className="text-xl font-medium">{subtitle}</h2>
-        <div className="flex flex-col gap-3 w-full">
-          {filterOptions.map((opt) => (
-            <button
-              key={opt.key}
-              onClick={() => load(opt.key, opt.fn)}
-              disabled={isPending}
-              className={`w-full rounded-xl border px-5 py-4 text-left transition-colors disabled:opacity-50 ${opt.color}`}
-            >
-              <div className="font-medium text-base">{opt.label}</div>
-              <div className="text-sm opacity-70 mt-0.5">{opt.desc}</div>
-              {isPending && pendingKey === opt.key && (
-                <div className="text-xs opacity-60 mt-1">{t.loading}</div>
-              )}
-            </button>
-          ))}
+      <div className="flex flex-col min-h-screen">
+        <NavHeader onBack={() => setShowSubFilter(false)} onHome={() => router.push("/")} />
+        <div className="flex-1 flex flex-col items-center justify-center px-6 pb-6 gap-6 max-w-sm mx-auto w-full">
+          <h2 className="text-xl font-medium text-center">{subtitle}</h2>
+          <div className="flex flex-col gap-3 w-full">
+            {filterOptions.map((opt) => (
+              <button
+                key={opt.key}
+                onClick={() => load(opt.key, opt.fn)}
+                disabled={isPending}
+                className={`w-full rounded-xl border px-5 py-4 text-left transition-colors disabled:opacity-50 ${opt.color}`}
+              >
+                <div className="font-medium text-base">{opt.label}</div>
+                <div className="text-sm opacity-70 mt-0.5">{opt.desc}</div>
+                {isPending && pendingKey === opt.key && (
+                  <div className="text-xs opacity-60 mt-1">{t.loading}</div>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -208,38 +240,41 @@ export function ReviewFilterPicker({ isSlang = false }: Props) {
 
   // ── HSK level picker (main) ────────────────────────────────────────────────
   return (
-    <div className="flex flex-col items-center gap-6 text-center max-w-sm w-full">
-      <h2 className="text-xl font-medium">{t.filterTitle}</h2>
-      <div className="grid grid-cols-2 gap-3 w-full">
-        {HSK_LEVELS.map((lvl) => {
-          const isSelected = selectedLabels.has(lvl.label);
-          return (
-            <button
-              key={lvl.label}
-              onClick={() => toggleLevel(lvl)}
-              className={`rounded-xl border px-4 py-5 font-semibold text-base transition-colors ${
-                isSelected
-                  ? "border-violet-500 bg-violet-600 text-white"
-                  : "border-violet-200 bg-violet-50 hover:bg-violet-100 text-violet-700"
-              }`}
-            >
-              {lvl.label === "All Words"
-                ? t.filterAll
-                : lvl.label === "Non-HSK"
-                ? t.filterNonHSK
-                : lvl.label}
-            </button>
-          );
-        })}
+    <div className="flex flex-col min-h-screen">
+      <NavHeader onBack={() => router.back()} onHome={() => router.push("/")} />
+      <div className="flex-1 flex flex-col items-center justify-center px-6 pb-6 gap-6 max-w-sm mx-auto w-full">
+        <h2 className="text-xl font-medium text-center">{t.filterTitle}</h2>
+        <div className="grid grid-cols-2 gap-3 w-full">
+          {HSK_LEVELS.map((lvl) => {
+            const isSelected = selectedLabels.has(lvl.label);
+            return (
+              <button
+                key={lvl.label}
+                onClick={() => toggleLevel(lvl)}
+                className={`rounded-xl border px-4 py-5 font-semibold text-base transition-colors ${
+                  isSelected
+                    ? "border-violet-500 bg-violet-600 text-white"
+                    : "border-violet-200 bg-violet-50 hover:bg-violet-100 text-violet-700"
+                }`}
+              >
+                {lvl.label === "All Words"
+                  ? t.filterAll
+                  : lvl.label === "Non-HSK"
+                  ? t.filterNonHSK
+                  : lvl.label}
+              </button>
+            );
+          })}
+        </div>
+        {selectedLabels.size > 0 && (
+          <button
+            onClick={() => setShowSubFilter(true)}
+            className="w-full rounded-xl bg-violet-600 hover:bg-violet-700 text-white px-5 py-3 font-semibold text-base transition-colors"
+          >
+            {t.filterContinue} →
+          </button>
+        )}
       </div>
-      {selectedLabels.size > 0 && (
-        <button
-          onClick={() => setShowSubFilter(true)}
-          className="w-full rounded-xl bg-violet-600 hover:bg-violet-700 text-white px-5 py-3 font-semibold text-base transition-colors"
-        >
-          {t.filterContinue} →
-        </button>
-      )}
     </div>
   );
 }

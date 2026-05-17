@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useRef } from "react";
+import { ChevronLeft, Home } from "lucide-react";
 import { ReviewCard } from "@/components/ReviewCard";
 import { getAllWords } from "@/app/actions/vocabulary";
 import type { VocabularyMastery } from "@/lib/types";
@@ -65,13 +66,38 @@ function initSession(key: string, incoming: VocabularyMastery[]): {
   return { ordered, startIndex: 0 };
 }
 
+function NavHeader({ onBack, onHome, backLabel }: { onBack: () => void; onHome: () => void; backLabel: string }) {
+  return (
+    <div
+      className="flex items-center justify-between px-5 pb-3 flex-shrink-0"
+      style={{ paddingTop: "max(20px, env(safe-area-inset-top))" }}
+    >
+      <button
+        onClick={onBack}
+        className="flex items-center gap-1 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+      >
+        <ChevronLeft size={18} />
+        {backLabel}
+      </button>
+      <button
+        onClick={onHome}
+        className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+      >
+        <Home size={18} />
+      </button>
+    </div>
+  );
+}
+
 interface Props {
   initialCards: VocabularyMastery[];
   sessionKey?: string;
   getAllWordsFn?: () => Promise<VocabularyMastery[]>;
+  onExit?: () => void;
+  onHome?: () => void;
 }
 
-export function ReviewSession({ initialCards, sessionKey = DEFAULT_SESSION_KEY, getAllWordsFn }: Props) {
+export function ReviewSession({ initialCards, sessionKey = DEFAULT_SESSION_KEY, getAllWordsFn, onExit, onHome }: Props) {
   const { t } = useLanguage();
   const activeKeyRef = useRef(sessionKey);
 
@@ -150,22 +176,20 @@ export function ReviewSession({ initialCards, sessionKey = DEFAULT_SESSION_KEY, 
 
   if (cards.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-5 text-center">
-        <span className="text-4xl">🎉</span>
-        <h2 className="text-xl font-medium">{t.allCaughtUp}</h2>
-        <p className="text-sm text-[var(--color-text-muted)]">
-          {t.noCardsDue}
-        </p>
-        <button
-          onClick={practiceAll}
-          disabled={loadingMore}
-          className="px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
-        >
-          {loadingMore ? t.loading : t.practiceAll}
-        </button>
-        <a href="/" className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors">
-          {t.backToHome}
-        </a>
+      <div className="flex flex-col min-h-screen">
+        <NavHeader onBack={() => onExit?.()} onHome={() => onHome?.()} backLabel={t.back} />
+        <div className="flex-1 flex flex-col items-center justify-center gap-5 text-center px-6 pb-6">
+          <span className="text-4xl">🎉</span>
+          <h2 className="text-xl font-medium">{t.allCaughtUp}</h2>
+          <p className="text-sm text-[var(--color-text-muted)]">{t.noCardsDue}</p>
+          <button
+            onClick={practiceAll}
+            disabled={loadingMore}
+            className="px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {loadingMore ? t.loading : t.practiceAll}
+          </button>
+        </div>
       </div>
     );
   }
@@ -173,46 +197,47 @@ export function ReviewSession({ initialCards, sessionKey = DEFAULT_SESSION_KEY, 
   if (done) {
     clearSession(sessionKey);
     return (
-      <div className="flex flex-col items-center gap-6 text-center max-w-sm">
-        <h2 className="text-2xl font-medium">{t.sessionComplete}</h2>
-        <p className="text-sm text-[var(--color-text-muted)]">
-          {t.cardsReviewed(sessionResults.length)}
-        </p>
-        <div className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] divide-y divide-[var(--color-border)]">
-          {sessionResults.map((r) => (
-            <div key={r.hanzi} className="flex justify-between px-4 py-2 text-sm">
-              <span>{r.hanzi}</span>
-              <span className="text-[var(--color-text-muted)]">
-                S: {r.stability.toFixed(1)}d
-              </span>
-            </div>
-          ))}
+      <div className="flex flex-col min-h-screen">
+        <NavHeader onBack={() => onExit?.()} onHome={() => onHome?.()} backLabel={t.back} />
+        <div className="flex-1 flex flex-col items-center justify-center gap-6 text-center px-6 pb-6 max-w-sm mx-auto w-full">
+          <h2 className="text-2xl font-medium">{t.sessionComplete}</h2>
+          <p className="text-sm text-[var(--color-text-muted)]">{t.cardsReviewed(sessionResults.length)}</p>
+          <div className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] divide-y divide-[var(--color-border)]">
+            {sessionResults.map((r) => (
+              <div key={r.hanzi} className="flex justify-between px-4 py-2 text-sm">
+                <span>{r.hanzi}</span>
+                <span className="text-[var(--color-text-muted)]">S: {r.stability.toFixed(1)}d</span>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={practiceAll}
+            disabled={loadingMore}
+            className="w-full px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {loadingMore ? t.loading : t.practiceAll}
+          </button>
         </div>
-        <button
-          onClick={practiceAll}
-          disabled={loadingMore}
-          className="w-full px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
-        >
-          {loadingMore ? t.loading : t.practiceAll}
-        </button>
-        <a href="/" className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors">
-          {t.backToHome}
-        </a>
       </div>
     );
   }
 
   return (
-    <ReviewCard
-      key={current.id}
-      card={current}
-      onNext={handleNext}
-      onBack={handleBack}
-      canGoBack={history.length > 0}
-      onRestart={handleRestart}
-      onReshuffle={handleReshuffle}
-      currentIndex={index}
-      totalCards={cards.length}
-    />
+    <div className="flex flex-col min-h-screen">
+      <NavHeader onBack={() => onExit?.()} onHome={() => onHome?.()} backLabel={t.back} />
+      <div className="flex-1 flex flex-col items-center justify-center px-6 pb-6">
+        <ReviewCard
+          key={current.id}
+          card={current}
+          onNext={handleNext}
+          onBack={handleBack}
+          canGoBack={history.length > 0}
+          onRestart={handleRestart}
+          onReshuffle={handleReshuffle}
+          currentIndex={index}
+          totalCards={cards.length}
+        />
+      </div>
+    </div>
   );
 }
