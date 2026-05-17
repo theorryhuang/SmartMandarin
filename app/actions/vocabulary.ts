@@ -307,15 +307,17 @@ export async function getWordsByMastery(limit = 200): Promise<VocabularyMastery[
   return (data ?? []) as VocabularyMastery[];
 }
 
-export async function getUnreviewedWords(limit = 200): Promise<VocabularyMastery[]> {
+export async function getUnreviewedWords(limit = 200, minHSK?: number, maxHSK?: number): Promise<VocabularyMastery[]> {
   const supabase = await createClient();
   const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
-  const { data } = await supabase
+  let query = supabase
     .from("vocabulary_mastery")
     .select("*")
     .eq("user_id", userId)
-    .eq("review_count", 0)
-    .limit(limit);
+    .eq("review_count", 0);
+  if (minHSK !== undefined) query = query.gte("hsk_level", minHSK);
+  if (maxHSK !== undefined) query = query.lt("hsk_level", maxHSK);
+  const { data } = await query.limit(limit);
   return (data ?? []) as VocabularyMastery[];
 }
 
@@ -352,7 +354,9 @@ export async function removeFromReviewQueue(wordIdOrHanzi: string): Promise<void
 export async function getDueWordsByLastRating(
   ratings: number[],
   isSlang = false,
-  limit = 100
+  limit = 100,
+  minHSK?: number,
+  maxHSK?: number,
 ): Promise<VocabularyMastery[]> {
   const supabase = await createClient();
   const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
@@ -380,14 +384,15 @@ export async function getDueWordsByLastRating(
 
   if (matchingIds.length === 0) return [];
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("vocabulary_mastery")
     .select("*")
     .eq("user_id", userId)
     .eq("is_slang", isSlang)
-    .in("id", matchingIds)
-    .order("next_review", { ascending: true, nullsFirst: true })
-    .limit(limit);
+    .in("id", matchingIds);
+  if (minHSK !== undefined) query = query.gte("hsk_level", minHSK);
+  if (maxHSK !== undefined) query = query.lt("hsk_level", maxHSK);
+  const { data, error } = await query.order("next_review", { ascending: true, nullsFirst: true }).limit(limit);
   if (error) throw new Error(error.message);
   return (data ?? []) as VocabularyMastery[];
 }
