@@ -5,7 +5,7 @@ export default function SlangReviewPage() {
   return (
     <main className="min-h-screen bg-[var(--color-background)] flex flex-col items-center justify-center p-6">
       <div className="absolute top-6 left-6">
-        <BackButton href="/" />
+        <BackButton />
       </div>
       <ReviewFilterPicker isSlang />
     </main>
