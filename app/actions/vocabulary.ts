@@ -281,6 +281,20 @@ export async function getWordsByHSK(hskLevel: number, limit = 200): Promise<Voca
   return (data ?? []) as VocabularyMastery[];
 }
 
+// For 7+ (covers 7, 8, 9) pass no maxLevel
+export async function getWordsByHSKRange(minLevel: number, maxLevel?: number, limit = 200): Promise<VocabularyMastery[]> {
+  const supabase = await createClient();
+  const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
+  let query = supabase
+    .from("vocabulary_mastery")
+    .select("*")
+    .eq("user_id", userId)
+    .gte("hsk_level", minLevel);
+  if (maxLevel !== undefined) query = query.lt("hsk_level", maxLevel);
+  const { data } = await query.order("stability", { ascending: true }).limit(limit);
+  return (data ?? []) as VocabularyMastery[];
+}
+
 export async function getWordsByMastery(limit = 200): Promise<VocabularyMastery[]> {
   const supabase = await createClient();
   const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
