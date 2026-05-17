@@ -96,6 +96,13 @@ const en = {
   filterHardDesc: "Cards you rated 困难 last time",
   filterHardGoodDesc: "Cards you rated 困难 or 良好 last time",
   filterAllDesc: "All cards currently due",
+  filterByHSK: "By HSK Level",
+  filterByHSKDesc: "Review words from a specific level",
+  filterByMastery: "By Mastery",
+  filterByMasteryDesc: "Lowest mastery first",
+  filterUnreviewed: "New Words",
+  filterUnreviewedDesc: "Words you haven't reviewed yet",
+  selectHSKLevel: "Select a level",
   noCardsMatchFilter: "No cards match this filter.",
 
   // ── Speaking ─────────────────────────────────────────────────────────────────
@@ -260,6 +267,13 @@ const zh: typeof en = {
   filterHardDesc: "上次标记为困难的卡片",
   filterHardGoodDesc: "上次标记为困难或良好的卡片",
   filterAllDesc: "所有当前到期的卡片",
+  filterByHSK: "按HSK等级",
+  filterByHSKDesc: "复习指定等级的单词",
+  filterByMastery: "按掌握度",
+  filterByMasteryDesc: "掌握度最低的优先",
+  filterUnreviewed: "新单词",
+  filterUnreviewedDesc: "尚未复习过的单词",
+  selectHSKLevel: "选择等级",
   noCardsMatchFilter: "没有卡片符合此筛选条件。",
 
   // ── Speaking ─────────────────────────────────────────────────────────────────

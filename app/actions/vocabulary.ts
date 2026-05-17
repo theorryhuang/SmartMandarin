@@ -255,6 +255,56 @@ export async function markAssessmentComplete(): Promise<void> {
   });
 }
 
+export async function getAvailableHSKLevels(): Promise<number[]> {
+  const supabase = await createClient();
+  const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
+  const { data } = await supabase
+    .from("vocabulary_mastery")
+    .select("hsk_level")
+    .eq("user_id", userId)
+    .not("hsk_level", "is", null);
+  const levels = [...new Set((data ?? []).map((r) => Math.floor(r.hsk_level as number)))].sort((a, b) => a - b);
+  return levels;
+}
+
+export async function getWordsByHSK(hskLevel: number, limit = 200): Promise<VocabularyMastery[]> {
+  const supabase = await createClient();
+  const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
+  const { data } = await supabase
+    .from("vocabulary_mastery")
+    .select("*")
+    .eq("user_id", userId)
+    .gte("hsk_level", hskLevel)
+    .lt("hsk_level", hskLevel + 1)
+    .order("stability", { ascending: true })
+    .limit(limit);
+  return (data ?? []) as VocabularyMastery[];
+}
+
+export async function getWordsByMastery(limit = 200): Promise<VocabularyMastery[]> {
+  const supabase = await createClient();
+  const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
+  const { data } = await supabase
+    .from("vocabulary_mastery")
+    .select("*")
+    .eq("user_id", userId)
+    .order("stability", { ascending: true })
+    .limit(limit);
+  return (data ?? []) as VocabularyMastery[];
+}
+
+export async function getUnreviewedWords(limit = 200): Promise<VocabularyMastery[]> {
+  const supabase = await createClient();
+  const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
+  const { data } = await supabase
+    .from("vocabulary_mastery")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("review_count", 0)
+    .limit(limit);
+  return (data ?? []) as VocabularyMastery[];
+}
+
 export async function deleteWord(wordIdOrHanzi: string): Promise<void> {
   const supabase = await createClient();
   const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
