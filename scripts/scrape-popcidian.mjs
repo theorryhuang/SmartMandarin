@@ -14,6 +14,7 @@ import { dirname } from "path";
 const DELAY_MS = 500; // shorter delay with browser
 const BASE_URL = "https://www.popcidian.com";
 
+
 // Parse command line arguments
 const args = process.argv.slice(2);
 const maxPages = parseInt(args[0]) || 1;
