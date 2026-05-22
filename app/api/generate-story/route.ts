@@ -7,7 +7,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 
-const MODEL = "gemini-2.0-flash";
+const MODEL = "gemini-1.5-flash";
 const API_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
 export async function POST(req: NextRequest) {

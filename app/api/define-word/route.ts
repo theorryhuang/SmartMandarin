@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cedictLookupAll, hskLookup, type DictResult } from "@/lib/cedict";
 import { createClient } from "@/lib/supabase/server";
 
-const MODEL = "gemini-2.0-flash";
+const MODEL = "gemini-1.5-flash";
 const API_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
 async function slangBankLookup(hanzi: string) {
