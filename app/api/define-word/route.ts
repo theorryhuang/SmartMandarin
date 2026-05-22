@@ -12,8 +12,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { cedictLookupAll, hskLookup, type DictResult } from "@/lib/cedict";
 import { createClient } from "@/lib/supabase/server";
 
-const MODEL = "deepseek/deepseek-v4-flash:free";
-const API_URL = "https://openrouter.ai/api/v1/chat/completions";
+const MODEL = "deepseek-chat";
+const API_URL = "https://api.deepseek.com/v1/chat/completions";
 
 async function slangBankLookup(hanzi: string) {
   try {
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "hanzi required" }, { status: 400 });
   }
 
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  const apiKey = process.env.DEEPSEEK_API_KEY;
 
   // Check if word already saved in user's vocabulary
   const supabase = await createClient();
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
   // Not in either DB — AI fallback for phrases / proper nouns
   const hsk_level = await hskLookup(hanzi);
   if (!apiKey) {
-    return NextResponse.json({ error: "OPENROUTER_API_KEY not set" }, { status: 500 });
+    return NextResponse.json({ error: "DEEPSEEK_API_KEY not set" }, { status: 500 });
   }
 
   const prompt = `You are a Mandarin dictionary. Define the word or phrase "${hanzi}".
@@ -144,8 +144,6 @@ Return ONLY valid JSON (no markdown, no extra keys):
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
-      "HTTP-Referer": "https://smartmandarin.app",
-      "X-Title": "SmartMandarin",
     },
     body: JSON.stringify({
       model: MODEL,

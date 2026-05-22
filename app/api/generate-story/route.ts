@@ -7,13 +7,13 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 
-const MODEL = "deepseek/deepseek-v4-flash:free";
-const API_URL = "https://openrouter.ai/api/v1/chat/completions";
+const MODEL = "deepseek-chat";
+const API_URL = "https://api.deepseek.com/v1/chat/completions";
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  const apiKey = process.env.DEEPSEEK_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: "OPENROUTER_API_KEY not set" }, { status: 500 });
+    return NextResponse.json({ error: "DEEPSEEK_API_KEY not set" }, { status: 500 });
   }
 
   const {
@@ -30,8 +30,6 @@ export async function POST(req: NextRequest) {
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
-      "HTTP-Referer": "https://smartmandarin.app",
-      "X-Title": "SmartMandarin",
     },
     body: JSON.stringify({
       model: MODEL,
