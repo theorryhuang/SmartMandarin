@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cedictLookupAll, hskLookup, type DictResult } from "@/lib/cedict";
 import { createClient } from "@/lib/supabase/server";
 
-const MODEL = "deepseek/deepseek-chat:free";
+const MODEL = "deepseek/deepseek-v4-flash:free";
 const API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 async function slangBankLookup(hanzi: string) {

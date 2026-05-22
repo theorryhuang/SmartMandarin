@@ -7,7 +7,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 
-const MODEL = "deepseek/deepseek-chat:free";
+const MODEL = "deepseek/deepseek-v4-flash:free";
 const API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 export async function POST(req: NextRequest) {
