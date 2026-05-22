@@ -7,13 +7,13 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 
-const MODEL = "deepseek-chat";
-const API_URL = "https://api.deepseek.com/v1/chat/completions";
+const MODEL = "gemini-2.0-flash";
+const API_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.DEEPSEEK_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: "DEEPSEEK_API_KEY not set" }, { status: 500 });
+    return NextResponse.json({ error: "GEMINI_API_KEY not set" }, { status: 500 });
   }
 
   const {
