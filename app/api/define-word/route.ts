@@ -12,8 +12,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { cedictLookupAll, hskLookup, type DictResult } from "@/lib/cedict";
 import { createClient } from "@/lib/supabase/server";
 
-const GROQ_MODEL = "llama-3.3-70b-versatile";
-const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+const MODEL = "deepseek/deepseek-chat:free";
+const API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 async function slangBankLookup(hanzi: string) {
   try {
@@ -47,11 +47,16 @@ ${choices}
 Reply with ONLY valid JSON: {"index": <1-based number>}`;
 
   try {
-    const res = await fetch(GROQ_API_URL, {
+    const res = await fetch(API_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://smartmandarin.app",
+        "X-Title": "SmartMandarin",
+      },
       body: JSON.stringify({
-        model: GROQ_MODEL,
+        model: MODEL,
         messages: [{ role: "user", content: prompt }],
         temperature: 0,
         max_tokens: 16,
@@ -74,7 +79,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "hanzi required" }, { status: 400 });
   }
 
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.OPENROUTER_API_KEY;
 
   // Check if word already saved in user's vocabulary
   const supabase = await createClient();
@@ -123,7 +128,7 @@ export async function POST(req: NextRequest) {
   // Not in either DB — AI fallback for phrases / proper nouns
   const hsk_level = await hskLookup(hanzi);
   if (!apiKey) {
-    return NextResponse.json({ error: "GROQ_API_KEY not set" }, { status: 500 });
+    return NextResponse.json({ error: "OPENROUTER_API_KEY not set" }, { status: 500 });
   }
 
   const prompt = `You are a Mandarin dictionary. Define the word or phrase "${hanzi}".
@@ -134,11 +139,16 @@ Return ONLY valid JSON (no markdown, no extra keys):
   "meaning": "concise English definition (≤10 words)"
 }`;
 
-  const res = await fetch(GROQ_API_URL, {
+  const res = await fetch(API_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+      "HTTP-Referer": "https://smartmandarin.app",
+      "X-Title": "SmartMandarin",
+    },
     body: JSON.stringify({
-      model: GROQ_MODEL,
+      model: MODEL,
       messages: [{ role: "user", content: prompt }],
       temperature: 0.2,
       max_tokens: 128,
@@ -147,7 +157,7 @@ Return ONLY valid JSON (no markdown, no extra keys):
   });
 
   if (!res.ok) {
-    return NextResponse.json({ error: `Groq error ${res.status}` }, { status: res.status });
+    return NextResponse.json({ error: `OpenRouter error ${res.status}` }, { status: res.status });
   }
 
   const raw = await res.json();

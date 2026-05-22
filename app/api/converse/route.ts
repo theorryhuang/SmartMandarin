@@ -14,15 +14,15 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 
-const GROQ_MODEL = "llama-3.3-70b-versatile";
-const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+const MODEL = "deepseek/deepseek-chat:free";
+const API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 type UnknownWord = { hanzi: string; pinyin: string; meaning: string };
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: "GROQ_API_KEY not set" }, { status: 500 });
+    return NextResponse.json({ error: "OPENROUTER_API_KEY not set" }, { status: 500 });
   }
 
   const {
@@ -46,14 +46,16 @@ export async function POST(req: NextRequest) {
     { role: "user", content: userMessage },
   ];
 
-  const res = await fetch(GROQ_API_URL, {
+  const res = await fetch(API_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
+      "HTTP-Referer": "https://smartmandarin.app",
+      "X-Title": "SmartMandarin",
     },
     body: JSON.stringify({
-      model: GROQ_MODEL,
+      model: MODEL,
       messages,
       temperature: 0.8,
       max_tokens: 512,
