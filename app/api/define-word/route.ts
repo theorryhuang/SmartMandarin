@@ -12,8 +12,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { cedictLookupAll, hskLookup, type DictResult } from "@/lib/cedict";
 import { createClient } from "@/lib/supabase/server";
 
-const MODEL = "gemini-1.5-flash";
-const API_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+const MODEL = "llama-3.3-70b-versatile";
+const API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 async function slangBankLookup(hanzi: string) {
   try {
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "hanzi required" }, { status: 400 });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
 
   // Check if word already saved in user's vocabulary
   const supabase = await createClient();
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
   // Not in either DB — AI fallback for phrases / proper nouns
   const hsk_level = await hskLookup(hanzi);
   if (!apiKey) {
-    return NextResponse.json({ error: "GEMINI_API_KEY not set" }, { status: 500 });
+    return NextResponse.json({ error: "GROQ_API_KEY not set" }, { status: 500 });
   }
 
   const prompt = `You are a Mandarin dictionary. Define the word or phrase "${hanzi}".

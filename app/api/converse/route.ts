@@ -14,15 +14,15 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 
-const MODEL = "gemini-1.5-flash";
-const API_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+const MODEL = "llama-3.3-70b-versatile";
+const API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 type UnknownWord = { hanzi: string; pinyin: string; meaning: string };
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: "GEMINI_API_KEY not set" }, { status: 500 });
+    return NextResponse.json({ error: "GROQ_API_KEY not set" }, { status: 500 });
   }
 
   const {
