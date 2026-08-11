@@ -166,6 +166,59 @@ function buildPinyinPattern(syllables: string[]): string {
   return syllables.slice(0, -1).map(s => s + "_ ").join("") + syllables.at(-1) + "%";
 }
 
+async function greedySegment(
+  q: string,
+  seen: Set<string>
+): Promise<Array<{ simplified: string; pinyin: string; english: string }>> {
+  const chars = [...q];
+
+  // Round 1: find which substrings are valid words (one query)
+  const allSubs = new Set<string>();
+  for (let i = 0; i < chars.length; i++)
+    for (let j = i + 1; j <= chars.length; j++)
+      allSubs.add(chars.slice(i, j).join(""));
+
+  const { data: existing } = await supabase.from("cedict")
+    .select("simplified")
+    .in("simplified", [...allSubs]);
+  const wordSet = new Set((existing ?? []).map(r => r.simplified));
+
+  // Greedy longest-match segmentation in JS (no more DB calls)
+  const segments: string[] = [];
+  let pos = 0;
+  while (pos < chars.length) {
+    let matched = false;
+    for (let len = chars.length - pos; len >= 1; len--) {
+      const sub = chars.slice(pos, pos + len).join("");
+      if (wordSet.has(sub)) {
+        segments.push(sub);
+        pos += len;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) pos++;
+  }
+  if (segments.length === 0) return [];
+
+  // Round 2: fetch prefix results for each segment in parallel
+  const rows: Array<{ simplified: string; pinyin: string; english: string }> = [];
+  const results = await Promise.all(
+    segments.map(seg =>
+      supabase.from("cedict").select("simplified, pinyin, english")
+        .ilike("simplified", seg.length === 1 ? seg : `${seg}%`)
+        .limit(seg.length === 1 ? 10 : 50)
+    )
+  );
+  for (const { data } of results) {
+    for (const row of data ?? []) {
+      const key = row.simplified + "|" + row.pinyin;
+      if (!seen.has(key)) { seen.add(key); rows.push(row); }
+    }
+  }
+  return rows;
+}
+
 async function buildResults(
   rows: Array<{ simplified: string; pinyin: string; english: string }>,
   q: string
@@ -202,11 +255,13 @@ async function buildResults(
     .sort((a, b) => {
       if (a.hanzi === q && b.hanzi !== q) return -1;
       if (b.hanzi === q && a.hanzi !== q) return 1;
+      // Primary: position of entry's first char in query (preserves segment order)
+      const aSegIdx = q.indexOf(a.hanzi[0]);
+      const bSegIdx = q.indexOf(b.hanzi[0]);
+      if (aSegIdx !== bSegIdx) return aSegIdx - bSegIdx;
+      // Within same segment: shorter first
       const lenDiff = a.hanzi.length - b.hanzi.length;
       if (lenDiff !== 0) return lenDiff;
-      const aIdx = q.indexOf(a.hanzi);
-      const bIdx = q.indexOf(b.hanzi);
-      if (aIdx !== -1 && bIdx !== -1 && aIdx !== bIdx) return aIdx - bIdx;
       return a.hanzi.localeCompare(b.hanzi);
     });
 }
@@ -315,25 +370,9 @@ export async function cedictSearch(query: string, mode: "chinese" | "english" = 
       }
     }
 
-    // No prefix match found for multi-char query → search each character individually
+    // No prefix match → greedy longest-match segmentation (Pleco-style)
     if (rows.length === 0 && q.length > 1) {
-      const chars = [...q]; // handles multi-byte chars correctly
-      const results = await Promise.all(
-        chars.map(char =>
-          supabase.from("cedict").select("simplified, pinyin, english")
-            .eq("simplified", char)
-            .limit(20)
-        )
-      );
-      for (const { data: charData } of results) {
-        for (const row of charData ?? []) {
-          const key = row.simplified + "|" + row.pinyin;
-          if (!seen.has(key)) {
-            seen.add(key);
-            rows.push(row);
-          }
-        }
-      }
+      rows = await greedySegment(q, seen);
     }
   }
 
