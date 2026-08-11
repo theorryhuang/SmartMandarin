@@ -166,10 +166,25 @@ function buildPinyinPattern(syllables: string[]): string {
   return syllables.slice(0, -1).map(s => s + "_ ").join("") + syllables.at(-1) + "%";
 }
 
+function isChinese(c: string): boolean {
+  return /[一-鿿㐀-䶿]/.test(c);
+}
+
+// Detect mixed input like "奇ji": leading Chinese chars + trailing ASCII pinyin
+function parseMixed(query: string): { hanziPrefix: string; pinyinSuffix: string } | null {
+  let i = 0;
+  while (i < query.length && isChinese(query[i])) i++;
+  if (i === 0 || i === query.length) return null;
+  const rest = query.slice(i);
+  if (!/^[a-zA-Z]/.test(rest)) return null;
+  return { hanziPrefix: query.slice(0, i), pinyinSuffix: rest.toLowerCase() };
+}
+
 export async function cedictSearch(query: string): Promise<SearchResult[]> {
   if (!query.trim()) return [];
 
   const isAscii = /^[a-zA-Z0-9 ]+$/.test(query.trim());
+  const mixed = !isAscii ? parseMixed(query.trim()) : null;
   let rows: Array<{ simplified: string; pinyin: string; english: string }>;
 
   if (isAscii) {
@@ -211,6 +226,29 @@ export async function cedictSearch(query: string): Promise<SearchResult[]> {
         }
       }
     }
+  } else if (mixed) {
+    // Mixed input like "奇ji": simplified prefix match + pinyin suffix prefix match
+    const { hanziPrefix, pinyinSuffix } = mixed;
+    const normalizedSuffix = flattenPinyin(pinyinSuffix);
+    const hanziLen = [...hanziPrefix].length; // chars = pinyin syllables to skip
+
+    const { data } = await supabase
+      .from("cedict")
+      .select("simplified, pinyin, english")
+      .ilike("simplified", `${hanziPrefix}%`)
+      .limit(500);
+
+    const seen = new Set<string>();
+    rows = [];
+    for (const row of data ?? []) {
+      const key = row.simplified + "|" + row.pinyin;
+      if (seen.has(key)) continue;
+      const remainingPinyin = row.pinyin.split(" ").slice(hanziLen).join(" ");
+      if (flattenPinyin(remainingPinyin).startsWith(normalizedSuffix)) {
+        seen.add(key);
+        rows.push(row);
+      }
+    }
   } else {
     const q = query.trim();
     const pattern = q.length === 1 ? q : `${q}%`;
@@ -227,6 +265,27 @@ export async function cedictSearch(query: string): Promise<SearchResult[]> {
       if (!seen.has(key)) {
         seen.add(key);
         rows.push(row);
+      }
+    }
+
+    // No prefix match found for multi-char query → search each character individually
+    if (rows.length === 0 && q.length > 1) {
+      const chars = [...q]; // handles multi-byte chars correctly
+      const results = await Promise.all(
+        chars.map(char =>
+          supabase.from("cedict").select("simplified, pinyin, english")
+            .eq("simplified", char)
+            .limit(20)
+        )
+      );
+      for (const { data: charData } of results) {
+        for (const row of charData ?? []) {
+          const key = row.simplified + "|" + row.pinyin;
+          if (!seen.has(key)) {
+            seen.add(key);
+            rows.push(row);
+          }
+        }
       }
     }
   }
@@ -266,6 +325,12 @@ export async function cedictSearch(query: string): Promise<SearchResult[]> {
     .sort((a, b) => {
       if (a.hanzi === q && b.hanzi !== q) return -1;
       if (b.hanzi === q && a.hanzi !== q) return 1;
-      return a.hanzi.length - b.hanzi.length || a.hanzi.localeCompare(b.hanzi);
+      const lenDiff = a.hanzi.length - b.hanzi.length;
+      if (lenDiff !== 0) return lenDiff;
+      // Preserve query character order for per-character fallback results
+      const aIdx = q.indexOf(a.hanzi);
+      const bIdx = q.indexOf(b.hanzi);
+      if (aIdx !== -1 && bIdx !== -1 && aIdx !== bIdx) return aIdx - bIdx;
+      return a.hanzi.localeCompare(b.hanzi);
     });
 }
