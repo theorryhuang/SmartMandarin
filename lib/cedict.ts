@@ -208,19 +208,31 @@ export async function cedictSearch(query: string): Promise<SearchResult[]> {
     .select("hanzi, level")
     .in("hanzi", rows.map((r) => r.simplified));
 
-  const hskMap = new Map<string, number>();
+  // Build hanzi → sorted levels (ascending). Multiple readings of same hanzi
+  // get different levels; assign lowest to first CEDICT entry, next to second, etc.
+  const hskLevels = new Map<string, number[]>();
   for (const row of hskData ?? []) {
-    hskMap.set(row.hanzi, Math.round(Number(row.level)));
+    const level = Math.round(Number(row.level));
+    const arr = hskLevels.get(row.hanzi) ?? [];
+    arr.push(level);
+    hskLevels.set(row.hanzi, arr);
   }
+  for (const levels of hskLevels.values()) levels.sort((a, b) => a - b);
+  const hskCursor = new Map<string, number>();
 
   const q = query.trim();
   return rows
-    .map((row) => ({
-      hanzi: row.simplified,
-      pinyin: toToneMarks(row.pinyin),
-      meaning: row.english.split("/").filter(Boolean).join("; "),
-      hsk_level: hskMap.get(row.simplified) ?? null,
-    }))
+    .map((row) => {
+      const levels = hskLevels.get(row.simplified) ?? [];
+      const idx = hskCursor.get(row.simplified) ?? 0;
+      hskCursor.set(row.simplified, idx + 1);
+      return {
+        hanzi: row.simplified,
+        pinyin: toToneMarks(row.pinyin),
+        meaning: row.english.split("/").filter(Boolean).join("; "),
+        hsk_level: levels[idx] ?? null,
+      };
+    })
     .sort((a, b) => {
       if (a.hanzi === q && b.hanzi !== q) return -1;
       if (b.hanzi === q && a.hanzi !== q) return 1;
