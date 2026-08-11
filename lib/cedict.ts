@@ -172,25 +172,33 @@ async function greedySegment(
 ): Promise<Array<{ simplified: string; pinyin: string; english: string }>> {
   const chars = [...q];
 
-  // Round 1: find which substrings are valid words (one query)
+  // Round 1: find which substrings are valid PREFIXES of any cedict entry (one query)
   const allSubs = new Set<string>();
   for (let i = 0; i < chars.length; i++)
     for (let j = i + 1; j <= chars.length; j++)
       allSubs.add(chars.slice(i, j).join(""));
 
+  const orFilter = [...allSubs].map(sub => `simplified.ilike.${sub}%`).join(",");
   const { data: existing } = await supabase.from("cedict")
     .select("simplified")
-    .in("simplified", [...allSubs]);
-  const wordSet = new Set((existing ?? []).map(r => r.simplified));
+    .or(orFilter)
+    .limit(500);
 
-  // Greedy longest-match segmentation in JS (no more DB calls)
+  // Which substrings have at least one cedict entry starting with them?
+  const validPrefixes = new Set<string>();
+  for (const sub of allSubs) {
+    if ((existing ?? []).some(r => r.simplified.startsWith(sub)))
+      validPrefixes.add(sub);
+  }
+
+  // Greedy longest-match using prefix existence
   const segments: string[] = [];
   let pos = 0;
   while (pos < chars.length) {
     let matched = false;
     for (let len = chars.length - pos; len >= 1; len--) {
       const sub = chars.slice(pos, pos + len).join("");
-      if (wordSet.has(sub)) {
+      if (validPrefixes.has(sub)) {
         segments.push(sub);
         pos += len;
         matched = true;
