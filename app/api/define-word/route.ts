@@ -21,7 +21,7 @@ async function slangBankLookup(hanzi: string) {
   return null;
 }
 
-async function geminiJSON(prompt: string, apiKey: string): Promise<string> {
+async function geminiJSON(prompt: string, apiKey: string, _maxTokens = 64): Promise<string> {
   try {
     const res = await fetch(INTERACTIONS_URL, {
       method: "POST",
