@@ -112,3 +112,65 @@ export async function hskLookup(hanzi: string): Promise<number | null> {
 
   return data ? Math.round(Number(data.level)) : null;
 }
+
+export interface SearchResult {
+  hanzi: string;
+  pinyin: string;
+  meaning: string;
+  hsk_level: number | null;
+}
+
+// Returns a large sorted pool — callers slice for pagination.
+export async function cedictSearch(query: string): Promise<SearchResult[]> {
+  if (!query.trim()) return [];
+  const q = `%${query}%`;
+  // ASCII query = pinyin. Match as complete syllable: "bi" → /(^|\s)bi[1-5]/
+  // Fetch extra before filtering to compensate for post-filter removal.
+  const isAscii = /^[a-zA-Z]+$/.test(query);
+  const syllableRe = isAscii
+    ? new RegExp(`(^|\\s)${query.toLowerCase()}[1-5]`, "i")
+    : null;
+
+  const [{ data: byHanzi }, { data: byPinyin }] = await Promise.all([
+    supabase.from("cedict").select("simplified, pinyin, english").ilike("simplified", q).limit(300),
+    supabase.from("cedict").select("simplified, pinyin, english").ilike("pinyin", q).limit(500),
+  ]);
+
+  const filteredPinyin = syllableRe
+    ? (byPinyin ?? []).filter((r) => syllableRe.test(r.pinyin))
+    : (byPinyin ?? []);
+
+  const seen = new Set<string>();
+  const rows: Array<{ simplified: string; pinyin: string; english: string }> = [];
+  for (const row of [...(byHanzi ?? []), ...filteredPinyin]) {
+    if (!seen.has(row.simplified)) {
+      seen.add(row.simplified);
+      rows.push(row);
+    }
+  }
+
+  if (rows.length === 0) return [];
+
+  const { data: hskData } = await supabase
+    .from("hsk_vocabulary")
+    .select("hanzi, level")
+    .in("hanzi", rows.map((r) => r.simplified));
+
+  const hskMap = new Map<string, number>();
+  for (const row of hskData ?? []) {
+    hskMap.set(row.hanzi, Math.round(Number(row.level)));
+  }
+
+  return rows
+    .map((row) => ({
+      hanzi: row.simplified,
+      pinyin: toToneMarks(row.pinyin),
+      meaning: row.english.split("/").filter(Boolean).join("; "),
+      hsk_level: hskMap.get(row.simplified) ?? null,
+    }))
+    .sort((a, b) => {
+      if (a.hanzi === query && b.hanzi !== query) return -1;
+      if (b.hanzi === query && a.hanzi !== query) return 1;
+      return a.hanzi.length - b.hanzi.length || a.hanzi.localeCompare(b.hanzi);
+    });
+}

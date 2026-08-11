@@ -175,6 +175,16 @@ const en = {
   hskLevel: (n: number) => `HSK ${n}`,
   wordsCount: (n: number) => `${n} word${n !== 1 ? "s" : ""}`,
   masteryDays: (n: number) => `${n}d stability`,
+
+  // ── Vocab search tab ─────────────────────────────────────────────────────────
+  tabSearchAdd: "Search & Add",
+  tabMyWords: "My Words",
+  searchDictPlaceholder: "Type a character or pinyin…",
+  searchDictEmpty: "Search the dictionary to add words",
+  searchDictNoResults: (q: string) => `No results for "${q}"`,
+  searchDictOf: "of",
+  prevPage: "← Prev",
+  nextPage: "Next →",
 };
 
 const zh: typeof en = {
@@ -352,6 +362,16 @@ const zh: typeof en = {
   hskLevel: (n: number) => `HSK ${n}`,
   wordsCount: (n: number) => `${n} 个单词`,
   masteryDays: (n: number) => `${n}天稳定性`,
+
+  // ── Vocab search tab ─────────────────────────────────────────────────────────
+  tabSearchAdd: "搜索添加",
+  tabMyWords: "我的词汇",
+  searchDictPlaceholder: "输入汉字或拼音…",
+  searchDictEmpty: "搜索词典以添加单词",
+  searchDictNoResults: (q: string) => `"${q}" 无搜索结果`,
+  searchDictOf: "共",
+  prevPage: "← 上页",
+  nextPage: "下页 →",
 };
 
 export const translations: Record<Lang, typeof en> = { en, zh };
