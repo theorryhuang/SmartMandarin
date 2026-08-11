@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { Search, Trash2, Plus, Check } from "lucide-react";
+import { Search, Trash2, Plus, Check, ChevronLeft } from "lucide-react";
+import Link from "next/link";
 import type { VocabularyMastery } from "@/lib/types";
 import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
 import { createClient } from "@/lib/supabase/client";
@@ -183,6 +184,17 @@ export function VocabClient() {
 
   return (
     <div className="pb-10">
+      {/* ── Header ── */}
+      <div className="flex items-center gap-3 px-4 pt-[max(12px,env(safe-area-inset-top))] pb-3 border-b border-[var(--color-border)] bg-[var(--color-surface)] sticky top-0 z-10">
+        <Link href="/" className="flex items-center gap-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">
+          <ChevronLeft size={18} />
+          <span className="text-sm">{t.back}</span>
+        </Link>
+        <div className="flex-1">
+          <h1 className="font-semibold text-sm text-[var(--color-text-primary)]">{t.myVocabulary}</h1>
+        </div>
+      </div>
+
       {/* ── Tab switcher ── */}
       <div className="flex gap-1 px-4 pt-3 pb-1">
         <button
