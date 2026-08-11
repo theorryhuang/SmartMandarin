@@ -3,10 +3,10 @@ import { cedictSearch } from "@/lib/cedict";
 import { createClient } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
-  const { query } = await req.json().catch(() => ({}));
+  const { query, mode } = await req.json().catch(() => ({}));
   if (!query || !query.trim()) return NextResponse.json({ results: [] });
 
-  const results = await cedictSearch(query.trim());
+  const results = await cedictSearch(query.trim(), mode === "english" ? "english" : "chinese");
   if (results.length === 0) return NextResponse.json({ results: [] });
 
   const supabase = await createClient();

@@ -166,6 +166,51 @@ function buildPinyinPattern(syllables: string[]): string {
   return syllables.slice(0, -1).map(s => s + "_ ").join("") + syllables.at(-1) + "%";
 }
 
+async function buildResults(
+  rows: Array<{ simplified: string; pinyin: string; english: string }>,
+  q: string
+): Promise<SearchResult[]> {
+  if (rows.length === 0) return [];
+
+  const { data: hskData } = await supabase
+    .from("hsk_vocabulary")
+    .select("hanzi, level")
+    .in("hanzi", rows.map((r) => r.simplified));
+
+  const hskLevels = new Map<string, number[]>();
+  for (const row of hskData ?? []) {
+    const level = Math.round(Number(row.level));
+    const arr = hskLevels.get(row.hanzi) ?? [];
+    arr.push(level);
+    hskLevels.set(row.hanzi, arr);
+  }
+  for (const levels of hskLevels.values()) levels.sort((a, b) => a - b);
+  const hskCursor = new Map<string, number>();
+
+  return rows
+    .map((row) => {
+      const levels = hskLevels.get(row.simplified) ?? [];
+      const idx = hskCursor.get(row.simplified) ?? 0;
+      hskCursor.set(row.simplified, idx + 1);
+      return {
+        hanzi: row.simplified,
+        pinyin: toToneMarks(row.pinyin),
+        meaning: row.english.split("/").filter(Boolean).join("; "),
+        hsk_level: levels[idx] ?? null,
+      };
+    })
+    .sort((a, b) => {
+      if (a.hanzi === q && b.hanzi !== q) return -1;
+      if (b.hanzi === q && a.hanzi !== q) return 1;
+      const lenDiff = a.hanzi.length - b.hanzi.length;
+      if (lenDiff !== 0) return lenDiff;
+      const aIdx = q.indexOf(a.hanzi);
+      const bIdx = q.indexOf(b.hanzi);
+      if (aIdx !== -1 && bIdx !== -1 && aIdx !== bIdx) return aIdx - bIdx;
+      return a.hanzi.localeCompare(b.hanzi);
+    });
+}
+
 function isChinese(c: string): boolean {
   return /[一-鿿㐀-䶿]/.test(c);
 }
@@ -180,8 +225,27 @@ function parseMixed(query: string): { hanziPrefix: string; pinyinSuffix: string 
   return { hanziPrefix: query.slice(0, i), pinyinSuffix: rest.toLowerCase() };
 }
 
-export async function cedictSearch(query: string): Promise<SearchResult[]> {
+export async function cedictSearch(query: string, mode: "chinese" | "english" = "chinese"): Promise<SearchResult[]> {
   if (!query.trim()) return [];
+
+  if (mode === "english") {
+    const { data } = await supabase
+      .from("cedict")
+      .select("simplified, pinyin, english")
+      .ilike("english", `%${query.trim()}%`)
+      .limit(1000);
+
+    const escaped = query.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const wordRe = new RegExp(`\\b${escaped}\\b`, "i");
+    const seen = new Set<string>();
+    const rows: Array<{ simplified: string; pinyin: string; english: string }> = [];
+    for (const row of data ?? []) {
+      if (!wordRe.test(row.english)) continue;
+      const key = row.simplified + "|" + row.pinyin;
+      if (!seen.has(key)) { seen.add(key); rows.push(row); }
+    }
+    return buildResults(rows, query.trim());
+  }
 
   const isAscii = /^[a-zA-Z0-9 ]+$/.test(query.trim());
   const mixed = !isAscii ? parseMixed(query.trim()) : null;
@@ -193,19 +257,13 @@ export async function cedictSearch(query: string): Promise<SearchResult[]> {
     const isSingleSyllable = syllables.length === 1 && syllables[0] === normalized;
     const pattern = buildPinyinPattern(syllables);
 
-    const [{ data: byPinyin }, { data: byEnglish }] = await Promise.all([
-      supabase.from("cedict").select("simplified, pinyin, english")
-        .ilike("pinyin", pattern)
-        .limit(1000),
-      supabase.from("cedict").select("simplified, pinyin, english")
-        .ilike("english", `%${query.trim()}%`)
-        .limit(200),
-    ]);
+    const { data: byPinyin } = await supabase
+      .from("cedict").select("simplified, pinyin, english")
+      .ilike("pinyin", pattern)
+      .limit(1000);
 
     const seen = new Set<string>();
     rows = [];
-
-    // Pinyin matches first (exact syllable / prefix)
     for (const row of byPinyin ?? []) {
       const key = row.simplified + "|" + row.pinyin;
       if (seen.has(key)) continue;
@@ -213,17 +271,6 @@ export async function cedictSearch(query: string): Promise<SearchResult[]> {
       if (isSingleSyllable ? flat === normalized : flat.startsWith(normalized)) {
         seen.add(key);
         rows.push(row);
-      }
-    }
-
-    // English only if pinyin returned nothing
-    if (rows.length === 0) {
-      for (const row of byEnglish ?? []) {
-        const key = row.simplified + "|" + row.pinyin;
-        if (!seen.has(key)) {
-          seen.add(key);
-          rows.push(row);
-        }
       }
     }
   } else if (mixed) {
@@ -290,47 +337,5 @@ export async function cedictSearch(query: string): Promise<SearchResult[]> {
     }
   }
 
-  if (rows.length === 0) return [];
-
-  const { data: hskData } = await supabase
-    .from("hsk_vocabulary")
-    .select("hanzi, level")
-    .in("hanzi", rows.map((r) => r.simplified));
-
-  // Build hanzi → sorted levels (ascending). Multiple readings of same hanzi
-  // get different levels; assign lowest to first CEDICT entry, next to second, etc.
-  const hskLevels = new Map<string, number[]>();
-  for (const row of hskData ?? []) {
-    const level = Math.round(Number(row.level));
-    const arr = hskLevels.get(row.hanzi) ?? [];
-    arr.push(level);
-    hskLevels.set(row.hanzi, arr);
-  }
-  for (const levels of hskLevels.values()) levels.sort((a, b) => a - b);
-  const hskCursor = new Map<string, number>();
-
-  const q = query.trim();
-  return rows
-    .map((row) => {
-      const levels = hskLevels.get(row.simplified) ?? [];
-      const idx = hskCursor.get(row.simplified) ?? 0;
-      hskCursor.set(row.simplified, idx + 1);
-      return {
-        hanzi: row.simplified,
-        pinyin: toToneMarks(row.pinyin),
-        meaning: row.english.split("/").filter(Boolean).join("; "),
-        hsk_level: levels[idx] ?? null,
-      };
-    })
-    .sort((a, b) => {
-      if (a.hanzi === q && b.hanzi !== q) return -1;
-      if (b.hanzi === q && a.hanzi !== q) return 1;
-      const lenDiff = a.hanzi.length - b.hanzi.length;
-      if (lenDiff !== 0) return lenDiff;
-      // Preserve query character order for per-character fallback results
-      const aIdx = q.indexOf(a.hanzi);
-      const bIdx = q.indexOf(b.hanzi);
-      if (aIdx !== -1 && bIdx !== -1 && aIdx !== bIdx) return aIdx - bIdx;
-      return a.hanzi.localeCompare(b.hanzi);
-    });
+  return buildResults(rows, query.trim());
 }

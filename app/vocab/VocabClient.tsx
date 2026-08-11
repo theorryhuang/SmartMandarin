@@ -309,6 +309,7 @@ export function VocabClient() {
 function SearchTab({ savedHanziSet, initialQuery = "" }: { savedHanziSet: Set<string>; initialQuery?: string }) {
   const { t } = useLanguage();
   const [query, setQuery] = useState(initialQuery);
+  const [mode, setMode] = useState<"chinese" | "english">("chinese");
   const [results, setResults] = useState<ApiSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [lastSearchedQuery, setLastSearchedQuery] = useState("");
@@ -322,30 +323,32 @@ function SearchTab({ savedHanziSet, initialQuery = "" }: { savedHanziSet: Set<st
 
   useEffect(() => {
     setLastSearchedQuery("");
-    if (!query.trim()) { setResults([]); return; }
+    setResults([]);
+    if (!query.trim()) return;
     const q = query.trim();
-    activeQueryRef.current = q;
+    const key = q + "|" + mode;
+    activeQueryRef.current = key;
     const timer = setTimeout(async () => {
       setSearching(true);
       try {
         const res = await fetch("/api/search-words", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: q }),
+          body: JSON.stringify({ query: q, mode }),
         });
         const data = await res.json();
-        if (activeQueryRef.current === q) setResults(data.results ?? []);
+        if (activeQueryRef.current === key) setResults(data.results ?? []);
       } catch {
-        if (activeQueryRef.current === q) setResults([]);
+        if (activeQueryRef.current === key) setResults([]);
       } finally {
-        if (activeQueryRef.current === q) {
+        if (activeQueryRef.current === key) {
           setSearching(false);
           setLastSearchedQuery(q);
         }
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, mode]);
 
   async function handleAdd(result: ApiSearchResult) {
     await logMistake(result.hanzi, {
@@ -378,6 +381,22 @@ function SearchTab({ savedHanziSet, initialQuery = "" }: { savedHanziSet: Set<st
             <X size={15} />
           </button>
         )}
+      </div>
+
+      <div className="flex gap-1 mt-2">
+        {(["chinese", "english"] as const).map((m) => (
+          <button
+            key={m}
+            onClick={() => setMode(m)}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              mode === m
+                ? "bg-violet-500 text-white"
+                : "bg-[var(--color-surface)] text-[var(--color-text-muted)] border border-[var(--color-border)]"
+            }`}
+          >
+            {m === "chinese" ? "中文" : "English"}
+          </button>
+        ))}
       </div>
 
       {!query.trim() && (
