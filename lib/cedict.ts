@@ -126,25 +126,44 @@ function flattenPinyin(pinyin: string): string {
   return pinyin.toLowerCase().replace(/[1-5]/g, "").replace(/\s+/g, "");
 }
 
-// Extract first pinyin syllable from a no-tone, no-space string like "haochi"
-// Returns e.g. "hao" so we can use it as a DB prefix filter
-function firstSyllable(normalized: string): string {
-  // Ordered longest-first so "zh"/"ch"/"sh" beat "z"/"c"/"s"
-  const initials = ["zh","ch","sh","b","p","m","f","d","t","n","l","g","k","h","j","q","x","r","z","c","s","y","w"];
-  const finals   = ["iang","iong","uang","uan","ian","ang","eng","ing","ong","uai","iao","ai","ei","ui","ao","ou","iu","ie","er","an","en","in","un","ua","uo","ia","a","o","e","i","u","v"];
-  const s = normalized.toLowerCase();
-  for (const init of initials) {
-    if (!s.startsWith(init)) continue;
-    const rest = s.slice(init.length);
-    for (const fin of finals) {
+const PINYIN_INITIALS = ["zh","ch","sh","b","p","m","f","d","t","n","l","g","k","h","j","q","x","r","z","c","s","y","w"];
+const PINYIN_FINALS   = ["iang","iong","uang","uan","ian","ang","eng","ing","ong","uai","iao","ai","ei","ui","ao","ou","iu","ie","er","an","en","in","un","ua","uo","ia","a","o","e","i","u","v"];
+
+function firstSyllable(s: string): string {
+  const lower = s.toLowerCase();
+  for (const init of PINYIN_INITIALS) {
+    if (!lower.startsWith(init)) continue;
+    const rest = lower.slice(init.length);
+    for (const fin of PINYIN_FINALS) {
       if (rest.startsWith(fin)) return init + fin;
     }
   }
-  // Null-initial syllables (a, e, o, ai, an, …)
-  for (const fin of finals) {
-    if (s.startsWith(fin)) return fin;
+  for (const fin of PINYIN_FINALS) {
+    if (lower.startsWith(fin)) return fin;
   }
-  return s.slice(0, 4);
+  return lower.slice(0, 4);
+}
+
+// Segment full normalized pinyin string into syllables: "qisi" → ["qi","si"]
+function segmentPinyin(normalized: string): string[] {
+  const syllables: string[] = [];
+  let s = normalized.toLowerCase();
+  while (s.length > 0) {
+    const syl = firstSyllable(s);
+    syllables.push(syl);
+    s = s.slice(syl.length);
+    if (syl.length === 0) break;
+  }
+  return syllables;
+}
+
+// Build targeted DB ilike pattern from syllables.
+// Single:  ["hao"]      → "hao_"      (tone wildcard, exact syllable)
+// Multi:   ["qi","si"]  → "qi_ si%"   (each internal syllable exact, suffix open)
+function buildPinyinPattern(syllables: string[]): string {
+  if (syllables.length === 0) return "%";
+  if (syllables.length === 1) return syllables[0] + "_";
+  return syllables.slice(0, -1).map(s => s + "_ ").join("") + syllables.at(-1) + "%";
 }
 
 export async function cedictSearch(query: string): Promise<SearchResult[]> {
@@ -155,12 +174,13 @@ export async function cedictSearch(query: string): Promise<SearchResult[]> {
 
   if (isAscii) {
     const normalized = flattenPinyin(query.trim());
-    const first = firstSyllable(normalized);
-    const isSingleSyllable = first === normalized;
+    const syllables = segmentPinyin(normalized);
+    const isSingleSyllable = syllables.length === 1 && syllables[0] === normalized;
+    const pattern = buildPinyinPattern(syllables);
 
     const [{ data: byPinyin }, { data: byEnglish }] = await Promise.all([
       supabase.from("cedict").select("simplified, pinyin, english")
-        .ilike("pinyin", `${first}%`)
+        .ilike("pinyin", pattern)
         .limit(1000),
       supabase.from("cedict").select("simplified, pinyin, english")
         .ilike("english", `%${query.trim()}%`)
