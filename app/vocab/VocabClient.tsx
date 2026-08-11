@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { Search, Trash2, Plus, Check, ChevronLeft } from "lucide-react";
+import { Search, Trash2, Plus, Check, ChevronLeft, X } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
 import type { VocabularyMastery } from "@/lib/types";
 import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
@@ -311,29 +311,37 @@ function SearchTab({ savedHanziSet, initialQuery = "" }: { savedHanziSet: Set<st
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<ApiSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const [lastSearchedQuery, setLastSearchedQuery] = useState("");
   const [addedSet, setAddedSet] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
+  const activeQueryRef = useRef("");
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
   useEffect(() => {
+    setLastSearchedQuery("");
     if (!query.trim()) { setResults([]); return; }
+    const q = query.trim();
+    activeQueryRef.current = q;
     const timer = setTimeout(async () => {
       setSearching(true);
       try {
         const res = await fetch("/api/search-words", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: query.trim() }),
+          body: JSON.stringify({ query: q }),
         });
         const data = await res.json();
-        setResults(data.results ?? []);
+        if (activeQueryRef.current === q) setResults(data.results ?? []);
       } catch {
-        setResults([]);
+        if (activeQueryRef.current === q) setResults([]);
       } finally {
-        setSearching(false);
+        if (activeQueryRef.current === q) {
+          setSearching(false);
+          setLastSearchedQuery(q);
+        }
       }
     }, 300);
     return () => clearTimeout(timer);
@@ -357,10 +365,18 @@ function SearchTab({ savedHanziSet, initialQuery = "" }: { savedHanziSet: Set<st
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t.searchDictPlaceholder}
-          className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-violet-400 transition-colors"
+          className="w-full pl-9 pr-9 py-2.5 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-violet-400 transition-colors"
         />
         {searching && (
           <span className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-violet-300 border-t-violet-600 rounded-full animate-spin" />
+        )}
+        {!searching && query && (
+          <button
+            onClick={() => { setQuery(""); setResults([]); setLastSearchedQuery(""); inputRef.current?.focus(); }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+          >
+            <X size={15} />
+          </button>
         )}
       </div>
 
@@ -370,7 +386,7 @@ function SearchTab({ savedHanziSet, initialQuery = "" }: { savedHanziSet: Set<st
         </div>
       )}
 
-      {query.trim() && !searching && results.length === 0 && (
+      {query.trim() && !searching && lastSearchedQuery === query.trim() && results.length === 0 && (
         <div className="flex items-center justify-center py-16 text-sm text-[var(--color-text-muted)]">
           {t.searchDictNoResults(query)}
         </div>
@@ -386,7 +402,7 @@ function SearchTab({ savedHanziSet, initialQuery = "" }: { savedHanziSet: Set<st
               const saved = r.already_saved || savedHanziSet.has(r.hanzi) || addedSet.has(r.hanzi);
               return (
                 <SearchResultRow
-                  key={r.hanzi}
+                  key={r.hanzi + r.pinyin}
                   result={r}
                   saved={saved}
                   onAdd={() => handleAdd(r)}

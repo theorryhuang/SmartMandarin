@@ -121,31 +121,83 @@ export interface SearchResult {
 }
 
 // Returns a large sorted pool — callers slice for pagination.
+// Strip tone numbers and spaces: "hao3 chi1" → "haochi"
+function flattenPinyin(pinyin: string): string {
+  return pinyin.toLowerCase().replace(/[1-5]/g, "").replace(/\s+/g, "");
+}
+
+// Extract first pinyin syllable from a no-tone, no-space string like "haochi"
+// Returns e.g. "hao" so we can use it as a DB prefix filter
+function firstSyllable(normalized: string): string {
+  // Ordered longest-first so "zh"/"ch"/"sh" beat "z"/"c"/"s"
+  const initials = ["zh","ch","sh","b","p","m","f","d","t","n","l","g","k","h","j","q","x","r","z","c","s","y","w"];
+  const finals   = ["iang","iong","uang","uan","ian","ang","eng","ing","ong","uai","iao","ai","ei","ui","ao","ou","iu","ie","er","an","en","in","un","ua","uo","ia","a","o","e","i","u","v"];
+  const s = normalized.toLowerCase();
+  for (const init of initials) {
+    if (!s.startsWith(init)) continue;
+    const rest = s.slice(init.length);
+    for (const fin of finals) {
+      if (rest.startsWith(fin)) return init + fin;
+    }
+  }
+  // Null-initial syllables (a, e, o, ai, an, …)
+  for (const fin of finals) {
+    if (s.startsWith(fin)) return fin;
+  }
+  return s.slice(0, 4);
+}
+
 export async function cedictSearch(query: string): Promise<SearchResult[]> {
   if (!query.trim()) return [];
-  const q = `%${query}%`;
-  // ASCII query = pinyin. Match as complete syllable: "bi" → /(^|\s)bi[1-5]/
-  // Fetch extra before filtering to compensate for post-filter removal.
-  const isAscii = /^[a-zA-Z]+$/.test(query);
-  const syllableRe = isAscii
-    ? new RegExp(`(^|\\s)${query.toLowerCase()}[1-5]`, "i")
-    : null;
 
-  const [{ data: byHanzi }, { data: byPinyin }] = await Promise.all([
-    supabase.from("cedict").select("simplified, pinyin, english").ilike("simplified", q).limit(300),
-    supabase.from("cedict").select("simplified, pinyin, english").ilike("pinyin", q).limit(500),
-  ]);
+  const isAscii = /^[a-zA-Z0-9 ]+$/.test(query.trim());
+  let rows: Array<{ simplified: string; pinyin: string; english: string }>;
 
-  const filteredPinyin = syllableRe
-    ? (byPinyin ?? []).filter((r) => syllableRe.test(r.pinyin))
-    : (byPinyin ?? []);
+  if (isAscii) {
+    // Pleco-style: prefix match on tone-stripped, space-stripped pinyin.
+    // "hao" → all entries starting with syllable hao (any tone).
+    // "haochi" → entries whose normalized pinyin starts with "haochi".
+    const normalized = flattenPinyin(query.trim()); // "hao3 chi1" or "haochi" → "haochi"
+    const first = firstSyllable(normalized);         // "haochi" → "hao"
 
-  const seen = new Set<string>();
-  const rows: Array<{ simplified: string; pinyin: string; english: string }> = [];
-  for (const row of [...(byHanzi ?? []), ...filteredPinyin]) {
-    if (!seen.has(row.simplified)) {
-      seen.add(row.simplified);
-      rows.push(row);
+    // DB coarse filter: pinyin starts with first syllable (includes tones, e.g. "hao3 …")
+    const { data } = await supabase
+      .from("cedict")
+      .select("simplified, pinyin, english")
+      .ilike("pinyin", `${first}%`)
+      .limit(1000);
+
+    // Single syllable → exact match; multi-syllable → prefix match
+    const isSingleSyllable = first === normalized;
+    const seen = new Set<string>();
+    rows = [];
+    for (const row of data ?? []) {
+      const key = row.simplified + "|" + row.pinyin;
+      if (seen.has(key)) continue;
+      const flat = flattenPinyin(row.pinyin);
+      const matches = isSingleSyllable ? flat === normalized : flat.startsWith(normalized);
+      if (matches) {
+        seen.add(key);
+        rows.push(row);
+      }
+    }
+  } else {
+    const q = query.trim();
+    const pattern = q.length === 1 ? q : `${q}%`;
+    const { data } = await supabase
+      .from("cedict")
+      .select("simplified, pinyin, english")
+      .ilike("simplified", pattern)
+      .limit(300);
+
+    const seen = new Set<string>();
+    rows = [];
+    for (const row of data ?? []) {
+      const key = row.simplified + "|" + row.pinyin;
+      if (!seen.has(key)) {
+        seen.add(key);
+        rows.push(row);
+      }
     }
   }
 
@@ -161,6 +213,7 @@ export async function cedictSearch(query: string): Promise<SearchResult[]> {
     hskMap.set(row.hanzi, Math.round(Number(row.level)));
   }
 
+  const q = query.trim();
   return rows
     .map((row) => ({
       hanzi: row.simplified,
@@ -169,8 +222,8 @@ export async function cedictSearch(query: string): Promise<SearchResult[]> {
       hsk_level: hskMap.get(row.simplified) ?? null,
     }))
     .sort((a, b) => {
-      if (a.hanzi === query && b.hanzi !== query) return -1;
-      if (b.hanzi === query && a.hanzi !== query) return 1;
+      if (a.hanzi === q && b.hanzi !== q) return -1;
+      if (b.hanzi === q && a.hanzi !== q) return 1;
       return a.hanzi.length - b.hanzi.length || a.hanzi.localeCompare(b.hanzi);
     });
 }
