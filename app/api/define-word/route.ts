@@ -1,19 +1,9 @@
-/**
- * POST /api/define-word
- * Body: { hanzi: string; slang_mode?: boolean; context?: string }
- * Returns: { pinyin: string; meaning: string; source: "cedict" | "slang" | "ai" }
- *
- * Lookup order:
- *   textbook mode (default): CEDICT → slang_bank → AI
- *   slang mode: slang_bank → CEDICT → AI
- * When CEDICT returns multiple entries, AI picks the right one using sentence context.
- */
 import { NextRequest, NextResponse } from "next/server";
 import { cedictLookupAll, hskLookup, type DictResult } from "@/lib/cedict";
 import { createClient } from "@/lib/supabase/server";
 
-const MODEL = "llama-3.3-70b-versatile";
-const API_URL = "https://api.groq.com/openai/v1/chat/completions";
+const INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
+const MODEL = "gemini-3.6-flash";
 
 async function slangBankLookup(hanzi: string) {
   try {
@@ -31,12 +21,23 @@ async function slangBankLookup(hanzi: string) {
   return null;
 }
 
-async function aiTiebreaker(
-  hanzi: string,
-  entries: DictResult[],
-  context: string,
-  apiKey: string,
-): Promise<DictResult> {
+async function geminiJSON(prompt: string, apiKey: string): Promise<string> {
+  try {
+    const res = await fetch(INTERACTIONS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify({ model: MODEL, input: prompt, store: false }),
+    });
+    if (!res.ok) return "{}";
+    const data = await res.json();
+    const modelStep = data.steps?.find((s: { type: string }) => s.type === "model_output");
+    return modelStep?.content?.filter((c: { type: string }) => c.type === "text").map((c: { text: string }) => c.text).join("") ?? "{}";
+  } catch {
+    return "{}";
+  }
+}
+
+async function aiTiebreaker(hanzi: string, entries: DictResult[], context: string, apiKey: string): Promise<DictResult> {
   const choices = entries.map((e, i) => `${i + 1}. ${e.pinyin}: ${e.meaning}`).join("\n");
   const prompt = `Sentence: "${context}"
 Word in sentence: "${hanzi}"
@@ -47,41 +48,20 @@ ${choices}
 Reply with ONLY valid JSON: {"index": <1-based number>}`;
 
   try {
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-        "HTTP-Referer": "https://smartmandarin.app",
-        "X-Title": "SmartMandarin",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0,
-        max_tokens: 16,
-        response_format: { type: "json_object" },
-      }),
-    });
-    if (res.ok) {
-      const raw = await res.json();
-      const parsed = JSON.parse(raw.choices?.[0]?.message?.content ?? "{}");
-      const idx = (parsed.index ?? 1) - 1;
-      return entries[idx] ?? entries[0];
-    }
+    const text = await geminiJSON(prompt, apiKey, 16);
+    const parsed = JSON.parse(text);
+    const idx = (parsed.index ?? 1) - 1;
+    return entries[idx] ?? entries[0];
   } catch { /* fall through */ }
   return entries[0];
 }
 
 export async function POST(req: NextRequest) {
   const { hanzi, slang_mode, context } = await req.json().catch(() => ({}));
-  if (!hanzi) {
-    return NextResponse.json({ error: "hanzi required" }, { status: 400 });
-  }
+  if (!hanzi) return NextResponse.json({ error: "hanzi required" }, { status: 400 });
 
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
 
-  // Check if word already saved in user's vocabulary
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (user) {
@@ -104,7 +84,6 @@ export async function POST(req: NextRequest) {
 
   const resolveCedict = async (entries: DictResult[]) => {
     if (entries.length === 0) return null;
-    // Strip pure redirect entries (variant of / see / abbr. for)
     const substantive = entries.filter(
       (e) => !/^(variant of|old variant of|see |abbr\.? for)/i.test(e.meaning.trim())
     );
@@ -125,11 +104,8 @@ export async function POST(req: NextRequest) {
     if (slangResult) return NextResponse.json(slangResult);
   }
 
-  // Not in either DB — AI fallback for phrases / proper nouns
   const hsk_level = await hskLookup(hanzi);
-  if (!apiKey) {
-    return NextResponse.json({ error: "GROQ_API_KEY not set" }, { status: 500 });
-  }
+  if (!apiKey) return NextResponse.json({ error: "GEMINI_API_KEY not set" }, { status: 500 });
 
   const prompt = `You are a Mandarin dictionary. Define the word or phrase "${hanzi}".
 
@@ -139,29 +115,8 @@ Return ONLY valid JSON (no markdown, no extra keys):
   "meaning": "concise English definition (≤10 words)"
 }`;
 
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.2,
-      max_tokens: 128,
-      response_format: { type: "json_object" },
-    }),
-  });
-
-  if (!res.ok) {
-    return NextResponse.json({ error: `OpenRouter error ${res.status}` }, { status: res.status });
-  }
-
-  const raw = await res.json();
-  const text = raw.choices?.[0]?.message?.content ?? "{}";
-
   try {
+    const text = await geminiJSON(prompt, apiKey, 128);
     const def = JSON.parse(text);
     return NextResponse.json({ pinyin: def.pinyin ?? "", meaning: def.meaning ?? "", hsk_level, source: "ai" });
   } catch {

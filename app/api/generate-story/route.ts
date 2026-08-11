@@ -1,20 +1,11 @@
-/**
- * POST /api/generate-story
- * Body: { hsk_level: number; known_words: string[]; slang_mode: boolean; topic?: string }
- *
- * Uses Groq (free) to generate a short story calibrated to the user's HSK level.
- * Returns structured JSON: { title, sentences: [{ hanzi, pinyin, english }] }
- */
 import { NextRequest, NextResponse } from "next/server";
 
-const MODEL = "llama-3.3-70b-versatile";
-const API_URL = "https://api.groq.com/openai/v1/chat/completions";
+const INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
+const MODEL = "gemini-3.6-flash";
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: "GROQ_API_KEY not set" }, { status: 500 });
-  }
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return NextResponse.json({ error: "GEMINI_API_KEY not set" }, { status: 500 });
 
   const {
     hsk_level = 3,
@@ -25,63 +16,42 @@ export async function POST(req: NextRequest) {
 
   const prompt = buildPrompt(hsk_level, known_words, slang_mode, topic);
 
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.9,
-      max_tokens: 1024,
-      response_format: { type: "json_object" },
-    }),
-  });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    let message = `Story generation failed (${res.status})`;
-    try {
-      const errJson = JSON.parse(errText);
-      const detail = errJson?.error?.message ?? errText;
-      if (typeof detail === "string") {
-        message = detail.includes("quota") || detail.includes("rate_limit")
-          ? "Groq rate limit hit. Wait a moment and try again."
-          : detail.slice(0, 200);
-      }
-    } catch {
-      message = errText.slice(0, 200);
-    }
-    return NextResponse.json({ error: message }, { status: res.status });
-  }
-
-  const raw = await res.json();
-  const text = raw.choices?.[0]?.message?.content ?? "{}";
-
   try {
+    const res = await fetch(INTERACTIONS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify({ model: MODEL, input: prompt, store: false }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+
+      const msg = JSON.parse(errText)?.error?.message ?? errText;
+      const message = msg.includes("quota") || msg.includes("RESOURCE_EXHAUSTED")
+        ? "Gemini rate limit hit. Wait a moment and try again."
+        : msg.slice(0, 200);
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+
+    const data = await res.json();
+    const modelStep = data.steps?.find((s: { type: string }) => s.type === "model_output");
+    const text = modelStep?.content?.filter((c: { type: string }) => c.type === "text").map((c: { text: string }) => c.text).join("") ?? "{}";
     const story = JSON.parse(text);
     return NextResponse.json(story);
-  } catch {
-    return NextResponse.json({ error: "Failed to parse story JSON", raw: text }, { status: 500 });
+  } catch (e) {
+
+    return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }
 
-function buildPrompt(
-  hskLevel: number,
-  knownWords: string[],
-  slangMode: boolean,
-  topic?: string
-): string {
+function buildPrompt(hskLevel: number, knownWords: string[], slangMode: boolean, topic?: string): string {
   const topicLine = topic ? `The story should be about: ${topic}.` : "";
   const slangLine = slangMode
     ? "Include some modern Chinese internet slang (e.g. 绝绝子, yyds, 破防了, 摆烂) where natural."
     : "";
-  const knownLine =
-    knownWords.length > 0
-      ? `The user already knows these words well — feel free to use them: ${knownWords.slice(0, 30).join("、")}.`
-      : "";
+  const knownLine = knownWords.length > 0
+    ? `The user already knows these words well — feel free to use them: ${knownWords.slice(0, 30).join("、")}.`
+    : "";
 
   return `You are generating a short Mandarin reading passage for a language learner at HSK level ${hskLevel.toFixed(1)}.
 

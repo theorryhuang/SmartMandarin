@@ -1,20 +1,13 @@
-/**
- * Grades a user's typed English meaning against the correct answer.
- *
- * POST /api/grade-answer
- * Body: { hanzi: string; correct_meaning: string; user_answer: string }
- * Returns: { correct: boolean; feedback: string }
- */
 import { NextRequest, NextResponse } from "next/server";
+
+const INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
+const MODEL = "gemini-3.6-flash";
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: "GEMINI_API_KEY not set" }, { status: 500 });
-  }
+  if (!apiKey) return NextResponse.json({ error: "GEMINI_API_KEY not set" }, { status: 500 });
 
   const { hanzi, correct_meaning, user_answer } = await req.json();
-
   if (!hanzi || !correct_meaning || user_answer === undefined) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
@@ -31,31 +24,26 @@ Rules:
 Respond with ONLY valid JSON (no markdown, no extra text):
 {"correct": true|false, "feedback": "one short sentence explaining why"}`;
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 100 },
-      }),
-    }
-  );
-
-  if (!res.ok) {
-    return NextResponse.json({ error: "Gemini API error" }, { status: 500 });
-  }
-
-  const data = await res.json();
-  const raw = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-
   try {
-    const parsed = JSON.parse(raw.trim());
+    const res = await fetch(INTERACTIONS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify({ model: MODEL, input: prompt, store: false }),
+    });
+
+    if (!res.ok) {
+
+      return NextResponse.json({ error: "Gemini API error" }, { status: 500 });
+    }
+
+    const data = await res.json();
+    const modelStep = data.steps?.find((s: { type: string }) => s.type === "model_output");
+    const raw = modelStep?.content?.filter((c: { type: string }) => c.type === "text").map((c: { text: string }) => c.text).join("").trim() ?? "";
+
+    const parsed = JSON.parse(raw);
     return NextResponse.json({ correct: Boolean(parsed.correct), feedback: parsed.feedback ?? "" });
-  } catch {
-    // Fallback: if JSON parse fails, do simple string match
-    const correct = raw.toLowerCase().includes('"correct": true') || raw.toLowerCase().includes('"correct":true');
-    return NextResponse.json({ correct, feedback: "" });
+  } catch (e) {
+
+    return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }

@@ -369,37 +369,11 @@ export function ConversationClient({ masteryMap }: Props) {
   }, []);
 
   const handleWordSelect = useCallback(
-    async (word: string, context?: string) => {
+    (word: string) => {
       if (!word) return;
-      const mastery = masteryMap[word];
-      const isSaved = savedWords.has(word) || !!mastery;
-
-      setSheet({
-        word,
-        saved: isSaved,
-        pinyin: mastery?.pinyin,
-        meaning: mastery?.meaning,
-      });
-
-      if (!mastery?.pinyin && !mastery?.meaning) {
-        try {
-          const res = await fetch("/api/define-word", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ hanzi: word, slang_mode: slangMode, context }),
-          });
-          const def = await res.json();
-          if (def.pinyin || def.meaning) {
-            setSheet((s) =>
-              s?.word === word
-                ? { ...s, pinyin: def.pinyin || s.pinyin, meaning: def.meaning || s.meaning, hsk_level: def.hsk_level ?? null, source: def.source, saved: s.saved || !!def.already_saved }
-                : s
-            );
-          }
-        } catch {}
-      }
+      router.push("/vocab?q=" + encodeURIComponent(word) + "&tab=search");
     },
-    [savedWords, masteryMap, slangMode]
+    [router]
   );
 
   const handleAddToSaved = useCallback(async () => {
