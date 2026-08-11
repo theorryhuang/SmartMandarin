@@ -154,31 +154,41 @@ export async function cedictSearch(query: string): Promise<SearchResult[]> {
   let rows: Array<{ simplified: string; pinyin: string; english: string }>;
 
   if (isAscii) {
-    // Pleco-style: prefix match on tone-stripped, space-stripped pinyin.
-    // "hao" → all entries starting with syllable hao (any tone).
-    // "haochi" → entries whose normalized pinyin starts with "haochi".
-    const normalized = flattenPinyin(query.trim()); // "hao3 chi1" or "haochi" → "haochi"
-    const first = firstSyllable(normalized);         // "haochi" → "hao"
-
-    // DB coarse filter: pinyin starts with first syllable (includes tones, e.g. "hao3 …")
-    const { data } = await supabase
-      .from("cedict")
-      .select("simplified, pinyin, english")
-      .ilike("pinyin", `${first}%`)
-      .limit(1000);
-
-    // Single syllable → exact match; multi-syllable → prefix match
+    const normalized = flattenPinyin(query.trim());
+    const first = firstSyllable(normalized);
     const isSingleSyllable = first === normalized;
+
+    const [{ data: byPinyin }, { data: byEnglish }] = await Promise.all([
+      supabase.from("cedict").select("simplified, pinyin, english")
+        .ilike("pinyin", `${first}%`)
+        .limit(1000),
+      supabase.from("cedict").select("simplified, pinyin, english")
+        .ilike("english", `%${query.trim()}%`)
+        .limit(200),
+    ]);
+
     const seen = new Set<string>();
     rows = [];
-    for (const row of data ?? []) {
+
+    // Pinyin matches first (exact syllable / prefix)
+    for (const row of byPinyin ?? []) {
       const key = row.simplified + "|" + row.pinyin;
       if (seen.has(key)) continue;
       const flat = flattenPinyin(row.pinyin);
-      const matches = isSingleSyllable ? flat === normalized : flat.startsWith(normalized);
-      if (matches) {
+      if (isSingleSyllable ? flat === normalized : flat.startsWith(normalized)) {
         seen.add(key);
         rows.push(row);
+      }
+    }
+
+    // English only if pinyin returned nothing
+    if (rows.length === 0) {
+      for (const row of byEnglish ?? []) {
+        const key = row.simplified + "|" + row.pinyin;
+        if (!seen.has(key)) {
+          seen.add(key);
+          rows.push(row);
+        }
       }
     }
   } else {
