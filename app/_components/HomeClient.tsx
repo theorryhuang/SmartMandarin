@@ -59,13 +59,7 @@ export function HomeClient({ dueCount, slangDueCount, totalWords, masteredCount,
       meaning: lookupResult.meaning,
       hsk_level: lookupResult.hsk_level ?? undefined,
     });
-    setLookupState("added");
-    setTimeout(() => {
-      setShowAddWord(false);
-      setHanziInput("");
-      setLookupState("idle");
-      setLookupResult(null);
-    }, 1500);
+    setLookupResult((prev) => prev ? { ...prev, alreadySaved: true } : prev);
   }
 
   function handleOpen() {
