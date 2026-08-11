@@ -1,0 +1,11 @@
+{
+  "extName": {
+    "message": "汉智查搜索"
+  },
+  "extDescription": {
+    "message": "右键选中的中文文本，在汉智查（SmartMandarin）中搜索。"
+  },
+  "contextMenuTitle": {
+    "message": "使用汉智查搜索“%s”"
+  }
+}

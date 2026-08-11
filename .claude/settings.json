@@ -26,7 +26,11 @@
       "Bash(node -e \"const sdk = require\\('@google/genai'\\); const ai = new sdk.GoogleGenAI\\({apiKey:'test'}\\); console.log\\(Object.keys\\(ai\\)\\)\")",
       "Bash(python3 -c \"import sys,json; p=json.load\\(sys.stdin\\); print\\(p['version']\\)\")",
       "Bash(node -e ' *)",
-      "Bash(python3 -c \"import sys,json; p=json.load\\(sys.stdin\\); print\\('version:', p['version']\\)\")"
+      "Bash(python3 -c \"import sys,json; p=json.load\\(sys.stdin\\); print\\('version:', p['version']\\)\")",
+      "Bash(python3 -c \"import PIL; print\\(PIL.__version__\\)\")",
+      "Bash(python3 -)",
+      "Bash(python3 -c \"import json; [json.load\\(open\\(f\\)\\) for f in ['manifest.json','_locales/en/messages.json','_locales/zh_CN/messages.json','_locales/zh_TW/messages.json']]; print\\('json ok'\\)\")",
+      "Bash(node -c background.js)"
     ]
   }
 }

@@ -1,0 +1,11 @@
+{
+  "extName": {
+    "message": "SmartMandarin Search"
+  },
+  "extDescription": {
+    "message": "Right-click selected Chinese text to search it on SmartMandarin."
+  },
+  "contextMenuTitle": {
+    "message": "Search “%s” on SmartMandarin"
+  }
+}
