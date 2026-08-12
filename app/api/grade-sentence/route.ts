@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
-const MODEL = "gemini-3.6-flash";
+const MODEL = "gemini-3.1-flash-lite"; // free tier: RPM 15, RPD 500 vs 3.6-flash's RPM 5, RPD 20
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -12,26 +12,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
 
-  const prompt = `You are a Mandarin teacher grading a student's practice sentence. The target word is "${hanzi}"${pinyin ? ` (${pinyin})` : ""}${meaning ? `, meaning "${meaning}"` : ""}.
+  const prompt = `You are a Mandarin teacher grading a student's practice sentence. The student is specifically practicing the word "${hanzi}"${pinyin ? ` (${pinyin})` : ""}${meaning ? `, meaning "${meaning}"` : ""} — the whole point of the exercise is for them to learn to use THIS word correctly.
 
 The student wrote this sentence: "${sentence}"
 
 Evaluate it:
 - grammatical: is the sentence grammatically correct Mandarin?
-- uses_word: does it actually use "${hanzi}" with its correct meaning/usage (not just present as characters, but semantically correct)?
+- uses_word: does it actually use "${hanzi}" with its correct meaning/usage (not just present as characters, but semantically correct)? If a different, similar word would actually be the better/correct choice here, that means the student misused "${hanzi}" — set this false and explain the mix-up in feedback (e.g. confusing it with that other word).
 - natural: would a native speaker phrase it this way?
+
+For "corrected", rewrite the student's sentence so it is natural AND still uses "${hanzi}" — keep their original idea/topic, just fix the grammar or word choice around it so "${hanzi}" itself is used correctly. Never substitute "${hanzi}" for a different word, even if that other word would fit better; the corrected sentence's job is to demonstrate "${hanzi}" used correctly, not to produce the most natural sentence possible. Set "corrected" to null only if the student's sentence already does this well.
 
 Respond with ONLY valid JSON (no markdown, no extra text):
 {
   "valid": true|false,
   "natural": true|false,
   "feedback": "one short encouraging sentence in English explaining what's right or wrong",
-  "corrected": "a natural corrected/improved version of the sentence, or null if no changes needed"
+  "corrected": "a natural version of the sentence that still uses \"${hanzi}\" correctly, or null if no changes needed"
 }`;
 
+  const startedAt = Date.now();
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15_000);
+    const timeout = setTimeout(() => controller.abort(), 20_000);
 
     const res = await fetch(INTERACTIONS_URL, {
       method: "POST",
@@ -50,14 +53,34 @@ Respond with ONLY valid JSON (no markdown, no extra text):
     }).finally(() => clearTimeout(timeout));
 
     if (!res.ok) {
-      return NextResponse.json({ error: "Gemini API error" }, { status: 500 });
+      const body = await res.text().catch(() => "");
+      console.error(`[grade-sentence] Gemini API error ${res.status} after ${Date.now() - startedAt}ms: ${body}`);
+      if (res.status === 429) {
+        const retryMatch = body.match(/retry in ([\d.]+)s/i);
+        return NextResponse.json(
+          { error: "Rate limited", retry_after_seconds: retryMatch ? Math.ceil(Number(retryMatch[1])) : null },
+          { status: 429 }
+        );
+      }
+      let detail = body;
+      try {
+        detail = JSON.parse(body)?.error?.message ?? body;
+      } catch {}
+      return NextResponse.json({ error: `Gemini API error (${res.status}): ${detail}` }, { status: 500 });
     }
 
+    console.log(`[grade-sentence] Gemini responded 200 after ${Date.now() - startedAt}ms`);
     const data = await res.json();
     const modelStep = data.steps?.find((s: { type: string }) => s.type === "model_output");
     const raw = modelStep?.content?.filter((c: { type: string }) => c.type === "text").map((c: { text: string }) => c.text).join("").trim() ?? "";
 
-    const parsed = JSON.parse(raw);
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      console.error(`[grade-sentence] Failed to parse model output as JSON: ${raw}`);
+      throw new Error("Model did not return valid JSON");
+    }
     return NextResponse.json({
       valid: Boolean(parsed.valid),
       natural: Boolean(parsed.natural),
@@ -66,8 +89,10 @@ Respond with ONLY valid JSON (no markdown, no extra text):
     });
   } catch (e) {
     if (e instanceof Error && e.name === "AbortError") {
-      return NextResponse.json({ error: "Gemini timed out" }, { status: 504 });
+      console.error(`[grade-sentence] AbortError — no response from Gemini within 20s (started ${Date.now() - startedAt}ms ago)`);
+      return NextResponse.json({ error: "Gemini timed out after 20s" }, { status: 504 });
     }
+    console.error("[grade-sentence]", e);
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }

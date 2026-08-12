@@ -24,22 +24,10 @@ export async function POST(req: NextRequest) {
 
   const systemInstruction = buildSystemPrompt(slang_mode, forced_words, hsk_level, unknown_words);
 
-  // Exchange for an ephemeral token via the Gemini token exchange endpoint
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/${GEMINI_LIVE_MODEL}:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        // We only need the session config — use the token endpoint
-        system_instruction: { parts: [{ text: systemInstruction }] },
-        generation_config: { response_modalities: ["AUDIO", "TEXT"] },
-      }),
-    }
-  );
-
-  // The real Live API token endpoint is different; return the config the client needs
-  // Client will use the @google/generative-ai SDK to open the WebRTC session
+  // No token-exchange call needed here — the client opens the WebRTC session
+  // itself via the @google/generative-ai SDK using the config below. (This
+  // used to also fire a throwaway :generateContent call that spent a real
+  // Gemini request per session start without ever reading the response.)
   return NextResponse.json({
     model: GEMINI_LIVE_MODEL,
     system_instruction: systemInstruction,

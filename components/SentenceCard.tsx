@@ -28,7 +28,7 @@ export function SentenceCard({ card, onNext, onBack, canGoBack, onRestart, onRes
   const [sentence, setSentence] = useState("");
   const [grading, setGrading] = useState(false);
   const [result, setResult] = useState<GradeResult | null>(null);
-  const [gradeError, setGradeError] = useState(false);
+  const [gradeError, setGradeError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [fetchedPinyin, setFetchedPinyin] = useState<string | null>(null);
   const [fetchedMeaning, setFetchedMeaning] = useState<string | null>(null);
@@ -37,7 +37,7 @@ export function SentenceCard({ card, onNext, onBack, canGoBack, onRestart, onRes
   useEffect(() => {
     setSentence("");
     setResult(null);
-    setGradeError(false);
+    setGradeError(null);
     setFetchedPinyin(null);
     setFetchedMeaning(null);
     setFlipped(false);
@@ -69,21 +69,27 @@ export function SentenceCard({ card, onNext, onBack, canGoBack, onRestart, onRes
   function checkSentence() {
     if (!sentence.trim() || grading) return;
     setGrading(true);
-    setGradeError(false);
+    setGradeError(null);
     fetch("/api/grade-sentence", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ hanzi: card.hanzi, pinyin, meaning, sentence }),
     })
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.error) {
-          setGradeError(true);
+      .then(async (r) => {
+        const data = await r.json();
+        if (r.status === 429) {
+          setGradeError(
+            data.retry_after_seconds
+              ? t.sentenceRateLimited(data.retry_after_seconds)
+              : t.sentenceCheckFailed
+          );
+        } else if (data.error) {
+          setGradeError(data.error);
         } else {
           setResult(data);
         }
       })
-      .catch(() => setGradeError(true))
+      .catch(() => setGradeError(t.sentenceCheckFailed))
       .finally(() => setGrading(false));
   }
 
@@ -230,7 +236,7 @@ export function SentenceCard({ card, onNext, onBack, canGoBack, onRestart, onRes
           </button>
         )}
         {gradeError && (
-          <p className="text-xs text-red-500">{t.sentenceCheckFailed}</p>
+          <p className="text-xs text-red-500">{gradeError}</p>
         )}
       </div>
 

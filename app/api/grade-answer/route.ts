@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
-const MODEL = "gemini-3.6-flash";
+const MODEL = "gemini-3.1-flash-lite"; // free tier: RPM 15, RPD 500 vs 3.6-flash's RPM 5, RPD 20
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.GEMINI_API_KEY;
