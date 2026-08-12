@@ -38,7 +38,13 @@
       "Bash(say -v Tingting -o /private/tmp/claude-501/-Users-orryhuang-Documents-SmartMandarin/cb553baf-91ae-49d4-a8d5-7aa568ff94ca/scratchpad/test.aiff 你好，今天天气怎么样，我很喜欢说中文。)",
       "Bash(afconvert -f WAVE -d LEI16@16000 -c 1 /private/tmp/claude-501/-Users-orryhuang-Documents-SmartMandarin/cb553baf-91ae-49d4-a8d5-7aa568ff94ca/scratchpad/test.aiff /private/tmp/claude-501/-Users-orryhuang-Documents-SmartMandarin/cb553baf-91ae-49d4-a8d5-7aa568ff94ca/scratchpad/test.wav)",
       "Bash(curl -s http://localhost:3000/api/converse -o /dev/null -w \"%{http_code}\\\\n\" --max-time 3)",
-      "Bash(curl -s -X POST http://localhost:3000/api/transcribe -F 'audio=@/private/tmp/claude-501/-Users-orryhuang-Documents-SmartMandarin/cb553baf-91ae-49d4-a8d5-7aa568ff94ca/scratchpad/test.wav;type=audio/wav')"
+      "Bash(curl -s -X POST http://localhost:3000/api/transcribe -F 'audio=@/private/tmp/claude-501/-Users-orryhuang-Documents-SmartMandarin/cb553baf-91ae-49d4-a8d5-7aa568ff94ca/scratchpad/test.wav;type=audio/wav')",
+      "Bash(mkdir -p \"app/vocab/word/[hanzi]\")",
+      "Bash(pkill -f \"next lint\")",
+      "Bash(timeout 180 npx next build)"
+    ],
+    "additionalDirectories": [
+      "/Users/orryhuang/Documents/SmartMandarin/app/vocab/word"
     ]
   }
 }

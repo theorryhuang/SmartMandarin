@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
 import { Search, Trash2, Plus, Check, ChevronLeft, X } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
 import type { VocabularyMastery } from "@/lib/types";
@@ -8,20 +9,7 @@ import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
 import { createClient } from "@/lib/supabase/client";
 import { deleteWord, logMistake } from "@/app/actions/vocabulary";
 import { useLanguage } from "@/app/_components/LanguageContext";
-
-const HSK_COLORS: Record<number, { bg: string; text: string }> = {
-  1: { bg: "bg-emerald-100", text: "text-emerald-700" },
-  2: { bg: "bg-sky-100",     text: "text-sky-700" },
-  3: { bg: "bg-violet-100",  text: "text-violet-700" },
-  4: { bg: "bg-amber-100",   text: "text-amber-700" },
-  5: { bg: "bg-orange-100",  text: "text-orange-700" },
-  6: { bg: "bg-rose-100",    text: "text-rose-700" },
-};
-
-function hskColor(level: number | null) {
-  if (level === null) return { bg: "bg-slate-100", text: "text-slate-500" };
-  return HSK_COLORS[Math.floor(level)] ?? { bg: "bg-slate-100", text: "text-slate-600" };
-}
+import { hskColor } from "@/lib/hskColor";
 
 interface ApiSearchResult {
   hanzi: string;
@@ -446,21 +434,24 @@ function SearchResultRow({
 }) {
   const level = result.hsk_level !== null ? Math.floor(result.hsk_level) : null;
   const c = hskColor(level);
+  const href = `/vocab/word/${encodeURIComponent(result.hanzi)}?pinyin=${encodeURIComponent(result.pinyin)}`;
 
   return (
     <div className="flex items-center gap-3 py-3">
-      <span className={`flex-shrink-0 w-12 text-center text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${c.bg} ${c.text}`}>
-        {level !== null ? `HSK ${level}` : "—"}
-      </span>
+      <Link href={href} className="flex items-center gap-3 flex-1 min-w-0">
+        <span className={`flex-shrink-0 w-12 text-center text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${c.bg} ${c.text}`}>
+          {level !== null ? `HSK ${level}` : "—"}
+        </span>
 
-      <div className="flex-shrink-0 w-20 text-right">
-        <div className="text-lg font-medium text-[var(--color-text-primary)] leading-tight">{result.hanzi}</div>
-        <div className="text-[11px] text-[var(--color-text-muted)] leading-none mt-0.5">{result.pinyin}</div>
-      </div>
+        <div className="flex-shrink-0 w-20 text-right">
+          <div className="text-lg font-medium text-[var(--color-text-primary)] leading-tight">{result.hanzi}</div>
+          <div className="text-[11px] text-[var(--color-text-muted)] leading-none mt-0.5">{result.pinyin}</div>
+        </div>
 
-      <div className="flex-1 min-w-0">
-        <div className="text-sm text-[var(--color-text-secondary)] line-clamp-2 leading-snug">{result.meaning}</div>
-      </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm text-[var(--color-text-secondary)] line-clamp-2 leading-snug">{result.meaning}</div>
+        </div>
+      </Link>
 
       {saved ? (
         <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-xl bg-emerald-100">
@@ -508,39 +499,42 @@ function WordRow({ word, onDelete }: { word: VocabularyMastery; onDelete: () => 
   const c = hskColor(level);
   const isMastered = word.stability >= HIGH_STABILITY_THRESHOLD;
   const stabilityPct = Math.min(100, (word.stability / HIGH_STABILITY_THRESHOLD) * 100);
+  const href = `/vocab/word/${encodeURIComponent(word.hanzi)}?id=${word.id}`;
 
   return (
     <div className="flex items-center gap-3 py-3 group">
-      <span className={`flex-shrink-0 w-12 text-center text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${c.bg} ${c.text}`}>
-        {level !== null ? `HSK ${level}` : "—"}
-      </span>
+      <Link href={href} className="flex items-center gap-3 flex-1 min-w-0">
+        <span className={`flex-shrink-0 w-12 text-center text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${c.bg} ${c.text}`}>
+          {level !== null ? `HSK ${level}` : "—"}
+        </span>
 
-      <div className="flex-shrink-0 w-20 text-right">
-        <div className="text-lg font-medium text-[var(--color-text-primary)] leading-tight">{word.hanzi}</div>
-        {word.pinyin && (
-          <div className="text-[11px] text-[var(--color-text-muted)] leading-none mt-0.5">{word.pinyin}</div>
-        )}
-        {!word.pinyin && (
-          <div className="text-[11px] text-[var(--color-text-muted)] leading-none mt-0.5 italic animate-pulse">loading…</div>
-        )}
-      </div>
-
-      <div className="flex-1 min-w-0">
-        <div className="text-sm text-[var(--color-text-secondary)] truncate">
-          {word.meaning || <span className="italic text-[var(--color-text-muted)] animate-pulse">loading…</span>}
-        </div>
-        <div className="flex items-center gap-1.5 mt-1">
-          <div className="flex-1 h-1 rounded-full bg-[var(--color-border)] overflow-hidden">
-            <div
-              className={`h-1 rounded-full transition-all ${isMastered ? "bg-emerald-400" : "bg-violet-400"}`}
-              style={{ width: `${stabilityPct}%` }}
-            />
-          </div>
-          {isMastered && (
-            <span className="text-[10px] text-emerald-600 font-medium flex-shrink-0">mastered</span>
+        <div className="flex-shrink-0 w-20 text-right">
+          <div className="text-lg font-medium text-[var(--color-text-primary)] leading-tight">{word.hanzi}</div>
+          {word.pinyin && (
+            <div className="text-[11px] text-[var(--color-text-muted)] leading-none mt-0.5">{word.pinyin}</div>
+          )}
+          {!word.pinyin && (
+            <div className="text-[11px] text-[var(--color-text-muted)] leading-none mt-0.5 italic animate-pulse">loading…</div>
           )}
         </div>
-      </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="text-sm text-[var(--color-text-secondary)] truncate">
+            {word.meaning || <span className="italic text-[var(--color-text-muted)] animate-pulse">loading…</span>}
+          </div>
+          <div className="flex items-center gap-1.5 mt-1">
+            <div className="flex-1 h-1 rounded-full bg-[var(--color-border)] overflow-hidden">
+              <div
+                className={`h-1 rounded-full transition-all ${isMastered ? "bg-emerald-400" : "bg-violet-400"}`}
+                style={{ width: `${stabilityPct}%` }}
+              />
+            </div>
+            {isMastered && (
+              <span className="text-[10px] text-emerald-600 font-medium flex-shrink-0">mastered</span>
+            )}
+          </div>
+        </div>
+      </Link>
 
       <button
         onClick={onDelete}

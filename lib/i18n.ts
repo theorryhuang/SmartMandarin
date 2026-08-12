@@ -185,6 +185,15 @@ const en = {
   searchDictOf: "of",
   prevPage: "← Prev",
   nextPage: "Next →",
+
+  // ── Word detail page ─────────────────────────────────────────────────────────
+  otherReadings: "Other readings",
+  reviewProgress: "Review progress",
+  nextReviewLabel: "Next review",
+  reviewCountLabel: (n: number) => `Reviewed ${n} time${n !== 1 ? "s" : ""}`,
+  notReviewedYet: "Not reviewed yet",
+  removeWord: "Remove",
+  wordNotInDictionary: "No dictionary entry found for this word.",
 };
 
 const zh: typeof en = {
@@ -372,6 +381,15 @@ const zh: typeof en = {
   searchDictOf: "共",
   prevPage: "← 上页",
   nextPage: "下页 →",
+
+  // ── Word detail page ─────────────────────────────────────────────────────────
+  otherReadings: "其他读音",
+  reviewProgress: "复习进度",
+  nextReviewLabel: "下次复习",
+  reviewCountLabel: (n: number) => `已复习 ${n} 次`,
+  notReviewedYet: "尚未复习",
+  removeWord: "移除",
+  wordNotInDictionary: "未找到该词的词典释义。",
 };
 
 export const translations: Record<Lang, typeof en> = { en, zh };
