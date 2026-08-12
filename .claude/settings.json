@@ -41,7 +41,9 @@
       "Bash(curl -s -X POST http://localhost:3000/api/transcribe -F 'audio=@/private/tmp/claude-501/-Users-orryhuang-Documents-SmartMandarin/cb553baf-91ae-49d4-a8d5-7aa568ff94ca/scratchpad/test.wav;type=audio/wav')",
       "Bash(mkdir -p \"app/vocab/word/[hanzi]\")",
       "Bash(pkill -f \"next lint\")",
-      "Bash(timeout 180 npx next build)"
+      "Bash(timeout 180 npx next build)",
+      "Bash(npx eslint *)",
+      "Bash(grep -v \"^$\")"
     ],
     "additionalDirectories": [
       "/Users/orryhuang/Documents/SmartMandarin/app/vocab/word"

@@ -21,12 +21,20 @@ async function slangBankLookup(hanzi: string) {
   return null;
 }
 
-async function geminiJSON(prompt: string, apiKey: string, _maxTokens = 64): Promise<string> {
+async function geminiJSON(prompt: string, apiKey: string, maxTokens = 64): Promise<string> {
   try {
     const res = await fetch(INTERACTIONS_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify({ model: MODEL, input: prompt, store: false }),
+      // thinking_level "low" (not "minimal"): this route fires live mid-conversation
+      // (tap-to-define + context-based sense disambiguation in aiTiebreaker), so a
+      // wrong/rushed pick is more disruptive than an extra ~1s of latency here.
+      body: JSON.stringify({
+        model: MODEL,
+        input: prompt,
+        store: false,
+        generation_config: { thinking_level: "low", max_output_tokens: maxTokens },
+      }),
     });
     if (!res.ok) return "{}";
     const data = await res.json();

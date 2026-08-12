@@ -28,7 +28,14 @@ Respond with ONLY valid JSON (no markdown, no extra text):
     const res = await fetch(INTERACTIONS_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify({ model: MODEL, input: prompt, store: false }),
+      // Pin thinking_level low — without it this model uses dynamic thinking
+      // and can spend 60+s deliberating on a simple grading call.
+      body: JSON.stringify({
+        model: MODEL,
+        input: prompt,
+        store: false,
+        generation_config: { thinking_level: "minimal", max_output_tokens: 200 },
+      }),
     });
 
     if (!res.ok) {

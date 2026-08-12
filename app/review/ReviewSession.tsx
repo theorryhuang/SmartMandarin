@@ -1,13 +1,31 @@
 "use client";
 
 import { useState, useTransition, useRef } from "react";
-import { ChevronLeft, Home } from "lucide-react";
+import { ChevronLeft, Home, PenLine, Layers } from "lucide-react";
 import { ReviewCard } from "@/components/ReviewCard";
+import { SentenceCard } from "@/components/SentenceCard";
 import { getAllWords } from "@/app/actions/vocabulary";
 import type { VocabularyMastery } from "@/lib/types";
 import { useLanguage } from "@/app/_components/LanguageContext";
 
 const DEFAULT_SESSION_KEY = "sm_review_session";
+const MODE_KEY = "sm_review_mode";
+
+type ReviewMode = "flashcard" | "sentence";
+
+function loadMode(): ReviewMode {
+  try {
+    return localStorage.getItem(MODE_KEY) === "sentence" ? "sentence" : "flashcard";
+  } catch {
+    return "flashcard";
+  }
+}
+
+function saveMode(mode: ReviewMode) {
+  try {
+    localStorage.setItem(MODE_KEY, mode);
+  } catch {}
+}
 
 interface SavedSession {
   cards: VocabularyMastery[];
@@ -66,7 +84,17 @@ function initSession(key: string, incoming: VocabularyMastery[]): {
   return { ordered, startIndex: 0 };
 }
 
-function NavHeader({ onBack, onHome, backLabel }: { onBack: () => void; onHome: () => void; backLabel: string }) {
+function NavHeader({
+  onBack,
+  onHome,
+  backLabel,
+  modeToggle,
+}: {
+  onBack: () => void;
+  onHome: () => void;
+  backLabel: string;
+  modeToggle?: React.ReactNode;
+}) {
   return (
     <div
       className="flex items-center justify-between px-5 pb-3 flex-shrink-0"
@@ -79,12 +107,15 @@ function NavHeader({ onBack, onHome, backLabel }: { onBack: () => void; onHome: 
         <ChevronLeft size={18} />
         {backLabel}
       </button>
-      <button
-        onClick={onHome}
-        className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
-      >
-        <Home size={18} />
-      </button>
+      <div className="flex items-center gap-3">
+        {modeToggle}
+        <button
+          onClick={onHome}
+          className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+        >
+          <Home size={18} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -100,6 +131,26 @@ interface Props {
 export function ReviewSession({ initialCards, sessionKey = DEFAULT_SESSION_KEY, getAllWordsFn, onExit, onHome }: Props) {
   const { t } = useLanguage();
   const activeKeyRef = useRef(sessionKey);
+  const [mode, setMode] = useState<ReviewMode>(loadMode);
+
+  function toggleMode() {
+    setMode((m) => {
+      const next: ReviewMode = m === "flashcard" ? "sentence" : "flashcard";
+      saveMode(next);
+      return next;
+    });
+  }
+
+  const modeToggle = (
+    <button
+      onClick={toggleMode}
+      title={mode === "flashcard" ? t.switchToSentenceMode : t.switchToFlashcardMode}
+      className="flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] border border-[var(--color-border)] rounded-full px-2.5 py-1 transition-colors"
+    >
+      {mode === "flashcard" ? <PenLine size={14} /> : <Layers size={14} />}
+      {mode === "flashcard" ? t.sentenceMode : t.flashcardMode}
+    </button>
+  );
 
   const [{ cards, index }, setSession] = useState(() => {
     const { ordered, startIndex } = initSession(sessionKey, initialCards);
@@ -224,19 +275,33 @@ export function ReviewSession({ initialCards, sessionKey = DEFAULT_SESSION_KEY, 
 
   return (
     <div className="flex flex-col min-h-screen">
-      <NavHeader onBack={() => onExit?.()} onHome={() => onHome?.()} backLabel={t.back} />
+      <NavHeader onBack={() => onExit?.()} onHome={() => onHome?.()} backLabel={t.back} modeToggle={modeToggle} />
       <div className="flex-1 flex flex-col items-center justify-center px-6 pb-6">
-        <ReviewCard
-          key={current.id}
-          card={current}
-          onNext={handleNext}
-          onBack={handleBack}
-          canGoBack={history.length > 0}
-          onRestart={handleRestart}
-          onReshuffle={handleReshuffle}
-          currentIndex={index}
-          totalCards={cards.length}
-        />
+        {mode === "sentence" ? (
+          <SentenceCard
+            key={current.id}
+            card={current}
+            onNext={handleNext}
+            onBack={handleBack}
+            canGoBack={history.length > 0}
+            onRestart={handleRestart}
+            onReshuffle={handleReshuffle}
+            currentIndex={index}
+            totalCards={cards.length}
+          />
+        ) : (
+          <ReviewCard
+            key={current.id}
+            card={current}
+            onNext={handleNext}
+            onBack={handleBack}
+            canGoBack={history.length > 0}
+            onRestart={handleRestart}
+            onReshuffle={handleReshuffle}
+            currentIndex={index}
+            totalCards={cards.length}
+          />
+        )}
       </div>
     </div>
   );
