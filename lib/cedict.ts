@@ -184,28 +184,36 @@ async function greedySegment(
     .or(orFilter)
     .limit(500);
 
-  // Which substrings have at least one cedict entry starting with them?
-  const validPrefixes = new Set<string>();
+  // Which substrings are themselves an actual cedict entry (not just a prefix
+  // of some longer one — a segment must be a real word, or Round 2's lookup
+  // only surfaces longer compounds and the segment's own definition never
+  // shows up).
+  const validWords = new Set<string>();
   for (const sub of allSubs) {
-    if ((existing ?? []).some(r => r.simplified.startsWith(sub)))
-      validPrefixes.add(sub);
+    if ((existing ?? []).some(r => r.simplified === sub))
+      validWords.add(sub);
   }
 
-  // Greedy longest-match using prefix existence
+  // Greedy longest-match using real word existence, falling back to a lone
+  // character when nothing at this position matches any dictionary entry
+  // (so every character still gets looked up instead of being dropped).
   const segments: string[] = [];
   let pos = 0;
   while (pos < chars.length) {
     let matched = false;
     for (let len = chars.length - pos; len >= 1; len--) {
       const sub = chars.slice(pos, pos + len).join("");
-      if (validPrefixes.has(sub)) {
+      if (validWords.has(sub)) {
         segments.push(sub);
         pos += len;
         matched = true;
         break;
       }
     }
-    if (!matched) pos++;
+    if (!matched) {
+      segments.push(chars[pos]);
+      pos += 1;
+    }
   }
   if (segments.length === 0) return [];
 
