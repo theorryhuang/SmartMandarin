@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * useGroqConversation
+ * useVoiceConversation
  *
  * Turn-based voice conversation using:
  *   - MediaRecorder (browser) → captures user audio
- *   - Groq Whisper (/api/transcribe) → speech-to-text
- *   - Groq LLaMA (/api/converse) → Mandarin response
+ *   - ElevenLabs Scribe (/api/transcribe) → speech-to-text
+ *   - Gemini (/api/converse) → Mandarin response
  *   - SpeechSynthesis (browser) → text-to-speech playback
  *
  * State machine:
@@ -19,7 +19,7 @@ import type { TranscriptToken } from "@/lib/types";
 
 export type ConvState = "idle" | "recording" | "transcribing" | "thinking" | "speaking" | "error";
 
-export interface GroqConvOptions {
+export interface VoiceConvOptions {
   slangMode: boolean;
   forcedWords: string[];
   hskLevel: number;
@@ -29,7 +29,7 @@ export interface GroqConvOptions {
   speechRate?: number; // multiplier: 1 = normal (0.9), 2 = fast (1.8)
 }
 
-export interface GroqConvHandle {
+export interface VoiceConvHandle {
   state: ConvState;
   error: string | null;
   startRecording: () => void;
@@ -40,7 +40,7 @@ export interface GroqConvHandle {
 
 type HistoryEntry = { role: "user" | "assistant"; content: string };
 
-export function useGroqConversation(opts: GroqConvOptions & { initialHistory?: HistoryEntry[] }): GroqConvHandle {
+export function useVoiceConversation(opts: VoiceConvOptions & { initialHistory?: HistoryEntry[] }): VoiceConvHandle {
   const [state, setState] = useState<ConvState>("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -64,16 +64,24 @@ export function useGroqConversation(opts: GroqConvOptions & { initialHistory?: H
   const startRecording = useCallback(async () => {
     setError(null);
     try {
-      // Prefer a real microphone over virtual devices (Teams, Zoom, etc.)
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const audioInputs = devices.filter((d) => d.kind === "audioinput");
-      const realMic = audioInputs.find(
-        (d) => !/virtual|teams|zoom|blackhole|soundflower|loopback/i.test(d.label)
-      );
-      const deviceId = realMic?.deviceId ?? "default";
-
+      // Just use whatever the browser/OS considers the default input device.
+      // This used to try to out-guess that with a label-sniffing heuristic
+      // ("prefer a real mic over Teams/Zoom/etc. virtual devices"), but that
+      // heuristic has caused more bugs than it prevented (a stale deviceId
+      // triggering OverconstrainedError, and — likely — silently picking a
+      // wrong/quiet input over the device the user actually meant to use).
+      // If virtual-mic-as-default becomes a real problem again, that needs
+      // an explicit device picker in the UI, not a silent guess.
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { deviceId: { exact: deviceId }, echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          // Without AGC, quiet/low-gain input never gets boosted — records
+          // technically-valid but near-silent audio that clears our local
+          // duration check yet gives ElevenLabs nothing to transcribe,
+          // coming back as an empty (not erroring) result.
+          autoGainControl: true,
+        },
       });
       const recorder = new MediaRecorder(stream, { mimeType: getSupportedMimeType() });
       chunksRef.current = [];
@@ -84,7 +92,16 @@ export function useGroqConversation(opts: GroqConvOptions & { initialHistory?: H
       recorder.start(100); // 100ms timeslice — flush data continuously
       setState("recording");
     } catch (err) {
-      setError("Microphone access denied");
+      const name = err instanceof DOMException ? err.name : "";
+      const message =
+        name === "NotAllowedError" || name === "PermissionDeniedError"
+          ? "Microphone access denied — check browser/site permissions"
+          : name === "NotFoundError"
+          ? "No microphone found"
+          : name === "NotReadableError"
+          ? "Microphone is in use by another app"
+          : `Microphone error: ${name || (err instanceof Error ? err.message : String(err))}`;
+      setError(message);
       setState("error");
     }
   }, []);
@@ -102,16 +119,35 @@ export function useGroqConversation(opts: GroqConvOptions & { initialHistory?: H
       const rawBlob = new Blob(chunksRef.current, { type: mimeType });
       chunksRef.current = [];
 
-      if (rawBlob.size < 3000) {
-        setError("Recording too short — hold the button while speaking");
+      // Only catch a genuinely empty capture here (permission/device glitch —
+      // no ondataavailable events fired at all). Compressed byte size is NOT
+      // a reliable proxy for duration: opus's VBR encoder shrinks quiet/low-
+      // gain audio (mic runs with autoGainControl off) to a few hundred bytes
+      // even for a multi-second hold, which used to trip a false "too short"
+      // here before we ever measured real elapsed time below.
+      if (rawBlob.size < 200) {
+        setError("No audio captured — check your microphone");
         setState("error");
         return;
       }
 
-      // Convert webm/opus → WAV so ElevenLabs can decode it reliably
+      // Convert webm/opus → WAV so ElevenLabs can decode it reliably, and
+      // read the actual decoded duration (ground truth, unlike byte size) to
+      // bail before wasting a round trip to ElevenLabs, which rejects
+      // anything it considers too short with an opaque "audio_too_short" error.
       let blob: Blob;
+      let peakAmplitude: number | undefined;
       try {
-        blob = await toWav(rawBlob);
+        const wav = await toWav(rawBlob);
+        if (wav.durationSec < 0.35) {
+          setError("Recording too short — hold the button a bit longer");
+          setState("error");
+          return;
+        }
+        blob = wav.blob;
+        peakAmplitude = wav.peakAmplitude;
+        // eslint-disable-next-line no-console
+        console.log(`[recording] duration=${wav.durationSec.toFixed(2)}s peak=${wav.peakAmplitude.toFixed(4)} (0=silence, 1=clipping)`);
       } catch (e) {
         console.warn("[recording] WAV conversion failed, sending raw:", e);
         blob = rawBlob;
@@ -121,6 +157,9 @@ export function useGroqConversation(opts: GroqConvOptions & { initialHistory?: H
       setState("transcribing");
       const form = new FormData();
       form.append("audio", blob, "audio.webm");
+      // Diagnostic only — lets the server log what was actually captured
+      // alongside ElevenLabs' response, instead of guessing blind.
+      if (peakAmplitude !== undefined) form.append("peak_amplitude", peakAmplitude.toFixed(4));
       let transcribeData: { text?: string; error?: string };
       try {
         const transcribeRes = await fetch("/api/transcribe", { method: "POST", body: form });
@@ -131,7 +170,12 @@ export function useGroqConversation(opts: GroqConvOptions & { initialHistory?: H
         return;
       }
       if (transcribeData.error || !transcribeData.text?.trim()) {
-        setError(transcribeData.error ?? "Could not transcribe speech");
+        const raw = transcribeData.error ?? "Could not hear any speech — try speaking louder or closer to the mic";
+        setError(
+          /audio_too_short/i.test(raw)
+            ? "Recording too short — hold the button a bit longer"
+            : raw
+        );
         setState("error");
         return;
       }
@@ -231,7 +275,7 @@ function speakText(text: string, onEnd: () => void, rateMultiplier = 1) {
 }
 
 /** Decode any browser-recorded audio blob and re-encode as 16-bit PCM WAV. */
-async function toWav(blob: Blob): Promise<Blob> {
+async function toWav(blob: Blob): Promise<{ blob: Blob; durationSec: number; peakAmplitude: number }> {
   const arrayBuffer = await blob.arrayBuffer();
   const audioCtx = new AudioContext();
   const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
@@ -248,8 +292,11 @@ async function toWav(blob: Blob): Promise<Blob> {
 
   const pcm = rendered.getChannelData(0);
   const samples = new Int16Array(pcm.length);
+  let peakAmplitude = 0;
   for (let i = 0; i < pcm.length; i++) {
     samples[i] = Math.max(-32768, Math.min(32767, Math.round(pcm[i] * 32767)));
+    const abs = Math.abs(pcm[i]);
+    if (abs > peakAmplitude) peakAmplitude = abs;
   }
 
   const wavBuffer = new ArrayBuffer(44 + samples.byteLength);
@@ -273,7 +320,11 @@ async function toWav(blob: Blob): Promise<Blob> {
   write(40, samples.byteLength, 4);
   new Int16Array(wavBuffer, 44).set(samples);
 
-  return new Blob([wavBuffer], { type: "audio/wav" });
+  return {
+    blob: new Blob([wavBuffer], { type: "audio/wav" }),
+    durationSec: audioBuffer.duration,
+    peakAmplitude,
+  };
 }
 
 function getSupportedMimeType(): string {

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const maxDuration = 60;
+
 const INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
 const MODEL = "gemini-3.6-flash";
 

@@ -30,7 +30,15 @@
       "Bash(python3 -c \"import PIL; print\\(PIL.__version__\\)\")",
       "Bash(python3 -)",
       "Bash(python3 -c \"import json; [json.load\\(open\\(f\\)\\) for f in ['manifest.json','_locales/en/messages.json','_locales/zh_CN/messages.json','_locales/zh_TW/messages.json']]; print\\('json ok'\\)\")",
-      "Bash(node -c background.js)"
+      "Bash(node -c background.js)",
+      "WebSearch",
+      "Bash(git mv *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(say -v '?')",
+      "Bash(say -v Tingting -o /private/tmp/claude-501/-Users-orryhuang-Documents-SmartMandarin/cb553baf-91ae-49d4-a8d5-7aa568ff94ca/scratchpad/test.aiff 你好，今天天气怎么样，我很喜欢说中文。)",
+      "Bash(afconvert -f WAVE -d LEI16@16000 -c 1 /private/tmp/claude-501/-Users-orryhuang-Documents-SmartMandarin/cb553baf-91ae-49d4-a8d5-7aa568ff94ca/scratchpad/test.aiff /private/tmp/claude-501/-Users-orryhuang-Documents-SmartMandarin/cb553baf-91ae-49d4-a8d5-7aa568ff94ca/scratchpad/test.wav)",
+      "Bash(curl -s http://localhost:3000/api/converse -o /dev/null -w \"%{http_code}\\\\n\" --max-time 3)",
+      "Bash(curl -s -X POST http://localhost:3000/api/transcribe -F 'audio=@/private/tmp/claude-501/-Users-orryhuang-Documents-SmartMandarin/cb553baf-91ae-49d4-a8d5-7aa568ff94ca/scratchpad/test.wav;type=audio/wav')"
     ]
   }
 }

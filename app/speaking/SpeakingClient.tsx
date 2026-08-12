@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useGroqConversation } from "@/hooks/useGroqConversation";
+import { useVoiceConversation } from "@/hooks/useVoiceConversation";
 import { TranscriptView } from "@/components/TranscriptView";
 import { logMistake, removeFromReviewQueue, getConversationContext } from "@/app/actions/vocabulary";
 import { saveSpeakingTurns, loadRecentSpeakingTurns } from "@/app/actions/speaking";
@@ -126,7 +126,7 @@ export function SpeakingClient() {
       setTurns((prev) => {
         const last = prev[prev.length - 1];
         if (last && last.role === role) {
-          // Merge tokens into the existing turn (shouldn't normally happen for Groq but safe)
+          // Merge tokens into the existing turn (shouldn't normally happen but safe)
           return [
             ...prev.slice(0, -1),
             {
@@ -166,7 +166,7 @@ export function SpeakingClient() {
     []
   );
 
-  const { state, error, startRecording, stopRecording, cancel, replay } = useGroqConversation({
+  const { state, error, startRecording, stopRecording, cancel, replay } = useVoiceConversation({
     slangMode,
     forcedWords,
     hskLevel,
