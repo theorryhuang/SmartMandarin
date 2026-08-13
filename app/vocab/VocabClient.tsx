@@ -192,7 +192,7 @@ export function VocabClient() {
         <HomeButton />
       </div>
 
-      <div className="px-4 pt-16 pb-1">
+      <div className="px-4 pb-1" style={{ paddingTop: "calc(max(24px, env(safe-area-inset-top)) + 40px)" }}>
         <h1 className="font-semibold text-sm text-[var(--color-text-primary)]">{t.myVocabulary}</h1>
       </div>
 

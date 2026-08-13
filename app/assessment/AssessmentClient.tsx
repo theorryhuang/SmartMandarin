@@ -217,7 +217,7 @@ export function AssessmentClient() {
     return (
       <div className="flex flex-col min-h-screen max-w-md mx-auto px-6">
         {/* Progress bar */}
-        <div className="pt-8 pb-6">
+        <div className="pb-6" style={{ paddingTop: "calc(max(24px, env(safe-area-inset-top)) + 40px)" }}>
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-[var(--color-text-muted)]">{levelLabel}</span>
             <span className="text-xs text-[var(--color-text-muted)]">

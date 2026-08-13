@@ -132,7 +132,7 @@ export function WordDetailClient({
         <HomeButton />
       </div>
 
-      <div className="px-4 pt-16 flex flex-col items-center text-center">
+      <div className="px-4 flex flex-col items-center text-center" style={{ paddingTop: "calc(max(24px, env(safe-area-inset-top)) + 40px)" }}>
         <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${c.bg} ${c.text}`}>
           {hskLevel !== null ? `HSK ${hskLevel}` : "—"}
         </span>

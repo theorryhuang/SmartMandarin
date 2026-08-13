@@ -20,7 +20,7 @@ export default async function ExtensionSettingsPage() {
         <HomeButton />
       </div>
 
-      <div className="w-full max-w-md flex flex-col gap-6 pt-16">
+      <div className="w-full max-w-md flex flex-col gap-6" style={{ paddingTop: "calc(max(24px, env(safe-area-inset-top)) + 40px)" }}>
         <div>
           <h1 className="text-2xl font-semibold">Browser extension</h1>
           <p className="text-sm text-[var(--color-text-muted)] mt-1">
