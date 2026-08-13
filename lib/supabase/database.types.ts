@@ -107,6 +107,33 @@ export type Database = {
         Update: { hanzi?: string; level?: number };
         Relationships: [];
       };
+      extension_tokens: {
+        Row: {
+          id: string;
+          user_id: string;
+          token_hash: string;
+          label: string;
+          created_at: string;
+          last_used_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          token_hash: string;
+          label?: string;
+          created_at?: string;
+          last_used_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          token_hash?: string;
+          label?: string;
+          created_at?: string;
+          last_used_at?: string | null;
+        };
+        Relationships: [];
+      };
       slang_bank: {
         Row: {
           id: string;

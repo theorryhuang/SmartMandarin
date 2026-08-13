@@ -39,7 +39,11 @@ export async function middleware(request: NextRequest) {
   const isPublic =
     pathname.startsWith("/auth") ||
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon");
+    pathname.startsWith("/favicon") ||
+    // Bearer-token authed (browser extension) — no session cookie to check
+    // here, they do their own auth in-route. Redirecting these to /auth
+    // instead of running the handler is what broke the extension.
+    pathname.startsWith("/api/extension");
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();

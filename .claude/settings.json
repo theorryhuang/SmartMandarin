@@ -53,7 +53,12 @@
       "Bash(perl -i -pe 's/return s\\\\.pinyin \\\\+ \"\\\\x01\" \\\\+ s\\\\.meaning;/return s.pinyin + String.fromCharCode\\(1\\) + s.meaning;/' lib/senseKey.ts)",
       "Bash(vercel --version)",
       "Bash(gh auth *)",
-      "Bash(gh api *)"
+      "Bash(gh api *)",
+      "Bash(python3 -c \"import PIL; print\\('PIL ok'\\)\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000 --max-time 2)",
+      "Bash(curl -s -i -X POST http://localhost:3000/api/extension/lookup -H \"Content-Type: application/json\" -H \"Authorization: Bearer smtok_deadbeef\" -d '{\"hanzi\":\"其中\"}' --max-time 5)",
+      "Bash(node --check /Users/orryhuang/Documents/SmartMandarin/extension/content.js)",
+      "Bash(git -C /Users/orryhuang/Documents/SmartMandarin remote -v)"
     ],
     "additionalDirectories": [
       "/Users/orryhuang/Documents/SmartMandarin/app/vocab/word"

@@ -1,0 +1,40 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    width: 240px;
+    margin: 0;
+    padding: 16px;
+    color: #1a1a1a;
+    background: #fff;
+  }
+  h1 { font-size: 14px; margin: 0 0 2px; }
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 999px; margin-right: 6px; }
+  .dot.on { background: #10b981; }
+  .dot.off { background: #d1d5db; }
+  .status { display: flex; align-items: center; margin: 10px 0 4px; color: #444; }
+  .server { font-size: 11px; color: #888; word-break: break-all; margin-bottom: 14px; }
+  .tip { font-size: 12px; color: #555; margin-bottom: 14px; }
+  button {
+    width: 100%; padding: 8px; border-radius: 9px; border: 1px solid #ddd; background: #f7f7f8;
+    font-size: 12.5px; cursor: pointer; margin-bottom: 8px; font-family: inherit;
+  }
+  button:hover { background: #eee; }
+  button.primary { background: #6d28d9; color: #fff; border: none; }
+  button.primary:hover { background: #5b21b6; }
+</style>
+</head>
+<body>
+  <h1>SmartMandarin</h1>
+  <div class="status"><span id="dot" class="dot off"></span><span id="statusText">Checking…</span></div>
+  <div id="server" class="server"></div>
+  <div class="tip">Highlight Chinese text on any page to see its definition.</div>
+  <button id="refresh">Refresh saved words</button>
+  <button id="settings" class="primary">Settings</button>
+  <script src="popup.js"></script>
+</body>
+</html>

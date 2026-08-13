@@ -1,0 +1,56 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>SmartMandarin — Settings</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    max-width: 420px;
+    margin: 32px auto;
+    padding: 0 20px;
+    color: #1a1a1a;
+    background: #fff;
+  }
+  h1 { font-size: 18px; margin-bottom: 4px; }
+  p.sub { color: #666; margin-top: 0; margin-bottom: 24px; }
+  label { display: block; font-size: 12px; font-weight: 600; color: #444; margin-bottom: 4px; margin-top: 16px; }
+  input {
+    width: 100%; box-sizing: border-box; padding: 9px 11px; border-radius: 10px;
+    border: 1px solid #d8d8dc; font-size: 13px; font-family: inherit;
+  }
+  input:focus { outline: none; border-color: #7c3aed; }
+  button {
+    margin-top: 20px; width: 100%; padding: 11px; border-radius: 12px; border: none;
+    background: #6d28d9; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  button:hover { background: #5b21b6; }
+  button:disabled { opacity: .5; cursor: default; }
+  .status { margin-top: 12px; font-size: 12.5px; padding: 8px 10px; border-radius: 8px; display: none; }
+  .status.ok { display: block; background: #ecfdf5; color: #065f46; }
+  .status.err { display: block; background: #fef2f2; color: #991b1b; }
+  .hint { margin-top: 24px; font-size: 12px; color: #888; }
+  a { color: #6d28d9; }
+</style>
+</head>
+<body>
+  <h1>SmartMandarin</h1>
+  <p class="sub">Connect this extension to your account so the popup dictionary can save words to your review queue.</p>
+
+  <label for="serverUrl">Server URL</label>
+  <input id="serverUrl" type="url" placeholder="https://your-smartmandarin-url" />
+
+  <label for="token">Token</label>
+  <input id="token" type="text" placeholder="smtok_…" autocomplete="off" />
+
+  <button id="save">Connect</button>
+  <div id="status" class="status"></div>
+
+  <p class="hint">
+    Generate a token from <b>Profile → Browser extension</b> in the app. It's shown once, so copy it right away.
+  </p>
+
+  <script src="options.js"></script>
+</body>
+</html>

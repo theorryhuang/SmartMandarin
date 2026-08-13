@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
+import { Puzzle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { BackButton } from "@/app/_components/BackButton";
 import { SignOutButton } from "./SignOutButton";
@@ -44,6 +46,18 @@ export default async function ProfilePage() {
           <h1 className="text-2xl font-semibold">{name}</h1>
           <p className="text-sm text-[var(--color-text-muted)] mt-1">{email}</p>
         </div>
+
+        {/* Browser extension */}
+        <Link
+          href="/settings/extension"
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-violet-300 transition-colors"
+        >
+          <Puzzle size={18} className="text-violet-600 shrink-0" />
+          <div className="flex-1 text-left">
+            <div className="text-sm font-medium text-[var(--color-text-primary)]">Browser extension</div>
+            <div className="text-xs text-[var(--color-text-muted)]">Popup dictionary on any page</div>
+          </div>
+        </Link>
 
         {/* Sign out */}
         <SignOutButton />
