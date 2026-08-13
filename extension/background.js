@@ -88,8 +88,8 @@ async function testConnection(serverUrl, token) {
     const res = await fetch(normalizeUrl(serverUrl) + "/api/extension/state", {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) return { ok: false, message: `Server responded ${res.status}` };
-    const json = await res.json();
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, message: json.error ? `${res.status}: ${json.error}` : `Server responded ${res.status}` };
     return { ok: true, savedWords: json.savedWords || {} };
   } catch (e) {
     return { ok: false, message: String(e) };

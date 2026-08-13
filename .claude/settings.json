@@ -58,7 +58,8 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000 --max-time 2)",
       "Bash(curl -s -i -X POST http://localhost:3000/api/extension/lookup -H \"Content-Type: application/json\" -H \"Authorization: Bearer smtok_deadbeef\" -d '{\"hanzi\":\"其中\"}' --max-time 5)",
       "Bash(node --check /Users/orryhuang/Documents/SmartMandarin/extension/content.js)",
-      "Bash(git -C /Users/orryhuang/Documents/SmartMandarin remote -v)"
+      "Bash(git -C /Users/orryhuang/Documents/SmartMandarin remote -v)",
+      "Bash(node --check /Users/orryhuang/Documents/SmartMandarin/extension/background.js)"
     ],
     "additionalDirectories": [
       "/Users/orryhuang/Documents/SmartMandarin/app/vocab/word"
