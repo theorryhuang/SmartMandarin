@@ -9,6 +9,7 @@ import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
 import { createClient } from "@/lib/supabase/client";
 import { deleteWord, logMistake } from "@/app/actions/vocabulary";
 import { useLanguage } from "@/app/_components/LanguageContext";
+import { HomeButton } from "@/app/_components/HomeButton";
 import { hskColor } from "@/lib/hskColor";
 import { senseKey } from "@/lib/senseKey";
 
@@ -178,7 +179,7 @@ export function VocabClient() {
   return (
     <div className="pb-10">
       {/* ── Header ── */}
-      <div className="flex items-center gap-3 px-4 pt-[max(12px,env(safe-area-inset-top))] pb-3 border-b border-[var(--color-border)] bg-[var(--color-surface)] sticky top-0 z-10">
+      <div className="absolute left-6" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
         <button
           onClick={() => initialQ ? router.back() : router.push("/")}
           className="flex items-center gap-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
@@ -186,9 +187,13 @@ export function VocabClient() {
           <ChevronLeft size={18} />
           <span className="text-sm">{t.back}</span>
         </button>
-        <div className="flex-1">
-          <h1 className="font-semibold text-sm text-[var(--color-text-primary)]">{t.myVocabulary}</h1>
-        </div>
+      </div>
+      <div className="absolute right-6" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
+        <HomeButton />
+      </div>
+
+      <div className="px-4 pt-16 pb-1">
+        <h1 className="font-semibold text-sm text-[var(--color-text-primary)]">{t.myVocabulary}</h1>
       </div>
 
       {/* ── Tab switcher ── */}

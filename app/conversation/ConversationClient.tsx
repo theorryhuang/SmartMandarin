@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { ArrowUp, ChevronLeft, LayoutList, Mic, Plus, Trash2 } from "lucide-react";
+import { HomeButton } from "@/app/_components/HomeButton";
 import { useRouter } from "next/navigation";
 import { getConversationContext } from "@/app/actions/vocabulary";
 import { saveMessages } from "@/app/actions/chat";
@@ -425,6 +426,7 @@ export function ConversationClient({ masteryMap }: Props) {
         >
           {slangMode ? t.slangActive : t.slang}
         </button>
+        <HomeButton className="flex-shrink-0" />
       </div>
 
       {/* ── Messages ── */}

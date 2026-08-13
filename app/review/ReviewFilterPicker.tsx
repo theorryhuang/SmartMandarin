@@ -56,22 +56,24 @@ function NavHeader({
   const { t } = useLanguage();
   return (
     <div
-      className="flex items-center justify-between px-5 pb-3"
+      className="px-5 pb-3"
       style={{ paddingTop: "max(20px, env(safe-area-inset-top))" }}
     >
-      <button
-        onClick={onBack}
-        className="flex items-center gap-1 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
-      >
-        <ChevronLeft size={18} />
-        {t.back}
-      </button>
-      <button
-        onClick={onHome}
-        className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
-      >
-        <Home size={18} />
-      </button>
+      <div className="flex items-center justify-between max-w-sm mx-auto">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-1 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+        >
+          <ChevronLeft size={18} />
+          {t.back}
+        </button>
+        <button
+          onClick={onHome}
+          className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+        >
+          <Home size={18} />
+        </button>
+      </div>
     </div>
   );
 }

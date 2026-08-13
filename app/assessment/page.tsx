@@ -1,5 +1,6 @@
 import { AssessmentClient } from "./AssessmentClient";
 import { BackButton } from "@/app/_components/BackButton";
+import { HomeButton } from "@/app/_components/HomeButton";
 
 export const metadata = { title: "Level Assessment · SmartMandarin" };
 
@@ -8,6 +9,9 @@ export default function AssessmentPage() {
     <main className="min-h-screen bg-[var(--color-background)]">
       <div className="absolute top-6 left-6">
         <BackButton href="/" />
+      </div>
+      <div className="absolute top-6 right-6">
+        <HomeButton />
       </div>
       <AssessmentClient />
     </main>

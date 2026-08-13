@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Puzzle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { BackButton } from "@/app/_components/BackButton";
+import { HomeButton } from "@/app/_components/HomeButton";
 import { SignOutButton } from "./SignOutButton";
 
 export const metadata = { title: "Profile · SmartMandarin" };
@@ -24,6 +25,9 @@ export default async function ProfilePage() {
     <main className="min-h-screen bg-[var(--color-background)] flex flex-col items-center justify-center p-8">
       <div className="absolute left-6" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
         <BackButton href="/" />
+      </div>
+      <div className="absolute right-6" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
+        <HomeButton />
       </div>
 
       <div className="w-full max-w-sm flex flex-col items-center gap-6">

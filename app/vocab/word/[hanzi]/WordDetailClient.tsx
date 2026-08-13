@@ -8,6 +8,7 @@ import type { VocabularyMastery } from "@/lib/types";
 import { hskColor } from "@/lib/hskColor";
 import { deleteWord, logMistake } from "@/app/actions/vocabulary";
 import { useLanguage } from "@/app/_components/LanguageContext";
+import { HomeButton } from "@/app/_components/HomeButton";
 
 interface Entry {
   pinyin: string;
@@ -117,8 +118,8 @@ export function WordDetailClient({
   }
 
   return (
-    <div className="pb-10">
-      <div className="flex items-center gap-3 px-4 pt-[max(12px,env(safe-area-inset-top))] pb-3 border-b border-[var(--color-border)] bg-[var(--color-surface)] sticky top-0 z-10">
+    <div className="pb-10 relative">
+      <div className="absolute left-6" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
         <button
           onClick={() => router.back()}
           className="flex items-center gap-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
@@ -127,8 +128,11 @@ export function WordDetailClient({
           <span className="text-sm">{t.back}</span>
         </button>
       </div>
+      <div className="absolute right-6" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
+        <HomeButton />
+      </div>
 
-      <div className="px-4 pt-6 flex flex-col items-center text-center">
+      <div className="px-4 pt-16 flex flex-col items-center text-center">
         <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${c.bg} ${c.text}`}>
           {hskLevel !== null ? `HSK ${hskLevel}` : "—"}
         </span>

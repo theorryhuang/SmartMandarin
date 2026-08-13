@@ -97,24 +97,26 @@ function NavHeader({
 }) {
   return (
     <div
-      className="flex items-center justify-between px-5 pb-3 flex-shrink-0"
+      className="px-5 pb-3 flex-shrink-0"
       style={{ paddingTop: "max(20px, env(safe-area-inset-top))" }}
     >
-      <button
-        onClick={onBack}
-        className="flex items-center gap-1 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
-      >
-        <ChevronLeft size={18} />
-        {backLabel}
-      </button>
-      <div className="flex items-center gap-3">
-        {modeToggle}
+      <div className="flex items-center justify-between max-w-sm mx-auto">
         <button
-          onClick={onHome}
-          className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+          onClick={onBack}
+          className="flex items-center gap-1 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
         >
-          <Home size={18} />
+          <ChevronLeft size={18} />
+          {backLabel}
         </button>
+        <div className="flex items-center gap-3">
+          {modeToggle}
+          <button
+            onClick={onHome}
+            className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+          >
+            <Home size={18} />
+          </button>
+        </div>
       </div>
     </div>
   );

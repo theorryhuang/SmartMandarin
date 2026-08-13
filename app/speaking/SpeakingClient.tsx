@@ -9,6 +9,7 @@ import { logMistake, removeFromReviewQueue, getConversationContext } from "@/app
 import { saveSpeakingTurns, loadRecentSpeakingTurns } from "@/app/actions/speaking";
 import type { ConversationTurn, TranscriptToken } from "@/lib/types";
 import { useLanguage } from "@/app/_components/LanguageContext";
+import { HomeButton } from "@/app/_components/HomeButton";
 
 interface WordSense {
   pinyin: string;
@@ -289,6 +290,7 @@ export function SpeakingClient() {
         >
           {slangMode ? t.slangActive : t.slang}
         </button>
+        <HomeButton className="flex-shrink-0" />
       </div>
 
       {/* Transcript */}
