@@ -23,6 +23,8 @@ Evaluate it:
 
 For "corrected", rewrite the student's sentence so it is natural AND still uses "${hanzi}" — keep their original idea/topic, just fix the grammar or word choice around it so "${hanzi}" itself is used correctly. Never substitute "${hanzi}" for a different word, even if that other word would fit better; the corrected sentence's job is to demonstrate "${hanzi}" used correctly, not to produce the most natural sentence possible. Set "corrected" to null only if the student's sentence already does this well.
 
+Critical: "corrected" and "feedback" must agree. If "feedback" names a specific problem (wrong word, awkward phrasing, wrong structure), "corrected" MUST actually fix that exact problem — not just tidy up unrelated punctuation/spacing while leaving the named issue untouched. If natural is false or valid is false, "corrected" must differ from the original in the way "feedback" describes; it cannot be null or a no-op change in that case.
+
 Respond with ONLY valid JSON (no markdown, no extra text):
 {
   "valid": true|false,

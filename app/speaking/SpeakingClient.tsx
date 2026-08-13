@@ -10,6 +10,12 @@ import { saveSpeakingTurns, loadRecentSpeakingTurns } from "@/app/actions/speaki
 import type { ConversationTurn, TranscriptToken } from "@/lib/types";
 import { useLanguage } from "@/app/_components/LanguageContext";
 
+interface WordSense {
+  pinyin: string;
+  meaning: string;
+  hsk_level?: number | null;
+}
+
 interface SheetInfo {
   word: string;
   pinyin?: string;
@@ -17,6 +23,7 @@ interface SheetInfo {
   hsk_level?: number | null;
   saved: boolean;
   source?: string;
+  senses?: WordSense[];
 }
 
 // Keep at most this many turns in localStorage; older ones live in Supabase.
@@ -199,7 +206,7 @@ export function SpeakingClient() {
           if (def.pinyin || def.meaning) {
             setSheet((s) =>
               s?.word === word
-                ? { ...s, pinyin: def.pinyin || s.pinyin, meaning: def.meaning || s.meaning, hsk_level: def.hsk_level ?? null, source: def.source, saved: s.saved || !!def.already_saved }
+                ? { ...s, pinyin: def.pinyin || s.pinyin, meaning: def.meaning || s.meaning, hsk_level: def.hsk_level ?? null, source: def.source, senses: def.senses, saved: s.saved || !!def.already_saved }
                 : s
             );
           }
@@ -208,6 +215,13 @@ export function SpeakingClient() {
     },
     [unknownWords, savedWords, slangMode]
   );
+
+  // User picked a specific sense from the sheet's disambiguation list.
+  const handlePickSense = useCallback((sense: WordSense) => {
+    setSheet((s) =>
+      s ? { ...s, pinyin: sense.pinyin, meaning: sense.meaning, hsk_level: sense.hsk_level ?? s.hsk_level, senses: undefined } : s
+    );
+  }, []);
 
   const handleAddToSaved = useCallback(async () => {
     if (!sheet) return;
@@ -408,41 +422,59 @@ export function SpeakingClient() {
             <span className="text-5xl font-medium tracking-tight text-[var(--color-text-primary)]">
               {sheet.word}
             </span>
-            {sheet.pinyin ? (
-              <span className="text-lg text-[var(--color-text-secondary)]">{sheet.pinyin}</span>
+            {sheet.senses && sheet.senses.length > 1 ? (
+              <div className="w-full max-w-xs flex flex-col gap-2">
+                <span className="text-xs text-[var(--color-text-muted)] text-center">{t.multipleSenses}</span>
+                {sheet.senses.map((sense, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handlePickSense(sense)}
+                    className="w-full text-left px-3 py-2 rounded-xl border border-[var(--color-border)] hover:border-violet-400 hover:bg-violet-50 transition-colors"
+                  >
+                    <div className="text-sm text-[var(--color-text-secondary)]">{sense.pinyin}</div>
+                    <div className="text-sm text-[var(--color-text-primary)]">{sense.meaning}</div>
+                  </button>
+                ))}
+              </div>
             ) : (
-              <span className="text-sm text-[var(--color-text-muted)] italic animate-pulse">
-                {t.lookingUp}
-              </span>
-            )}
-            {sheet.meaning ? (
-              <span className="text-base text-[var(--color-text-primary)] text-center">
-                {sheet.meaning}
-              </span>
-            ) : sheet.pinyin ? (
-              <span className="text-sm text-[var(--color-text-muted)] italic">
-                {t.noDefinition}
-              </span>
-            ) : null}
-            {sheet.source === "ai" && !sheet.saved && (
-              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-center max-w-xs">
-                {t.aiDefinitionWarning}
-              </p>
-            )}
-            {sheet.saved ? (
-              <button
-                onClick={handleRemoveFromSaved}
-                className="w-full max-w-xs py-3 rounded-2xl text-sm font-medium transition-all mt-2 bg-red-50 hover:bg-red-100 text-red-500 border border-red-200 cursor-pointer"
-              >
-                {t.removeFromReview}
-              </button>
-            ) : (
-              <button
-                onClick={handleAddToSaved}
-                className="w-full max-w-xs py-3 rounded-2xl text-sm font-medium transition-all mt-2 bg-violet-50 hover:bg-violet-100 text-violet-600 border border-violet-200 cursor-pointer"
-              >
-                {t.queueForReview}
-              </button>
+              <>
+                {sheet.pinyin ? (
+                  <span className="text-lg text-[var(--color-text-secondary)]">{sheet.pinyin}</span>
+                ) : (
+                  <span className="text-sm text-[var(--color-text-muted)] italic animate-pulse">
+                    {t.lookingUp}
+                  </span>
+                )}
+                {sheet.meaning ? (
+                  <span className="text-base text-[var(--color-text-primary)] text-center">
+                    {sheet.meaning}
+                  </span>
+                ) : sheet.pinyin ? (
+                  <span className="text-sm text-[var(--color-text-muted)] italic">
+                    {t.noDefinition}
+                  </span>
+                ) : null}
+                {sheet.source === "ai" && !sheet.saved && (
+                  <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-center max-w-xs">
+                    {t.aiDefinitionWarning}
+                  </p>
+                )}
+                {sheet.saved ? (
+                  <button
+                    onClick={handleRemoveFromSaved}
+                    className="w-full max-w-xs py-3 rounded-2xl text-sm font-medium transition-all mt-2 bg-red-50 hover:bg-red-100 text-red-500 border border-red-200 cursor-pointer"
+                  >
+                    {t.removeFromReview}
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleAddToSaved}
+                    className="w-full max-w-xs py-3 rounded-2xl text-sm font-medium transition-all mt-2 bg-violet-50 hover:bg-violet-100 text-violet-600 border border-violet-200 cursor-pointer"
+                  >
+                    {t.queueForReview}
+                  </button>
+                )}
+              </>
             )}
             <button
               onClick={() => setSheet(null)}

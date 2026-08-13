@@ -27,8 +27,7 @@ async function geminiJSON(prompt: string, apiKey: string, maxTokens = 64): Promi
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       // thinking_level "low" (not "minimal"): this route fires live mid-conversation
-      // (tap-to-define + context-based sense disambiguation in aiTiebreaker), so a
-      // wrong/rushed pick is more disruptive than an extra ~1s of latency here.
+      // (tap-to-define), so a rushed answer is more disruptive than an extra ~1s here.
       body: JSON.stringify({
         model: MODEL,
         input: prompt,
@@ -45,27 +44,8 @@ async function geminiJSON(prompt: string, apiKey: string, maxTokens = 64): Promi
   }
 }
 
-async function aiTiebreaker(hanzi: string, entries: DictResult[], context: string, apiKey: string): Promise<DictResult> {
-  const choices = entries.map((e, i) => `${i + 1}. ${e.pinyin}: ${e.meaning}`).join("\n");
-  const prompt = `Sentence: "${context}"
-Word in sentence: "${hanzi}"
-
-Pick the correct definition:
-${choices}
-
-Reply with ONLY valid JSON: {"index": <1-based number>}`;
-
-  try {
-    const text = await geminiJSON(prompt, apiKey, 16);
-    const parsed = JSON.parse(text);
-    const idx = (parsed.index ?? 1) - 1;
-    return entries[idx] ?? entries[0];
-  } catch { /* fall through */ }
-  return entries[0];
-}
-
 export async function POST(req: NextRequest) {
-  const { hanzi, slang_mode, context } = await req.json().catch(() => ({}));
+  const { hanzi, slang_mode } = await req.json().catch(() => ({}));
   if (!hanzi) return NextResponse.json({ error: "hanzi required" }, { status: 400 });
 
   const apiKey = process.env.GEMINI_API_KEY;
@@ -90,23 +70,28 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const resolveCedict = async (entries: DictResult[]) => {
+  // No auto-disambiguation: when a word has multiple senses in CEDICT, we
+  // return all of them (as `senses`) and let the caller show a picker rather
+  // than silently guessing one (a prior AI tiebreaker guessed wrong and got
+  // saved into vocabulary_mastery — see 生意 postmortem).
+  const resolveCedict = (entries: DictResult[]) => {
     if (entries.length === 0) return null;
     const substantive = entries.filter(
       (e) => !/^(variant of|old variant of|see |abbr\.? for)/i.test(e.meaning.trim())
     );
     const candidates = substantive.length > 0 ? substantive : entries;
-    if (candidates.length === 1 || !context || !apiKey) return candidates[0];
-    return aiTiebreaker(hanzi, candidates, context, apiKey);
+    return candidates.length > 1
+      ? { ...candidates[0], senses: candidates }
+      : candidates[0];
   };
 
   if (slang_mode) {
     const slangResult = await slangBankLookup(hanzi);
     if (slangResult) return NextResponse.json(slangResult);
-    const cedictResult = await resolveCedict(await cedictLookupAll(hanzi));
+    const cedictResult = resolveCedict(await cedictLookupAll(hanzi));
     if (cedictResult) return NextResponse.json(cedictResult);
   } else {
-    const cedictResult = await resolveCedict(await cedictLookupAll(hanzi));
+    const cedictResult = resolveCedict(await cedictLookupAll(hanzi));
     if (cedictResult) return NextResponse.json(cedictResult);
     const slangResult = await slangBankLookup(hanzi);
     if (slangResult) return NextResponse.json(slangResult);

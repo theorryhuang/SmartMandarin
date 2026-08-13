@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { logMistake, removeFromReviewQueue } from "@/app/actions/vocabulary";
 import type { VocabularyMastery } from "@/lib/types";
 import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
@@ -25,6 +25,12 @@ interface Props {
   slangMode: boolean;
 }
 
+interface WordSense {
+  pinyin: string;
+  meaning: string;
+  hsk_level?: number | null;
+}
+
 interface SheetInfo {
   char: string;
   pinyin?: string;
@@ -32,7 +38,22 @@ interface SheetInfo {
   mastery?: VocabularyMastery;
   queued: boolean;
   source?: string;
+  senses?: WordSense[];
   _fetchedDef?: { pinyin: string; meaning: string; hsk_level?: number | null };
+}
+
+interface HoverDef {
+  pinyin?: string;
+  meaning?: string;
+  hsk_level?: number | null;
+}
+
+interface HoverInfo {
+  char: string;
+  x: number;
+  y: number;
+  loading: boolean;
+  def?: HoverDef;
 }
 
 export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
@@ -43,10 +64,64 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
   const [isGenerating, startGenerate] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [sheet, setSheet] = useState<SheetInfo | null>(null);
+  const [hover, setHover] = useState<HoverInfo | null>(null);
+  const hoverCacheRef = useRef<Map<string, HoverDef>>(new Map());
+  const hoverTimerRef = useRef<number | null>(null);
+
+  function clearHoverTimer() {
+    if (hoverTimerRef.current !== null) {
+      window.clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+  }
+
+  function hideHoverPopup() {
+    clearHoverTimer();
+    setHover(null);
+  }
+
+  async function resolveHoverDef(char: string) {
+    const cached = hoverCacheRef.current.get(char);
+    if (cached) {
+      setHover((h) => (h && h.char === char ? { ...h, loading: false, def: cached } : h));
+      return;
+    }
+    try {
+      const res = await fetch("/api/define-word", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hanzi: char }),
+      });
+      const def = await res.json();
+      if (def.pinyin || def.meaning) {
+        hoverCacheRef.current.set(char, def);
+        setHover((h) => (h && h.char === char ? { ...h, loading: false, def } : h));
+      } else {
+        setHover((h) => (h && h.char === char ? { ...h, loading: false } : h));
+      }
+    } catch {
+      setHover((h) => (h && h.char === char ? { ...h, loading: false } : h));
+    }
+  }
+
+  function handleHoverChar(char: string, rect: DOMRect, mastery: VocabularyMastery | undefined) {
+    clearHoverTimer();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top;
+    hoverTimerRef.current = window.setTimeout(() => {
+      if (mastery?.meaning) {
+        setHover({ char, x, y, loading: false, def: { pinyin: mastery.pinyin, meaning: mastery.meaning, hsk_level: mastery.hsk_level } });
+        return;
+      }
+      setHover({ char, x, y, loading: true });
+      resolveHoverDef(char);
+    }, 120);
+  }
 
   function generate() {
     setError(null);
     setSheet(null);
+    hideHoverPopup();
     startGenerate(async () => {
       const knownWords = Object.values(masteryMap)
         .filter((w) => w.stability >= HIGH_STABILITY_THRESHOLD)
@@ -74,6 +149,7 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
   }
 
   async function handleCharTap(char: string, mastery: VocabularyMastery | undefined) {
+    hideHoverPopup();
     const isQueued = queuedWords.has(char) || !!mastery;
 
     // Show sheet — let user decide to add/remove
@@ -97,7 +173,7 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
         if (def.pinyin || def.meaning) {
           setSheet((s) =>
             s && s.char === char
-              ? { ...s, pinyin: s.pinyin || def.pinyin, meaning: s.meaning || def.meaning, source: def.source, queued: s.queued || !!def.already_saved, _fetchedDef: def }
+              ? { ...s, pinyin: s.pinyin || def.pinyin, meaning: s.meaning || def.meaning, source: def.source, queued: s.queued || !!def.already_saved, senses: def.senses, _fetchedDef: def }
               : s
           );
         }
@@ -105,6 +181,21 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
         // silently ignore
       }
     }
+  }
+
+  // User picked a specific sense from the sheet's disambiguation list.
+  function handlePickSense(sense: WordSense) {
+    setSheet((s) =>
+      s
+        ? {
+            ...s,
+            pinyin: sense.pinyin,
+            meaning: sense.meaning,
+            senses: undefined,
+            _fetchedDef: s._fetchedDef ? { ...s._fetchedDef, pinyin: sense.pinyin, meaning: sense.meaning, hsk_level: sense.hsk_level } : undefined,
+          }
+        : s
+    );
   }
 
   async function handleQueue(char: string, mastery: VocabularyMastery | undefined) {
@@ -173,6 +264,8 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
                 masteryMap={masteryMap}
                 queuedWords={queuedWords}
                 onCharTap={handleCharTap}
+                onHoverChar={handleHoverChar}
+                onHoverLeave={hideHoverPopup}
               />
             ))}
           </div>
@@ -188,6 +281,32 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
       {isGenerating && (
         <div className="flex items-center justify-center h-48 text-sm text-[var(--color-text-muted)]">
           <span className="animate-pulse">{t.generatingStory}</span>
+        </div>
+      )}
+
+      {/* Hover popup — instant definition on desktop hover, no page nav */}
+      {hover && (
+        <div
+          className="fixed z-[60] pointer-events-none px-3 py-2 rounded-xl bg-neutral-900 text-white shadow-xl border border-white/10 max-w-[220px]"
+          style={{
+            left: hover.x,
+            top: hover.y < 90 ? hover.y + 26 : hover.y - 10,
+            transform: hover.y < 90 ? "translate(-50%, 0)" : "translate(-50%, -100%)",
+          }}
+        >
+          <div className="text-sm font-medium leading-tight">{hover.char}</div>
+          {hover.loading ? (
+            <div className="text-xs text-white/50 mt-0.5">…</div>
+          ) : hover.def?.meaning ? (
+            <>
+              {hover.def.pinyin && (
+                <div className="text-xs text-violet-300 mt-0.5">{hover.def.pinyin}</div>
+              )}
+              <div className="text-xs text-white/90 mt-0.5">{hover.def.meaning}</div>
+            </>
+          ) : (
+            <div className="text-xs text-white/50 italic mt-0.5">{t.notInVocab}</div>
+          )}
         </div>
       )}
 
@@ -207,18 +326,37 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
             {/* Character */}
             <span className="text-6xl font-medium tracking-tight text-[var(--color-text-primary)]">{sheet.char}</span>
 
-            {/* Pinyin */}
-            {sheet.pinyin ? (
-              <span className="text-lg text-[var(--color-text-secondary)]">{sheet.pinyin}</span>
+            {/* Multiple senses — no auto-pick, user chooses */}
+            {sheet.senses && sheet.senses.length > 1 ? (
+              <div className="w-full max-w-xs flex flex-col gap-2">
+                <span className="text-xs text-[var(--color-text-muted)] text-center">{t.multipleSenses}</span>
+                {sheet.senses.map((sense, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handlePickSense(sense)}
+                    className="w-full text-left px-3 py-2 rounded-xl border border-[var(--color-border)] hover:border-violet-400 hover:bg-violet-50 transition-colors"
+                  >
+                    <div className="text-sm text-[var(--color-text-secondary)]">{sense.pinyin}</div>
+                    <div className="text-sm text-[var(--color-text-primary)]">{sense.meaning}</div>
+                  </button>
+                ))}
+              </div>
             ) : (
-              <span className="text-sm text-[var(--color-text-muted)] italic">{t.noPinyin}</span>
-            )}
+              <>
+                {/* Pinyin */}
+                {sheet.pinyin ? (
+                  <span className="text-lg text-[var(--color-text-secondary)]">{sheet.pinyin}</span>
+                ) : (
+                  <span className="text-sm text-[var(--color-text-muted)] italic">{t.noPinyin}</span>
+                )}
 
-            {/* Meaning */}
-            {sheet.meaning ? (
-              <span className="text-base text-[var(--color-text-primary)] text-center">{sheet.meaning}</span>
-            ) : (
-              <span className="text-sm text-[var(--color-text-muted)] italic">{t.notInVocab}</span>
+                {/* Meaning */}
+                {sheet.meaning ? (
+                  <span className="text-base text-[var(--color-text-primary)] text-center">{sheet.meaning}</span>
+                ) : (
+                  <span className="text-sm text-[var(--color-text-muted)] italic">{t.notInVocab}</span>
+                )}
+              </>
             )}
 
             {sheet.source === "ai" && !sheet.queued && (
@@ -226,7 +364,7 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
                 {t.aiDefinitionWarning}
               </p>
             )}
-            {sheet.queued ? (
+            {sheet.senses && sheet.senses.length > 1 ? null : sheet.queued ? (
               <button
                 onClick={() => handleUnqueue(sheet.char, sheet.mastery)}
                 className="w-full max-w-xs py-3 rounded-2xl text-sm font-medium transition-all mt-2 bg-red-50 hover:bg-red-100 text-red-500 border border-red-200 cursor-pointer"
@@ -260,11 +398,15 @@ function StoryLine({
   masteryMap,
   queuedWords,
   onCharTap,
+  onHoverChar,
+  onHoverLeave,
 }: {
   sentence: StorySentence;
   masteryMap: Record<string, VocabularyMastery>;
   queuedWords: Set<string>;
   onCharTap: (char: string, mastery: VocabularyMastery | undefined) => void;
+  onHoverChar: (char: string, rect: DOMRect, mastery: VocabularyMastery | undefined) => void;
+  onHoverLeave: () => void;
 }) {
   const chars = Array.from(sentence.hanzi);
   const [selStart, setSelStart] = useState<number | null>(null);
@@ -337,7 +479,15 @@ function StoryLine({
           <span
             key={i}
             onPointerDown={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); handlePointerDown(i); }}
-            onPointerEnter={() => handlePointerEnter(i)}
+            onPointerEnter={(e) => {
+              handlePointerEnter(i);
+              if (e.pointerType === "mouse" && !isSelecting) {
+                onHoverChar(char, e.currentTarget.getBoundingClientRect(), mastery);
+              }
+            }}
+            onPointerLeave={(e) => {
+              if (e.pointerType === "mouse") onHoverLeave();
+            }}
             className={`word-token px-0.5 transition-all cursor-pointer touch-none ${
               isInSelection
                 ? "bg-violet-600/40 rounded"
