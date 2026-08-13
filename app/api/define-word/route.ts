@@ -74,24 +74,74 @@ export async function POST(req: NextRequest) {
   // return all of them (as `senses`) and let the caller show a picker rather
   // than silently guessing one (a prior AI tiebreaker guessed wrong and got
   // saved into vocabulary_mastery — see 生意 postmortem).
-  const resolveCedict = (entries: DictResult[]) => {
+  function primaryEntry(entries: DictResult[]) {
     if (entries.length === 0) return null;
     const substantive = entries.filter(
       (e) => !/^(variant of|old variant of|see |abbr\.? for)/i.test(e.meaning.trim())
     );
     const candidates = substantive.length > 0 ? substantive : entries;
-    return candidates.length > 1
-      ? { ...candidates[0], senses: candidates }
-      : candidates[0];
-  };
+    return candidates.length > 1 ? { ...candidates[0], senses: candidates } : candidates[0];
+  }
+
+  // Forward maximum matching against CEDICT itself: at each position, try
+  // the longest remaining substring first and shrink until something hits,
+  // then continue from where that match ended. Segmentation (Intl.Segmenter)
+  // and CEDICT are separate word lists, so a segmented span like "一步步"
+  // may not be a CEDICT headword even though its pieces are — this walks
+  // the whole span into real headwords ("一" + "步步") instead of guessing
+  // one substring and dropping the rest.
+  async function cedictDecompose(word: string): Promise<{ word: string; entries: DictResult[] }[]> {
+    const chars = Array.from(word);
+    const parts: { word: string; entries: DictResult[] }[] = [];
+    let i = 0;
+    while (i < chars.length) {
+      let hit: { sub: string; entries: DictResult[] } | null = null;
+      for (let len = chars.length - i; len >= 1; len--) {
+        const sub = chars.slice(i, i + len).join("");
+        const entries = await cedictLookupAll(sub);
+        if (entries.length > 0) {
+          hit = { sub, entries };
+          break;
+        }
+      }
+      if (hit) {
+        parts.push({ word: hit.sub, entries: hit.entries });
+        i += Array.from(hit.sub).length;
+      } else {
+        parts.push({ word: chars[i], entries: [] }); // no CEDICT entry at all for this char
+        i += 1;
+      }
+    }
+    return parts;
+  }
+
+  async function resolveCedict(word: string) {
+    const direct = primaryEntry(await cedictLookupAll(word));
+    if (direct) return direct; // whole span is a real headword — done
+
+    const decomposed = await cedictDecompose(word);
+    if (decomposed.every((p) => p.entries.length === 0)) return null; // nothing found anywhere
+
+    const parts = decomposed.map((p) => {
+      const entry = primaryEntry(p.entries);
+      return { word: p.word, pinyin: entry?.pinyin, meaning: entry?.meaning, hsk_level: entry?.hsk_level };
+    });
+    return {
+      pinyin: parts.map((p) => p.pinyin).filter(Boolean).join(" "),
+      meaning: parts.map((p) => p.meaning).filter(Boolean).join(" + "),
+      hsk_level: parts.find((p) => p.hsk_level != null)?.hsk_level ?? null,
+      source: "cedict" as const,
+      parts,
+    };
+  }
 
   if (slang_mode) {
     const slangResult = await slangBankLookup(hanzi);
     if (slangResult) return NextResponse.json(slangResult);
-    const cedictResult = resolveCedict(await cedictLookupAll(hanzi));
+    const cedictResult = await resolveCedict(hanzi);
     if (cedictResult) return NextResponse.json(cedictResult);
   } else {
-    const cedictResult = resolveCedict(await cedictLookupAll(hanzi));
+    const cedictResult = await resolveCedict(hanzi);
     if (cedictResult) return NextResponse.json(cedictResult);
     const slangResult = await slangBankLookup(hanzi);
     if (slangResult) return NextResponse.json(slangResult);

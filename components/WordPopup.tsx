@@ -24,6 +24,13 @@ export interface WordSense {
   hsk_level?: number | null;
 }
 
+export interface WordPart {
+  word: string;
+  pinyin?: string;
+  meaning?: string;
+  hsk_level?: number | null;
+}
+
 export interface WordDef {
   pinyin?: string;
   meaning?: string;
@@ -31,6 +38,9 @@ export interface WordDef {
   source?: string;
   senses?: WordSense[];
   already_saved?: boolean;
+  /** Set when the segmented span itself wasn't a CEDICT headword — the span
+   *  broken into real CEDICT headwords instead (e.g. "一" + "步步" for "一步步"). */
+  parts?: WordPart[];
 }
 
 export interface WordPopupState {
@@ -207,7 +217,8 @@ export function WordPopupCard({
 }) {
   const { t } = useLanguage();
   const ambiguous = (popup.def?.senses?.length ?? 0) > 1;
-  const canQueue = !popup.loading && !ambiguous && !!popup.def?.meaning;
+  const decomposed = (popup.def?.parts?.length ?? 0) > 0;
+  const canQueue = !popup.loading && !ambiguous && !decomposed && !!popup.def?.meaning;
 
   return (
     <div
@@ -242,6 +253,19 @@ export function WordPopupCard({
         <div className="text-xs text-white/50 mt-0.5">…</div>
       ) : ambiguous ? (
         <div className="text-xs text-amber-300 mt-0.5">{t.multipleSenses}</div>
+      ) : decomposed ? (
+        <div className="flex flex-col gap-1.5 mt-0.5">
+          {popup.def!.parts!.map((p, i) => (
+            <div key={i}>
+              <div className="text-xs">
+                <span className="text-white/95 font-medium">{p.word}</span>
+                {p.pinyin && <span className="text-violet-300"> · {p.pinyin}</span>}
+              </div>
+              <div className="text-xs text-white/70">{p.meaning || t.notInVocab}</div>
+            </div>
+          ))}
+          <div className="text-[10px] text-white/40">{t.notASingleWord}</div>
+        </div>
       ) : popup.def?.meaning ? (
         <>
           {popup.def.pinyin && <div className="text-xs text-violet-300 mt-0.5">{popup.def.pinyin}</div>}
