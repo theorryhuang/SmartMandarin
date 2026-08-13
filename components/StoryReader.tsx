@@ -170,8 +170,11 @@ function StoryLine({
   sentence: StorySentence;
   masteryMap: Record<string, VocabularyMastery>;
   queuedWords: Set<string>;
-  onWordClick: (word: string, x: number, y: number, mastery: VocabularyMastery | undefined) => void;
-  onWordHover: (word: string, rect: DOMRect, mastery: VocabularyMastery | undefined) => void;
+  // `word` here is the raw Intl.Segmenter span, not necessarily a real
+  // dictionary word — the popup hook resolves `offset` against CEDICT
+  // itself. `exact: true` bypasses that (an explicit drag-selection).
+  onWordClick: (word: string, offset: number, x: number, y: number, exact?: boolean) => void;
+  onWordHover: (word: string, offset: number, rect: DOMRect) => void;
   onHoverLeave: () => void;
 }) {
   const chars = Array.from(sentence.hanzi);
@@ -219,23 +222,20 @@ function StoryLine({
     const lo = Math.min(selStart, selEnd);
     const hi = Math.max(selStart, selEnd);
 
-    let word: string;
     if (lo === hi) {
-      // Plain tap, no drag — default to the dictionary word under the tap
-      // rather than the single character, unless it's punctuation.
-      if (/[，。！？、…\s]/.test(chars[lo])) {
-        word = "";
-      } else {
+      // Plain tap, no drag — hand off the Intl.Segmenter span + offset;
+      // the popup hook resolves it against CEDICT itself.
+      if (!/[，。！？、…\s]/.test(chars[lo])) {
         const seg = wordSegments[segIndexAt[lo]];
-        word = seg && seg.isWordLike ? seg.word : chars[lo];
+        const segWord = seg && seg.isWordLike ? seg.word : chars[lo];
+        const offset = seg && seg.isWordLike ? lo - seg.start : 0;
+        onWordClick(segWord, offset, e.clientX, e.clientY);
       }
     } else {
-      // User dragged across a range — that's an explicit override, honor it.
+      // User dragged across a range — that's an explicit override, honor it exactly.
       const selected = chars.slice(lo, hi + 1);
-      word = selected.filter((c) => !/[，。！？、…\s]/.test(c)).join("");
-    }
-    if (word) {
-      onWordClick(word, e.clientX, e.clientY, masteryMap[word]);
+      const word = selected.filter((c) => !/[，。！？、…\s]/.test(c)).join("");
+      if (word) onWordClick(word, 0, e.clientX, e.clientY, true);
     }
     setSelStart(null);
     setSelEnd(null);
@@ -270,9 +270,10 @@ function StoryLine({
               handlePointerEnter(i);
               if (e.pointerType === "mouse" && !isSelecting) {
                 const seg = wordSegments[segIndexAt[i]];
-                const word = seg && seg.isWordLike ? seg.word : char;
+                const segWord = seg && seg.isWordLike ? seg.word : char;
+                const offset = seg && seg.isWordLike ? i - seg.start : 0;
                 setHoverSegIdx(seg ? segIndexAt[i] : null);
-                onWordHover(word, e.currentTarget.getBoundingClientRect(), masteryMap[word] ?? mastery);
+                onWordHover(segWord, offset, e.currentTarget.getBoundingClientRect());
               }
             }}
             onPointerLeave={(e) => {

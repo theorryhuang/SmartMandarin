@@ -629,8 +629,11 @@ function TappableMessage({
   text: string;
   masteryMap: Record<string, VocabularyMastery>;
   savedWords: Set<string>;
-  onWordClick: (word: string, x: number, y: number, mastery: VocabularyMastery | undefined) => void;
-  onWordHover: (word: string, rect: DOMRect, mastery: VocabularyMastery | undefined) => void;
+  // `word` here is the raw Intl.Segmenter span, not necessarily a real
+  // dictionary word — the popup hook resolves `offset` against CEDICT
+  // itself. `exact: true` bypasses that (an explicit text selection).
+  onWordClick: (word: string, offset: number, x: number, y: number, exact?: boolean) => void;
+  onWordHover: (word: string, offset: number, rect: DOMRect) => void;
   onHoverLeave: () => void;
 }) {
   type Seg = { type: "hanzi" | "punct" | "other"; content: string; idx: number };
@@ -658,9 +661,6 @@ function TappableMessage({
   const containerRef = useRef<HTMLDivElement>(null);
   const onWordClickRef = useRef(onWordClick);
   useEffect(() => { onWordClickRef.current = onWordClick; }, [onWordClick]);
-  const masteryMapRef = useRef(masteryMap);
-  useEffect(() => { masteryMapRef.current = masteryMap; }, [masteryMap]);
-
   const hanziSegs = segments.filter((s) => s.type === "hanzi");
   const hanziStr = hanziSegs.map((s) => s.content).join("");
   const savedCoveredIndices = new Set<number>();
@@ -685,7 +685,8 @@ function TappableMessage({
         const selected = sel.toString().replace(/[^一-鿿㐀-䶿]/g, "");
         if (selected.length >= 1) {
           const rect = sel.getRangeAt(0).getBoundingClientRect();
-          onWordClickRef.current(selected, rect.left + rect.width / 2, rect.top, masteryMapRef.current[selected]);
+          // Explicit text selection — a literal override, skip CEDICT resolution.
+          onWordClickRef.current(selected, 0, rect.left + rect.width / 2, rect.top, true);
           setTimeout(() => sel.removeAllRanges(), 150);
         }
       }, 50);
@@ -720,6 +721,7 @@ function TappableMessage({
         const isLearning = mastery && mastery.stability < HIGH_STABILITY_THRESHOLD;
         const wordSeg = wordSegments[segIndexAt[i]];
         const dictWord = wordSeg && wordSeg.isWordLike ? wordSeg.word : seg.content;
+        const offset = wordSeg && wordSeg.isWordLike ? i - wordSeg.start : 0;
         const isInHoverWord = hoverSegIdx !== null && segIndexAt[i] === hoverSegIdx;
 
         return (
@@ -730,12 +732,12 @@ function TappableMessage({
               const sel = window.getSelection();
               if (sel && !sel.isCollapsed) return;
               const rect = e.currentTarget.getBoundingClientRect();
-              onWordClick(dictWord, rect.left + rect.width / 2, rect.top, masteryMap[dictWord] ?? mastery);
+              onWordClick(dictWord, offset, rect.left + rect.width / 2, rect.top);
             }}
             onPointerEnter={(e) => {
               if (e.pointerType === "mouse") {
                 setHoverSegIdx(segIndexAt[i]);
-                onWordHover(dictWord, e.currentTarget.getBoundingClientRect(), masteryMap[dictWord] ?? mastery);
+                onWordHover(dictWord, offset, e.currentTarget.getBoundingClientRect());
               }
             }}
             onPointerLeave={(e) => {

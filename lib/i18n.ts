@@ -164,7 +164,6 @@ const en = {
   wordsQueued: (n: number) => `${n} word${n !== 1 ? "s" : ""} queued for review`,
   removeFromReview: "Remove from review",
   viewFullDetails: "View full details →",
-  notASingleWord: "not a single dictionary word — broken down above",
 
   // ── Review navigation ────────────────────────────────────────────────────────
   prevCard: "Previous",
@@ -377,7 +376,6 @@ const zh: typeof en = {
   wordsQueued: (n: number) => `${n} 个单词待复习`,
   removeFromReview: "移出复习",
   viewFullDetails: "查看完整详情 →",
-  notASingleWord: "并非词典中的单一词条 — 已拆分如上",
 
   // ── Review navigation ────────────────────────────────────────────────────────
   prevCard: "上一张",
