@@ -54,7 +54,7 @@ export function ConversationClient({ masteryMap }: Props) {
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
 
-  const { popup, popupRef, showHover, hideHover, toggleClick, toggleQueue, navigateToWord } = useWordPopup({
+  const { popup, popupRef, showHover, hideHover, toggleClick, toggleQueue, navigateToWord, resolveRange } = useWordPopup({
     masteryMap,
     slangMode,
     isQueued: (word) => savedWords.has(word),
@@ -467,6 +467,8 @@ export function ConversationClient({ masteryMap }: Props) {
                   onWordClick={toggleClick}
                   onWordHover={showHover}
                   onHoverLeave={hideHover}
+                  resolveRange={resolveRange}
+                  activeWord={popup?.word ?? null}
                 />
               ) : (
                 <span className="leading-relaxed">{msg.content}</span>
@@ -625,6 +627,8 @@ function TappableMessage({
   onWordClick,
   onWordHover,
   onHoverLeave,
+  resolveRange,
+  activeWord,
 }: {
   text: string;
   masteryMap: Record<string, VocabularyMastery>;
@@ -635,6 +639,13 @@ function TappableMessage({
   onWordClick: (word: string, offset: number, x: number, y: number, exact?: boolean) => void;
   onWordHover: (word: string, offset: number, rect: DOMRect) => void;
   onHoverLeave: () => void;
+  // Sync lookup of which char range (within a segment) is the actual
+  // resolved CEDICT headword — so the highlight can track e.g. just "步步"
+  // inside "一步步" instead of lighting up the whole segmenter span.
+  resolveRange: (segWord: string, offset: number) => { start: number; end: number };
+  // Only used to force a recompute of the highlight once async resolution
+  // lands (resolveRange itself reads a ref, so it won't trigger renders).
+  activeWord: string | null;
 }) {
   type Seg = { type: "hanzi" | "punct" | "other"; content: string; idx: number };
   const segments: Seg[] = [];
@@ -656,7 +667,19 @@ function TappableMessage({
   // and click both target the whole word ("北京", not "北" + "京").
   const wordSegments = useMemo(() => segmentIntoWords(cleaned), [cleaned]);
   const segIndexAt = useMemo(() => charSegmentIndex(wordSegments), [wordSegments]);
-  const [hoverSegIdx, setHoverSegIdx] = useState<number | null>(null);
+  const [hoverCharIdx, setHoverCharIdx] = useState<number | null>(null);
+
+  // The actual highlighted range — the resolved CEDICT headword's char span
+  // within its segment, not the whole (possibly wider) segmenter span.
+  const hoverRange = useMemo(() => {
+    if (hoverCharIdx === null) return null;
+    const seg = wordSegments[segIndexAt[hoverCharIdx]];
+    if (!seg || !seg.isWordLike) return { start: hoverCharIdx, end: hoverCharIdx + 1 };
+    const offset = hoverCharIdx - seg.start;
+    const range = resolveRange(seg.word, offset);
+    return { start: seg.start + range.start, end: seg.start + range.end };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hoverCharIdx, wordSegments, segIndexAt, resolveRange, activeWord]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const onWordClickRef = useRef(onWordClick);
@@ -722,7 +745,7 @@ function TappableMessage({
         const wordSeg = wordSegments[segIndexAt[i]];
         const dictWord = wordSeg && wordSeg.isWordLike ? wordSeg.word : seg.content;
         const offset = wordSeg && wordSeg.isWordLike ? i - wordSeg.start : 0;
-        const isInHoverWord = hoverSegIdx !== null && segIndexAt[i] === hoverSegIdx;
+        const isInHoverWord = hoverRange !== null && i >= hoverRange.start && i < hoverRange.end;
 
         return (
           <span
@@ -736,13 +759,13 @@ function TappableMessage({
             }}
             onPointerEnter={(e) => {
               if (e.pointerType === "mouse") {
-                setHoverSegIdx(segIndexAt[i]);
+                setHoverCharIdx(i);
                 onWordHover(dictWord, offset, e.currentTarget.getBoundingClientRect());
               }
             }}
             onPointerLeave={(e) => {
               if (e.pointerType === "mouse") {
-                setHoverSegIdx(null);
+                setHoverCharIdx(null);
                 onHoverLeave();
               }
             }}

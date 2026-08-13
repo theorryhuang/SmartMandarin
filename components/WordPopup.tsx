@@ -80,15 +80,16 @@ interface UseWordPopupOptions {
   onQueueChange?: (word: string, queued: boolean, def: WordDef | undefined) => void;
 }
 
-/** Which part of a decomposed segment covers `offset` (char index within the segment)? */
-function subWordAt(parts: WordPart[], offset: number): string | null {
+/** Which part of a decomposed segment covers `offset` (char index within the segment), and its char range? */
+function partRangeAt(parts: WordPart[], offset: number): { word: string; start: number; end: number } | null {
   let acc = 0;
   for (const p of parts) {
     const len = Array.from(p.word).length;
-    if (offset < acc + len) return p.word;
+    if (offset < acc + len) return { word: p.word, start: acc, end: acc + len };
     acc += len;
   }
-  return parts[parts.length - 1]?.word ?? null;
+  const last = parts[parts.length - 1];
+  return last ? { word: last.word, start: acc - Array.from(last.word).length, end: acc } : null;
 }
 
 export function useWordPopup({ masteryMap, slangMode, isQueued: externalIsQueued, onQueueChange }: UseWordPopupOptions) {
@@ -190,7 +191,7 @@ export function useWordPopup({ masteryMap, slangMode, isQueued: externalIsQueued
       if (!pending || pending.segWord !== segWord) return; // user moved on to something else entirely
 
       const parts = decompRef.current.get(segWord);
-      const target = parts ? subWordAt(parts, pending.offset) ?? segWord : segWord;
+      const target = parts ? partRangeAt(parts, pending.offset)?.word ?? segWord : segWord;
       if (pending.pinned) pinnedWordRef.current = target;
       openResolved(target, pending.x, pending.y, pending.pinned);
     },
@@ -204,7 +205,7 @@ export function useWordPopup({ masteryMap, slangMode, isQueued: externalIsQueued
 
       if (decompRef.current.has(segWord)) {
         const parts = decompRef.current.get(segWord);
-        const target = parts ? subWordAt(parts, offset) ?? segWord : segWord;
+        const target = parts ? partRangeAt(parts, offset)?.word ?? segWord : segWord;
         if (pinned) pinnedWordRef.current = target;
         openResolved(target, x, y, pinned);
         return;
@@ -254,7 +255,7 @@ export function useWordPopup({ masteryMap, slangMode, isQueued: externalIsQueued
 
       if (decompRef.current.has(segWord)) {
         const parts = decompRef.current.get(segWord);
-        const target = parts ? subWordAt(parts, offset) ?? segWord : segWord;
+        const target = parts ? partRangeAt(parts, offset)?.word ?? segWord : segWord;
         if (pinnedWordRef.current === target) { hide(); return; }
         pinnedWordRef.current = target;
         openResolved(target, x, y, true);
@@ -287,6 +288,20 @@ export function useWordPopup({ masteryMap, slangMode, isQueued: externalIsQueued
     [onQueueChange]
   );
 
+  /**
+   * Sync, read-only lookup for renderers: given a segmenter span + offset,
+   * what's the char range (local to the span) of the CEDICT headword that
+   * actually covers it? Returns the whole span as one range until its
+   * decomposition has been fetched at least once (matches pre-resolution
+   * display) — so highlight-under-cursor tracks the real resolved word,
+   * e.g. only "步步" lights up, not the full "一步步" segment.
+   */
+  const resolveRange = useCallback((segWord: string, offset: number): { start: number; end: number } => {
+    const parts = decompRef.current.get(segWord);
+    if (!parts) return { start: 0, end: Array.from(segWord).length };
+    return partRangeAt(parts, offset) ?? { start: 0, end: Array.from(segWord).length };
+  }, []);
+
   const navigateToWord = useCallback(
     (p: WordPopupState) => {
       hide();
@@ -310,7 +325,7 @@ export function useWordPopup({ masteryMap, slangMode, isQueued: externalIsQueued
     return () => document.removeEventListener("pointerdown", onDocPointerDown);
   }, [hide]);
 
-  return { popup, popupRef, showHover, hideHover, toggleClick, toggleQueue, navigateToWord, hide };
+  return { popup, popupRef, showHover, hideHover, toggleClick, toggleQueue, navigateToWord, hide, resolveRange };
 }
 
 export function WordPopupCard({

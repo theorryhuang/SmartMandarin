@@ -34,7 +34,7 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
   const [isGenerating, startGenerate] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const { popup, popupRef, showHover, hideHover, toggleClick, toggleQueue, navigateToWord, hide } = useWordPopup({
+  const { popup, popupRef, showHover, hideHover, toggleClick, toggleQueue, navigateToWord, hide, resolveRange } = useWordPopup({
     masteryMap,
     slangMode,
     isQueued: (word) => queuedWords.has(word),
@@ -127,6 +127,8 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
                 onWordClick={toggleClick}
                 onWordHover={showHover}
                 onHoverLeave={hideHover}
+                resolveRange={resolveRange}
+                activeWord={popup?.word ?? null}
               />
             ))}
           </div>
@@ -166,6 +168,8 @@ function StoryLine({
   onWordClick,
   onWordHover,
   onHoverLeave,
+  resolveRange,
+  activeWord,
 }: {
   sentence: StorySentence;
   masteryMap: Record<string, VocabularyMastery>;
@@ -176,17 +180,36 @@ function StoryLine({
   onWordClick: (word: string, offset: number, x: number, y: number, exact?: boolean) => void;
   onWordHover: (word: string, offset: number, rect: DOMRect) => void;
   onHoverLeave: () => void;
+  // Sync lookup of which char range (within a segment) is the actual
+  // resolved CEDICT headword — so the highlight can track e.g. just "步步"
+  // inside "一步步" instead of lighting up the whole segmenter span.
+  resolveRange: (segWord: string, offset: number) => { start: number; end: number };
+  // Only used to force a recompute of the highlight once async resolution
+  // lands (resolveRange itself reads a ref, so it won't trigger renders).
+  activeWord: string | null;
 }) {
   const chars = Array.from(sentence.hanzi);
   const [selStart, setSelStart] = useState<number | null>(null);
   const [selEnd, setSelEnd] = useState<number | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
-  const [hoverSegIdx, setHoverSegIdx] = useState<number | null>(null);
+  const [hoverCharIdx, setHoverCharIdx] = useState<number | null>(null);
 
   // Dictionary-based word segmentation — hover/tap targets whole words
   // ("北京" not "北" + "京"), not single characters.
   const wordSegments = useMemo(() => segmentIntoWords(sentence.hanzi), [sentence.hanzi]);
   const segIndexAt = useMemo(() => charSegmentIndex(wordSegments), [wordSegments]);
+
+  // The actual highlighted range — the resolved CEDICT headword's char span
+  // within its segment, not the whole (possibly wider) segmenter span.
+  const hoverRange = useMemo(() => {
+    if (hoverCharIdx === null) return null;
+    const seg = wordSegments[segIndexAt[hoverCharIdx]];
+    if (!seg || !seg.isWordLike) return { start: hoverCharIdx, end: hoverCharIdx + 1 };
+    const offset = hoverCharIdx - seg.start;
+    const range = resolveRange(seg.word, offset);
+    return { start: seg.start + range.start, end: seg.start + range.end };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hoverCharIdx, wordSegments, segIndexAt, resolveRange, activeWord]);
 
   const selLo = selStart !== null && selEnd !== null ? Math.min(selStart, selEnd) : null;
   const selHi = selStart !== null && selEnd !== null ? Math.max(selStart, selEnd) : null;
@@ -255,7 +278,7 @@ function StoryLine({
         const isQueued = queuedWords.has(char) || queuedCoveredIndices.has(i);
         const isPunctuation = /[，。！？、…\s]/.test(char);
         const isInSelection = selLo !== null && selHi !== null && i >= selLo && i <= selHi && !isPunctuation;
-        const isInHoverWord = !isPunctuation && hoverSegIdx !== null && segIndexAt[i] === hoverSegIdx;
+        const isInHoverWord = !isPunctuation && hoverRange !== null && i >= hoverRange.start && i < hoverRange.end;
 
         if (isPunctuation) {
           return <span key={i} className="text-[var(--color-text-muted)]">{char}</span>;
@@ -272,13 +295,13 @@ function StoryLine({
                 const seg = wordSegments[segIndexAt[i]];
                 const segWord = seg && seg.isWordLike ? seg.word : char;
                 const offset = seg && seg.isWordLike ? i - seg.start : 0;
-                setHoverSegIdx(seg ? segIndexAt[i] : null);
+                setHoverCharIdx(i);
                 onWordHover(segWord, offset, e.currentTarget.getBoundingClientRect());
               }
             }}
             onPointerLeave={(e) => {
               if (e.pointerType === "mouse") {
-                setHoverSegIdx(null);
+                setHoverCharIdx(null);
                 onHoverLeave();
               }
             }}
