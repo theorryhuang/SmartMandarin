@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { ArrowUp, ChevronLeft, LayoutList, Mic, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { getConversationContext, logMistake, deleteWord } from "@/app/actions/vocabulary";
+import { getConversationContext } from "@/app/actions/vocabulary";
 import { saveMessages } from "@/app/actions/chat";
 import type { VocabularyMastery } from "@/lib/types";
 import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
 import { useLanguage } from "@/app/_components/LanguageContext";
+import { segmentIntoWords, charSegmentIndex } from "@/lib/segment";
+import { useWordPopup, WordPopupCard } from "@/components/WordPopup";
 
 interface Message {
   role: "user" | "assistant";
@@ -20,15 +22,6 @@ interface ConversationMeta {
   title: string;
   createdAt: number;
   updatedAt: number;
-}
-
-interface SheetInfo {
-  word: string;
-  pinyin?: string;
-  meaning?: string;
-  hsk_level?: number | null;
-  saved: boolean;
-  source?: string;
 }
 
 interface Props {
@@ -47,12 +40,12 @@ export function ConversationClient({ masteryMap }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [sheet, setSheet] = useState<SheetInfo | null>(null);
   const [savedWords, setSavedWords] = useState<Set<string>>(new Set());
   const [slangMode, setSlangMode] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("sm_slang_mode") === "1";
   });
+
   const [hskLevel, setHskLevel] = useState<number | null>(null);
   const [unknownWords, setUnknownWords] = useState<
     { hanzi: string; pinyin: string; meaning: string }[]
@@ -60,6 +53,20 @@ export function ConversationClient({ masteryMap }: Props) {
   const [forcedWords, setForcedWords] = useState<string[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+
+  const { popup, popupRef, showHover, hideHover, toggleClick, toggleQueue, navigateToWord } = useWordPopup({
+    masteryMap,
+    slangMode,
+    isQueued: (word) => savedWords.has(word),
+    onQueueChange: (word, queued) => {
+      setSavedWords((prev) => {
+        const next = new Set(prev);
+        queued ? next.add(word) : next.delete(word);
+        return next;
+      });
+      setForcedWords((prev) => (queued ? (prev.includes(word) ? prev : [...prev, word]) : prev.filter((w) => w !== word)));
+    },
+  });
 
   const [conversations, setConversations] = useState<ConversationMeta[]>([]);
   const [activeConvId, setActiveConvId] = useState<string>("");
@@ -368,38 +375,6 @@ export function ConversationClient({ masteryMap }: Props) {
     setIsRecording(false);
   }, []);
 
-  const handleWordSelect = useCallback(
-    (word: string) => {
-      if (!word) return;
-      router.push("/vocab?q=" + encodeURIComponent(word) + "&tab=search");
-    },
-    [router]
-  );
-
-  const handleAddToSaved = useCallback(async () => {
-    if (!sheet) return;
-    const { word } = sheet;
-    const mastery = masteryMap[word];
-    setSavedWords((prev) => new Set([...prev, word]));
-    setForcedWords((prev) => (prev.includes(word) ? prev : [...prev, word]));
-    setSheet((s) => s ? { ...s, saved: true } : s);
-    await logMistake(mastery?.id ?? word, {
-      pinyin: mastery?.pinyin ?? sheet.pinyin,
-      meaning: mastery?.meaning ?? sheet.meaning,
-      hsk_level: mastery?.hsk_level ?? sheet.hsk_level ?? undefined,
-    }).catch(() => {});
-  }, [sheet, masteryMap]);
-
-  const handleRemoveFromSaved = useCallback(async () => {
-    if (!sheet) return;
-    const { word } = sheet;
-    setSavedWords((prev) => { const next = new Set(prev); next.delete(word); return next; });
-    setForcedWords((prev) => prev.filter((w) => w !== word));
-    setSheet((s) => s ? { ...s, saved: false } : s);
-    const mastery = masteryMap[word];
-    await deleteWord(mastery?.id ?? word).catch(() => {});
-  }, [sheet, masteryMap]);
-
   const activeConvTitle = conversations.find((c) => c.id === activeConvId)?.title || t.newChat;
 
   return (
@@ -489,7 +464,9 @@ export function ConversationClient({ masteryMap }: Props) {
                   text={msg.content}
                   masteryMap={masteryMap}
                   savedWords={savedWords}
-                  onWordSelect={handleWordSelect}
+                  onWordClick={toggleClick}
+                  onWordHover={showHover}
+                  onHoverLeave={hideHover}
                 />
               ) : (
                 <span className="leading-relaxed">{msg.content}</span>
@@ -611,59 +588,15 @@ export function ConversationClient({ masteryMap }: Props) {
         </>
       )}
 
-      {/* ── Bottom sheet ── */}
-      {sheet && (
-        <>
-          <div className="fixed inset-0 z-40 bg-black/30" onClick={() => setSheet(null)} />
-          <div className="fixed bottom-0 left-0 right-0 z-50 bg-[var(--color-surface)] border-t border-[var(--color-border)] rounded-t-3xl px-6 py-6 flex flex-col items-center gap-4 shadow-2xl max-h-[85vh] overflow-y-auto">
-            <div className="w-10 h-1 rounded-full bg-[var(--color-border)]" />
-            <span className="text-5xl font-medium tracking-tight text-[var(--color-text-primary)]">
-              {sheet.word}
-            </span>
-            {sheet.pinyin ? (
-              <span className="text-lg text-[var(--color-text-secondary)]">{sheet.pinyin}</span>
-            ) : (
-              <span className="text-sm text-[var(--color-text-muted)] italic animate-pulse">
-                {t.lookingUp}
-              </span>
-            )}
-            {sheet.meaning ? (
-              <span className="text-base text-[var(--color-text-primary)] text-center">
-                {sheet.meaning}
-              </span>
-            ) : sheet.pinyin ? (
-              <span className="text-sm text-[var(--color-text-muted)] italic">
-                {t.noDefinition}
-              </span>
-            ) : null}
-            {sheet.source === "ai" && !sheet.saved && (
-              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-center max-w-xs">
-                {t.aiDefinitionWarning}
-              </p>
-            )}
-            {sheet.saved ? (
-              <button
-                onClick={handleRemoveFromSaved}
-                className="w-full max-w-xs py-3 rounded-2xl text-sm font-medium transition-all mt-2 bg-red-50 hover:bg-red-100 text-red-500 border border-red-200 cursor-pointer"
-              >
-                {t.removeFromReview}
-              </button>
-            ) : (
-              <button
-                onClick={handleAddToSaved}
-                className="w-full max-w-xs py-3 rounded-2xl text-sm font-medium transition-all mt-2 bg-violet-50 hover:bg-violet-100 text-violet-600 border border-violet-200 cursor-pointer"
-              >
-                {t.queueForReview}
-              </button>
-            )}
-            <button
-              onClick={() => setSheet(null)}
-              className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors pb-2"
-            >
-              {t.dismiss}
-            </button>
-          </div>
-        </>
+      {/* Word definition popup — hover previews, click pins, click again to
+          navigate through to the full word page. */}
+      {popup && (
+        <WordPopupCard
+          popup={popup}
+          popupRef={popupRef}
+          onNavigate={() => navigateToWord(popup)}
+          onToggleQueue={() => toggleQueue(popup)}
+        />
       )}
     </div>
   );
@@ -689,12 +622,16 @@ function TappableMessage({
   text,
   masteryMap,
   savedWords,
-  onWordSelect,
+  onWordClick,
+  onWordHover,
+  onHoverLeave,
 }: {
   text: string;
   masteryMap: Record<string, VocabularyMastery>;
   savedWords: Set<string>;
-  onWordSelect: (word: string, context: string) => void;
+  onWordClick: (word: string, x: number, y: number, mastery: VocabularyMastery | undefined) => void;
+  onWordHover: (word: string, rect: DOMRect, mastery: VocabularyMastery | undefined) => void;
+  onHoverLeave: () => void;
 }) {
   type Seg = { type: "hanzi" | "punct" | "other"; content: string; idx: number };
   const segments: Seg[] = [];
@@ -712,9 +649,17 @@ function TappableMessage({
     }
   }
 
+  // Dictionary-based word segmentation over the same char sequence — hover
+  // and click both target the whole word ("北京", not "北" + "京").
+  const wordSegments = useMemo(() => segmentIntoWords(cleaned), [cleaned]);
+  const segIndexAt = useMemo(() => charSegmentIndex(wordSegments), [wordSegments]);
+  const [hoverSegIdx, setHoverSegIdx] = useState<number | null>(null);
+
   const containerRef = useRef<HTMLDivElement>(null);
-  const onWordSelectRef = useRef(onWordSelect);
-  useEffect(() => { onWordSelectRef.current = onWordSelect; }, [onWordSelect]);
+  const onWordClickRef = useRef(onWordClick);
+  useEffect(() => { onWordClickRef.current = onWordClick; }, [onWordClick]);
+  const masteryMapRef = useRef(masteryMap);
+  useEffect(() => { masteryMapRef.current = masteryMap; }, [masteryMap]);
 
   const hanziSegs = segments.filter((s) => s.type === "hanzi");
   const hanziStr = hanziSegs.map((s) => s.content).join("");
@@ -739,7 +684,8 @@ function TappableMessage({
         if (!sel || sel.isCollapsed) return;
         const selected = sel.toString().replace(/[^一-鿿㐀-䶿]/g, "");
         if (selected.length >= 1) {
-          onWordSelectRef.current(selected, text);
+          const rect = sel.getRangeAt(0).getBoundingClientRect();
+          onWordClickRef.current(selected, rect.left + rect.width / 2, rect.top, masteryMapRef.current[selected]);
           setTimeout(() => sel.removeAllRanges(), 150);
         }
       }, 50);
@@ -772,20 +718,39 @@ function TappableMessage({
         const isSaved = savedWords.has(seg.content) || savedCoveredIndices.has(seg.idx);
         const mastery = masteryMap[seg.content];
         const isLearning = mastery && mastery.stability < HIGH_STABILITY_THRESHOLD;
+        const wordSeg = wordSegments[segIndexAt[i]];
+        const dictWord = wordSeg && wordSeg.isWordLike ? wordSeg.word : seg.content;
+        const isInHoverWord = hoverSegIdx !== null && segIndexAt[i] === hoverSegIdx;
 
         return (
           <span
             key={i}
-            onClick={() => {
+            data-word-token
+            onClick={(e) => {
               const sel = window.getSelection();
               if (sel && !sel.isCollapsed) return;
-              onWordSelect(seg.content, text);
+              const rect = e.currentTarget.getBoundingClientRect();
+              onWordClick(dictWord, rect.left + rect.width / 2, rect.top, masteryMap[dictWord] ?? mastery);
+            }}
+            onPointerEnter={(e) => {
+              if (e.pointerType === "mouse") {
+                setHoverSegIdx(segIndexAt[i]);
+                onWordHover(dictWord, e.currentTarget.getBoundingClientRect(), masteryMap[dictWord] ?? mastery);
+              }
+            }}
+            onPointerLeave={(e) => {
+              if (e.pointerType === "mouse") {
+                setHoverSegIdx(null);
+                onHoverLeave();
+              }
             }}
             className={`cursor-pointer rounded-sm transition-colors ${
               isSaved
                 ? "word-token word-token--mistake"
                 : isLearning
                 ? "word-token word-token--unknown"
+                : isInHoverWord
+                ? "bg-violet-500/15"
                 : "hover:bg-slate-100"
             }`}
           >

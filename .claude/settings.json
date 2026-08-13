@@ -43,7 +43,9 @@
       "Bash(pkill -f \"next lint\")",
       "Bash(timeout 180 npx next build)",
       "Bash(npx eslint *)",
-      "Bash(grep -v \"^$\")"
+      "Bash(grep -v \"^$\")",
+      "Bash(node -e \"console.log\\(typeof Intl.Segmenter\\)\")",
+      "Bash(node -e \"const s=new Intl.Segmenter\\('zh',{granularity:'word'}\\); for \\(const x of s.segment\\('我在北京大学学习中文'\\)\\) console.log\\(JSON.stringify\\(x\\)\\);\")"
     ],
     "additionalDirectories": [
       "/Users/orryhuang/Documents/SmartMandarin/app/vocab/word"
