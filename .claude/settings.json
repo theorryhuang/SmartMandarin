@@ -50,7 +50,10 @@
       "Bash(perl -i -pe 's/\\\\x00/ /g' components/WordPopup.tsx)",
       "Bash(perl -i -pe 's/return `\\\\$\\\\{sense\\\\.pinyin\\\\} \\\\$\\\\{sense\\\\.meaning\\\\}`;/return sense.pinyin + \"\\\\\\\\u0001\" + sense.meaning;/' components/WordPopup.tsx)",
       "Bash(perl -i -pe 's/return e\\\\.pinyin \\\\+ \"\\\\x01\" \\\\+ e\\\\.meaning;/return e.pinyin + \"\\\\\\\\u0001\" + e.meaning;/' 'app/vocab/word/[hanzi]/WordDetailClient.tsx')",
-      "Bash(perl -i -pe 's/return s\\\\.pinyin \\\\+ \"\\\\x01\" \\\\+ s\\\\.meaning;/return s.pinyin + String.fromCharCode\\(1\\) + s.meaning;/' lib/senseKey.ts)"
+      "Bash(perl -i -pe 's/return s\\\\.pinyin \\\\+ \"\\\\x01\" \\\\+ s\\\\.meaning;/return s.pinyin + String.fromCharCode\\(1\\) + s.meaning;/' lib/senseKey.ts)",
+      "Bash(vercel --version)",
+      "Bash(gh auth *)",
+      "Bash(gh api *)"
     ],
     "additionalDirectories": [
       "/Users/orryhuang/Documents/SmartMandarin/app/vocab/word"
