@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import { deleteWord, logMistake } from "@/app/actions/vocabulary";
 import { useLanguage } from "@/app/_components/LanguageContext";
 import { hskColor } from "@/lib/hskColor";
+import { senseKey } from "@/lib/senseKey";
 
 interface ApiSearchResult {
   hanzi: string;
@@ -171,7 +172,8 @@ export function VocabClient() {
       });
   }, [words, query, hskFilter, sort]);
 
-  const savedHanziSet = useMemo(() => new Set(words.map((w) => w.hanzi)), [words]);
+  // Per-sense, not per-hanzi — a hanzi can have multiple saved senses now.
+  const savedSenseSet = useMemo(() => new Set(words.map((w) => senseKey(w))), [words]);
 
   return (
     <div className="pb-10">
@@ -213,7 +215,7 @@ export function VocabClient() {
         </button>
       </div>
 
-      {tab === "search" && <SearchTab savedHanziSet={savedHanziSet} initialQuery={initialQ} />}
+      {tab === "search" && <SearchTab savedSenseSet={savedSenseSet} initialQuery={initialQ} />}
 
       {tab === "saved" && (
         <>
@@ -294,7 +296,7 @@ export function VocabClient() {
   );
 }
 
-function SearchTab({ savedHanziSet, initialQuery = "" }: { savedHanziSet: Set<string>; initialQuery?: string }) {
+function SearchTab({ savedSenseSet, initialQuery = "" }: { savedSenseSet: Set<string>; initialQuery?: string }) {
   const { t } = useLanguage();
   const [query, setQuery] = useState(initialQuery);
   const [mode, setMode] = useState<"chinese" | "english">("chinese");
@@ -344,7 +346,7 @@ function SearchTab({ savedHanziSet, initialQuery = "" }: { savedHanziSet: Set<st
       meaning: result.meaning,
       hsk_level: result.hsk_level ?? undefined,
     });
-    setAddedSet((prev) => new Set([...prev, result.hanzi]));
+    setAddedSet((prev) => new Set([...prev, senseKey(result)]));
   }
 
   return (
@@ -406,7 +408,7 @@ function SearchTab({ savedHanziSet, initialQuery = "" }: { savedHanziSet: Set<st
           </div>
           <div className="flex flex-col divide-y divide-[var(--color-border)]">
             {results.map((r) => {
-              const saved = r.already_saved || savedHanziSet.has(r.hanzi) || addedSet.has(r.hanzi);
+              const saved = r.already_saved || savedSenseSet.has(senseKey(r)) || addedSet.has(senseKey(r));
               return (
                 <SearchResultRow
                   key={r.hanzi + r.pinyin}

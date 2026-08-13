@@ -45,7 +45,12 @@
       "Bash(npx eslint *)",
       "Bash(grep -v \"^$\")",
       "Bash(node -e \"console.log\\(typeof Intl.Segmenter\\)\")",
-      "Bash(node -e \"const s=new Intl.Segmenter\\('zh',{granularity:'word'}\\); for \\(const x of s.segment\\('我在北京大学学习中文'\\)\\) console.log\\(JSON.stringify\\(x\\)\\);\")"
+      "Bash(node -e \"const s=new Intl.Segmenter\\('zh',{granularity:'word'}\\); for \\(const x of s.segment\\('我在北京大学学习中文'\\)\\) console.log\\(JSON.stringify\\(x\\)\\);\")",
+      "Bash(echo \"DONE exit=$?\")",
+      "Bash(perl -i -pe 's/\\\\x00/ /g' components/WordPopup.tsx)",
+      "Bash(perl -i -pe 's/return `\\\\$\\\\{sense\\\\.pinyin\\\\} \\\\$\\\\{sense\\\\.meaning\\\\}`;/return sense.pinyin + \"\\\\\\\\u0001\" + sense.meaning;/' components/WordPopup.tsx)",
+      "Bash(perl -i -pe 's/return e\\\\.pinyin \\\\+ \"\\\\x01\" \\\\+ e\\\\.meaning;/return e.pinyin + \"\\\\\\\\u0001\" + e.meaning;/' 'app/vocab/word/[hanzi]/WordDetailClient.tsx')",
+      "Bash(perl -i -pe 's/return s\\\\.pinyin \\\\+ \"\\\\x01\" \\\\+ s\\\\.meaning;/return s.pinyin + String.fromCharCode\\(1\\) + s.meaning;/' lib/senseKey.ts)"
     ],
     "additionalDirectories": [
       "/Users/orryhuang/Documents/SmartMandarin/app/vocab/word"

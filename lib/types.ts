@@ -39,6 +39,13 @@ export interface VocabularyMastery {
   updated_at: string;
 }
 
+/**
+ * A hanzi can have multiple saved senses (e.g. 行 xíng "to walk" vs háng
+ * "row/profession"), each its own independent review card — so lookups by
+ * hanzi alone return every saved sense, not just one.
+ */
+export type MasteryMap = Record<string, VocabularyMastery[]>;
+
 // ─── FSRS ─────────────────────────────────────────────────────────────────────
 
 /** 1 = Again, 2 = Hard, 3 = Good, 4 = Easy */

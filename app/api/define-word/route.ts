@@ -53,12 +53,16 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (user) {
-    const { data: existing } = await supabase
+    // A hanzi can now have multiple saved senses (行 xíng vs háng) — only
+    // short-circuit here when there's exactly one, unambiguous saved row.
+    // Multi-sense words fall through to the normal CEDICT/AI path below;
+    // the client merges in every saved sense from its own masteryMap anyway.
+    const { data: existingRows } = await supabase
       .from("vocabulary_mastery")
       .select("pinyin, meaning, hsk_level")
       .eq("user_id", user.id)
-      .eq("hanzi", hanzi)
-      .maybeSingle();
+      .eq("hanzi", hanzi);
+    const existing = existingRows?.length === 1 ? existingRows[0] : null;
     if (existing?.meaning) {
       return NextResponse.json({
         pinyin: existing.pinyin ?? "",

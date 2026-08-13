@@ -5,7 +5,7 @@ import { ArrowUp, ChevronLeft, LayoutList, Mic, Plus, Trash2 } from "lucide-reac
 import { useRouter } from "next/navigation";
 import { getConversationContext } from "@/app/actions/vocabulary";
 import { saveMessages } from "@/app/actions/chat";
-import type { VocabularyMastery } from "@/lib/types";
+import type { MasteryMap } from "@/lib/types";
 import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
 import { useLanguage } from "@/app/_components/LanguageContext";
 import { segmentIntoWords, charSegmentIndex } from "@/lib/segment";
@@ -25,7 +25,7 @@ interface ConversationMeta {
 }
 
 interface Props {
-  masteryMap: Record<string, VocabularyMastery>;
+  masteryMap: MasteryMap;
 }
 
 const MAX_LOCAL_MESSAGES = 100;
@@ -54,11 +54,12 @@ export function ConversationClient({ masteryMap }: Props) {
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
 
-  const { popup, popupRef, showHover, hideHover, toggleClick, toggleQueue, navigateToWord, resolveRange } = useWordPopup({
+  const { popup, popupRef, showHover, hideHover, toggleClick, toggleSense, navigateToWord, resolveRange } = useWordPopup({
     masteryMap,
     slangMode,
-    isQueued: (word) => savedWords.has(word),
-    onQueueChange: (word, queued) => {
+    // Styling (blue/red highlight) and forced-word injection are per-hanzi,
+    // not per-sense — any sense of this hanzi being queued is enough.
+    onQueueChange: (word, _pinyin, queued) => {
       setSavedWords((prev) => {
         const next = new Set(prev);
         queued ? next.add(word) : next.delete(word);
@@ -591,13 +592,14 @@ export function ConversationClient({ masteryMap }: Props) {
       )}
 
       {/* Word definition popup — hover previews, click pins, click again to
-          navigate through to the full word page. */}
+          navigate through to the full word page. Each sense has its own
+          add/remove button — ambiguous words don't force a single pick. */}
       {popup && (
         <WordPopupCard
           popup={popup}
           popupRef={popupRef}
           onNavigate={() => navigateToWord(popup)}
-          onToggleQueue={() => toggleQueue(popup)}
+          onToggleSense={(sense) => toggleSense(popup, sense)}
         />
       )}
     </div>
@@ -631,7 +633,7 @@ function TappableMessage({
   activeWord,
 }: {
   text: string;
-  masteryMap: Record<string, VocabularyMastery>;
+  masteryMap: MasteryMap;
   savedWords: Set<string>;
   // `word` here is the raw Intl.Segmenter span, not necessarily a real
   // dictionary word — the popup hook resolves `offset` against CEDICT
@@ -740,8 +742,9 @@ function TappableMessage({
         }
 
         const isSaved = savedWords.has(seg.content) || savedCoveredIndices.has(seg.idx);
-        const mastery = masteryMap[seg.content];
-        const isLearning = mastery && mastery.stability < HIGH_STABILITY_THRESHOLD;
+        // Aggregate across every saved sense of this hanzi — the highlight
+        // is per-character, not per-sense (the popup handles per-sense detail).
+        const isLearning = (masteryMap[seg.content] ?? []).some((s) => s.stability < HIGH_STABILITY_THRESHOLD);
         const wordSeg = wordSegments[segIndexAt[i]];
         const dictWord = wordSeg && wordSeg.isWordLike ? wordSeg.word : seg.content;
         const offset = wordSeg && wordSeg.isWordLike ? i - wordSeg.start : 0;

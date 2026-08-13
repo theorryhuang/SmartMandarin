@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { StoryReader } from "@/components/StoryReader";
-import type { VocabularyMastery } from "@/lib/types";
+import type { MasteryMap } from "@/lib/types";
 import { useLanguage } from "@/app/_components/LanguageContext";
 
 interface Props {
-  masteryMap: Record<string, VocabularyMastery>;
+  masteryMap: MasteryMap;
   hskLevel: number;
 }
 

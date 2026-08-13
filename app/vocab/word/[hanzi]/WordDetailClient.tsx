@@ -9,77 +9,110 @@ import { hskColor } from "@/lib/hskColor";
 import { deleteWord, logMistake } from "@/app/actions/vocabulary";
 import { useLanguage } from "@/app/_components/LanguageContext";
 
+interface Entry {
+  pinyin: string;
+  meaning: string;
+  hsk_level: number | null;
+}
+
+/** Fixed, non-locale-dependent format — `toLocaleDateString()` with no
+ *  locale arg picks up the runtime's default, which differs between the
+ *  Node SSR pass and the browser and causes a hydration mismatch. */
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+/** Identity for a sense: pinyin alone can collide (CEDICT sometimes lists
+ *  distinct senses under the same reading — 打 dǎ "to hit" vs "dozen"). */
+function senseKey(e: { pinyin: string; meaning: string }): string {
+  return e.pinyin + "\u0001" + e.meaning;
+}
+
 export function WordDetailClient({
   hanzi,
   entries,
   hskLevel,
-  savedWord,
+  savedWords,
   selectedPinyin,
 }: {
   hanzi: string;
   entries: DictResult[];
   hskLevel: number | null;
-  savedWord: VocabularyMastery | null;
+  savedWords: VocabularyMastery[];
   selectedPinyin: string | null;
 }) {
   const { t } = useLanguage();
   const router = useRouter();
-  const [saved, setSaved] = useState<VocabularyMastery | null>(savedWord);
-  const [busy, setBusy] = useState(false);
+  // Keyed by senseKey() so each reading's saved row (and its own FSRS
+  // progress) can be looked up and toggled independently.
+  const [saved, setSaved] = useState<Map<string, VocabularyMastery>>(
+    () => new Map(savedWords.map((w) => [senseKey(w), w]))
+  );
+  const [busyKey, setBusyKey] = useState<string | null>(null);
 
   const c = hskColor(hskLevel);
 
-  // If the word isn't in cedict at all (custom-added), fall back to the
-  // saved row's own pinyin/meaning so there's still something to show.
-  const displayEntries: DictResult[] =
-    entries.length > 0
-      ? entries
-      : saved
-      ? [{ pinyin: saved.pinyin, meaning: saved.meaning, hsk_level: saved.hsk_level, source: "cedict" }]
-      : [];
+  // Union of CEDICT's entries and any saved sense CEDICT didn't mention
+  // (AI/slang defs, or a custom word with no dictionary entry at all).
+  const cedictKeys = new Set(entries.map((e) => senseKey(e)));
+  const displayEntries: Entry[] = [
+    ...entries.map((e) => ({ pinyin: e.pinyin, meaning: e.meaning, hsk_level: e.hsk_level })),
+    ...[...saved.values()]
+      .filter((w) => !cedictKeys.has(senseKey(w)))
+      .map((w) => ({ pinyin: w.pinyin, meaning: w.meaning, hsk_level: w.hsk_level })),
+  ];
 
-  async function handleAdd() {
-    const primary = displayEntries.find((e) => e.pinyin === selectedPinyin) ?? displayEntries[0];
-    if (!primary) return;
-    setBusy(true);
+  async function handleAdd(entry: Entry) {
+    const key = senseKey(entry);
+    setBusyKey(key);
     try {
       await logMistake(hanzi, {
-        pinyin: primary.pinyin,
-        meaning: primary.meaning,
-        hsk_level: primary.hsk_level ?? undefined,
+        pinyin: entry.pinyin,
+        meaning: entry.meaning,
+        hsk_level: entry.hsk_level ?? undefined,
       });
-      setSaved({
-        id: "",
-        user_id: "",
-        hanzi,
-        pinyin: primary.pinyin,
-        meaning: primary.meaning,
-        hsk_level: primary.hsk_level,
-        stability: 0,
-        difficulty: 0,
-        last_reviewed: null,
-        next_review: null,
-        review_count: 0,
-        is_slang: false,
-        flagged_for_immediate_use: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+      setSaved((prev) => {
+        const next = new Map(prev);
+        next.set(key, {
+          id: "",
+          user_id: "",
+          hanzi,
+          pinyin: entry.pinyin,
+          meaning: entry.meaning,
+          hsk_level: entry.hsk_level,
+          stability: 0,
+          difficulty: 0,
+          last_reviewed: null,
+          next_review: null,
+          review_count: 0,
+          is_slang: false,
+          flagged_for_immediate_use: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+        return next;
       });
       router.refresh();
     } finally {
-      setBusy(false);
+      setBusyKey(null);
     }
   }
 
-  async function handleRemove() {
-    if (!saved) return;
-    setBusy(true);
+  async function handleRemove(entry: Entry) {
+    const key = senseKey(entry);
+    const row = saved.get(key);
+    setBusyKey(key);
     try {
-      await deleteWord(saved.id || hanzi);
-      setSaved(null);
+      await deleteWord(row?.id || hanzi, entry.pinyin, entry.meaning);
+      setSaved((prev) => {
+        const next = new Map(prev);
+        next.delete(key);
+        return next;
+      });
       router.refresh();
     } finally {
-      setBusy(false);
+      setBusyKey(null);
     }
   }
 
@@ -100,78 +133,69 @@ export function WordDetailClient({
           {hskLevel !== null ? `HSK ${hskLevel}` : "—"}
         </span>
         <div className="text-5xl font-medium text-[var(--color-text-primary)] mt-3">{hanzi}</div>
-
-        <div className="mt-5 w-full max-w-xs">
-          {saved ? (
-            <button
-              onClick={handleRemove}
-              disabled={busy}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-100 text-emerald-700 text-sm font-medium disabled:opacity-50"
-            >
-              <Check size={15} />
-              {t.wordAlreadySaved}
-              <Trash2 size={14} className="ml-1 opacity-70" />
-            </button>
-          ) : (
-            <button
-              onClick={handleAdd}
-              disabled={busy}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-violet-500 text-white text-sm font-medium disabled:opacity-50"
-            >
-              <Plus size={15} />
-              {t.addToReview}
-            </button>
-          )}
-        </div>
+        {selectedPinyin && (
+          <div className="text-sm text-[var(--color-text-muted)] mt-2">{selectedPinyin}</div>
+        )}
       </div>
 
-      {saved && (
-        <div className="px-4 mt-6">
-          <div className="text-xs font-medium text-[var(--color-text-muted)] mb-2">{t.reviewProgress}</div>
-          <div className="rounded-xl border border-[var(--color-border)] p-3 space-y-1.5">
-            <div className="flex justify-between text-sm">
-              <span className="text-[var(--color-text-muted)]">{t.masteryDays(Math.round(saved.stability))}</span>
-              <span className="text-[var(--color-text-secondary)]">
-                {saved.review_count > 0 ? t.reviewCountLabel(saved.review_count) : t.notReviewedYet}
-              </span>
-            </div>
-            {saved.next_review && (
-              <div className="flex justify-between text-sm">
-                <span className="text-[var(--color-text-muted)]">{t.nextReviewLabel}</span>
-                <span className="text-[var(--color-text-secondary)]">
-                  {new Date(saved.next_review).toLocaleDateString()}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      <div className="px-4 mt-6">
+      <div className="px-4 mt-8">
         {displayEntries.length === 0 ? (
           <div className="flex items-center justify-center py-16 text-sm text-[var(--color-text-muted)]">
             {t.wordNotInDictionary}
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            {displayEntries.length > 1 && (
-              <div className="text-xs font-medium text-[var(--color-text-muted)]">{t.otherReadings}</div>
-            )}
             {displayEntries.map((entry, i) => {
-              const isSelected = selectedPinyin ? entry.pinyin === selectedPinyin : i === 0;
+              const key = senseKey(entry);
+              const row = saved.get(key);
+              const isSaved = !!row;
+              const busy = busyKey === key;
+              const isHighlighted = selectedPinyin ? entry.pinyin === selectedPinyin : i === 0;
+
               return (
                 <div
-                  key={entry.pinyin + i}
+                  key={key}
                   className={`rounded-xl border p-3.5 ${
-                    isSelected
-                      ? "border-violet-300 bg-violet-50/50"
-                      : "border-[var(--color-border)]"
+                    isHighlighted ? "border-violet-300 bg-violet-50/50" : "border-[var(--color-border)]"
                   }`}
                 >
-                  <div className="text-sm font-medium text-[var(--color-text-primary)]">{entry.pinyin}</div>
-                  <div className="text-sm text-[var(--color-text-secondary)] leading-relaxed mt-1 whitespace-pre-wrap">
-                    {entry.meaning}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-[var(--color-text-primary)]">{entry.pinyin}</div>
+                      <div className="text-sm text-[var(--color-text-secondary)] leading-relaxed mt-1 whitespace-pre-wrap">
+                        {entry.meaning}
+                      </div>
+                    </div>
+                    {isSaved ? (
+                      <button
+                        onClick={() => handleRemove(entry)}
+                        disabled={busy}
+                        className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-100 text-emerald-700 text-xs font-medium disabled:opacity-50"
+                      >
+                        <Check size={13} />
+                        <Trash2 size={12} className="opacity-70" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleAdd(entry)}
+                        disabled={busy}
+                        className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-violet-500 text-white text-xs font-medium disabled:opacity-50"
+                      >
+                        <Plus size={13} />
+                        {t.queueForReview}
+                      </button>
+                    )}
                   </div>
+
+                  {row && (
+                    <div className="mt-2.5 pt-2.5 border-t border-[var(--color-border)] flex justify-between text-xs text-[var(--color-text-muted)]">
+                      <span>{t.masteryDays(Math.round(row.stability))}</span>
+                      <span>{row.review_count > 0 ? t.reviewCountLabel(row.review_count) : t.notReviewedYet}</span>
+                      {row.next_review && (
+                        <span>{t.nextReviewLabel}: {formatDate(row.next_review)}</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}

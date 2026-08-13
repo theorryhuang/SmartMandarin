@@ -11,22 +11,25 @@ export default async function WordDetailPage({
   searchParams: Promise<{ id?: string; pinyin?: string }>;
 }) {
   const { hanzi: rawHanzi } = await params;
-  const { id, pinyin: selectedPinyin } = await searchParams;
+  // `id` used to pin one specific saved sense — no longer needed, every
+  // saved sense for this hanzi is fetched and shown now. Still accepted in
+  // the type so old `?id=` links (e.g. from /vocab) don't break.
+  const { pinyin: selectedPinyin } = await searchParams;
   const hanzi = decodeURIComponent(rawHanzi);
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  let savedWord: VocabularyMastery | null = null;
+  // A hanzi can have multiple saved senses now (行 xíng vs háng, 打 dǎ's many
+  // meanings, ...) — fetch every one so each can be added/removed independently.
+  let savedWords: VocabularyMastery[] = [];
   if (user) {
-    const query = supabase
+    const { data } = await supabase
       .from("vocabulary_mastery")
       .select("*")
-      .eq("user_id", user.id);
-    const { data } = id
-      ? await query.eq("id", id).maybeSingle()
-      : await query.eq("hanzi", hanzi).maybeSingle();
-    savedWord = (data as VocabularyMastery | null) ?? null;
+      .eq("user_id", user.id)
+      .eq("hanzi", hanzi);
+    savedWords = (data as VocabularyMastery[] | null) ?? [];
   }
 
   const [entries, hsk_level] = await Promise.all([
@@ -39,7 +42,7 @@ export default async function WordDetailPage({
       hanzi={hanzi}
       entries={entries}
       hskLevel={hsk_level}
-      savedWord={savedWord}
+      savedWords={savedWords}
       selectedPinyin={selectedPinyin ?? null}
     />
   );

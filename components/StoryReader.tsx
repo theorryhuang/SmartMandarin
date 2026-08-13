@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import type { VocabularyMastery } from "@/lib/types";
+import type { MasteryMap } from "@/lib/types";
 import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
 import { useLanguage } from "@/app/_components/LanguageContext";
 import { segmentIntoWords, charSegmentIndex } from "@/lib/segment";
@@ -21,7 +21,7 @@ interface Story {
 }
 
 interface Props {
-  masteryMap: Record<string, VocabularyMastery>;
+  masteryMap: MasteryMap;
   hskLevel: number;
   slangMode: boolean;
 }
@@ -34,11 +34,12 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
   const [isGenerating, startGenerate] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const { popup, popupRef, showHover, hideHover, toggleClick, toggleQueue, navigateToWord, hide, resolveRange } = useWordPopup({
+  const { popup, popupRef, showHover, hideHover, toggleClick, toggleSense, navigateToWord, hide, resolveRange } = useWordPopup({
     masteryMap,
     slangMode,
-    isQueued: (word) => queuedWords.has(word),
-    onQueueChange: (word, queued) => {
+    // Styling (blue/red highlight) is per-character, not per-sense — any
+    // sense of this hanzi being queued is enough to flag the char.
+    onQueueChange: (word, _pinyin, queued) => {
       setQueuedWords((prev) => {
         const next = new Set(prev);
         queued ? next.add(word) : next.delete(word);
@@ -51,9 +52,12 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
     setError(null);
     hide();
     startGenerate(async () => {
-      const knownWords = Object.values(masteryMap)
-        .filter((w) => w.stability >= HIGH_STABILITY_THRESHOLD)
-        .map((w) => w.hanzi);
+      const knownWords = [...new Set(
+        Object.values(masteryMap)
+          .flat()
+          .filter((w) => w.stability >= HIGH_STABILITY_THRESHOLD)
+          .map((w) => w.hanzi)
+      )];
 
       const res = await fetch("/api/generate-story", {
         method: "POST",
@@ -148,13 +152,14 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
       )}
 
       {/* Word definition popup — hover previews, click pins, click again to
-          navigate through to the full word page. */}
+          navigate through to the full word page. Each sense has its own
+          add/remove button — ambiguous words don't force a single pick. */}
       {popup && (
         <WordPopupCard
           popup={popup}
           popupRef={popupRef}
           onNavigate={() => navigateToWord(popup)}
-          onToggleQueue={() => toggleQueue(popup)}
+          onToggleSense={(sense) => toggleSense(popup, sense)}
         />
       )}
     </div>
@@ -172,7 +177,7 @@ function StoryLine({
   activeWord,
 }: {
   sentence: StorySentence;
-  masteryMap: Record<string, VocabularyMastery>;
+  masteryMap: MasteryMap;
   queuedWords: Set<string>;
   // `word` here is the raw Intl.Segmenter span, not necessarily a real
   // dictionary word — the popup hook resolves `offset` against CEDICT
@@ -273,8 +278,10 @@ function StoryLine({
       }}
     >
       {chars.map((char, i) => {
-        const mastery = masteryMap[char];
-        const isHighStability = mastery && mastery.stability >= HIGH_STABILITY_THRESHOLD;
+        const senses = masteryMap[char];
+        // Aggregate across every saved sense of this hanzi — the highlight
+        // is per-character, not per-sense (the popup handles per-sense detail).
+        const isHighStability = !!senses?.some((s) => s.stability >= HIGH_STABILITY_THRESHOLD);
         const isQueued = queuedWords.has(char) || queuedCoveredIndices.has(i);
         const isPunctuation = /[，。！？、…\s]/.test(char);
         const isInSelection = selLo !== null && selHi !== null && i >= selLo && i <= selHi && !isPunctuation;
@@ -310,7 +317,7 @@ function StoryLine({
                 ? "bg-violet-600/40 rounded"
                 : isQueued
                 ? "word-token--mistake"
-                : !isHighStability && mastery
+                : !isHighStability && senses?.length
                 ? "word-token--unknown"
                 : isInHoverWord
                 ? "bg-violet-500/15 rounded"

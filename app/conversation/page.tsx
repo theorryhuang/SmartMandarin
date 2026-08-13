@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { ConversationClient } from "./ConversationClient";
-import type { VocabularyMastery } from "@/lib/types";
+import type { VocabularyMastery, MasteryMap } from "@/lib/types";
 
 export default async function ConversationPage() {
   const supabase = await createClient();
@@ -11,9 +11,10 @@ export default async function ConversationPage() {
     .select("*")
     .eq("user_id", userId);
 
-  const masteryMap: Record<string, VocabularyMastery> = {};
+  // Group by hanzi — a hanzi can have multiple saved senses.
+  const masteryMap: MasteryMap = {};
   for (const word of (data ?? []) as VocabularyMastery[]) {
-    masteryMap[word.hanzi] = word;
+    (masteryMap[word.hanzi] ??= []).push(word);
   }
 
   return (

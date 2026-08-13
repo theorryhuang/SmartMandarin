@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { ReaderClient } from "./ReaderClient";
 import { BackButton } from "@/app/_components/BackButton";
-import type { VocabularyMastery } from "@/lib/types";
+import type { VocabularyMastery, MasteryMap } from "@/lib/types";
 
 export default async function ReaderPage() {
   const supabase = await createClient();
@@ -13,13 +13,14 @@ export default async function ReaderPage() {
     .select("*")
     .eq("user_id", userId);
 
-  const masteryMap: Record<string, VocabularyMastery> = {};
+  // Group by hanzi — a hanzi can have multiple saved senses.
+  const masteryMap: MasteryMap = {};
   for (const word of (data ?? []) as VocabularyMastery[]) {
-    masteryMap[word.hanzi] = word;
+    (masteryMap[word.hanzi] ??= []).push(word);
   }
 
   // Compute average HSK level for story calibration
-  const words = Object.values(masteryMap);
+  const words = Object.values(masteryMap).flat();
   const avgHSK =
     words.length > 0
       ? words.reduce((sum, w) => sum + (w.hsk_level ?? 3), 0) / words.length

@@ -126,7 +126,7 @@ export async function logMistake(
           hsk_level: meta?.hsk_level ?? null,
           flagged_for_immediate_use: true,
         },
-        { onConflict: "user_id,hanzi", ignoreDuplicates: false }
+        { onConflict: "user_id,hanzi,pinyin,meaning", ignoreDuplicates: false }
       );
   }
 }
@@ -235,7 +235,7 @@ export async function saveAssessmentResults(words: AssessmentWord[]): Promise<vo
 
     await supabase
       .from("vocabulary_mastery")
-      .upsert(rows, { onConflict: "user_id,hanzi", ignoreDuplicates: true });
+      .upsert(rows, { onConflict: "user_id,hanzi,pinyin,meaning", ignoreDuplicates: true });
   }
 
   await markAssessmentComplete();
@@ -338,18 +338,29 @@ export async function getUnreviewedWords(limit = 200, minHSK?: number, maxHSK?: 
   return (data ?? []) as VocabularyMastery[];
 }
 
-export async function deleteWord(wordIdOrHanzi: string): Promise<void> {
+/**
+ * `pinyin`/`meaning` disambiguate which sense's row to target when a hanzi
+ * has more than one saved sense — required by callers that only have the
+ * hanzi string, not the row id, to avoid hitting every sense. Pinyin alone
+ * isn't always enough (CEDICT sometimes lists distinct senses under the same
+ * reading, e.g. 打 dǎ "to hit" vs "dozen"); pass `meaning` too when known.
+ * Omitting both falls back to matching by hanzi alone (affects every sense).
+ */
+export async function deleteWord(wordIdOrHanzi: string, pinyin?: string, meaning?: string): Promise<void> {
   const supabase = await createClient();
   const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
   const isUUID = /^[0-9a-f-]{36}$/i.test(wordIdOrHanzi);
   if (isUUID) {
     await supabase.from("vocabulary_mastery").delete().eq("id", wordIdOrHanzi).eq("user_id", userId);
   } else {
-    await supabase.from("vocabulary_mastery").delete().eq("hanzi", wordIdOrHanzi).eq("user_id", userId);
+    let query = supabase.from("vocabulary_mastery").delete().eq("hanzi", wordIdOrHanzi).eq("user_id", userId);
+    if (pinyin) query = query.eq("pinyin", pinyin);
+    if (meaning) query = query.eq("meaning", meaning);
+    await query;
   }
 }
 
-export async function removeFromReviewQueue(wordIdOrHanzi: string): Promise<void> {
+export async function removeFromReviewQueue(wordIdOrHanzi: string, pinyin?: string, meaning?: string): Promise<void> {
   const supabase = await createClient();
   const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
   const isUUID = /^[0-9a-f-]{36}$/i.test(wordIdOrHanzi);
@@ -360,11 +371,14 @@ export async function removeFromReviewQueue(wordIdOrHanzi: string): Promise<void
       .eq("id", wordIdOrHanzi)
       .eq("user_id", userId);
   } else {
-    await supabase
+    let query = supabase
       .from("vocabulary_mastery")
       .update({ flagged_for_immediate_use: false })
       .eq("hanzi", wordIdOrHanzi)
       .eq("user_id", userId);
+    if (pinyin) query = query.eq("pinyin", pinyin);
+    if (meaning) query = query.eq("meaning", meaning);
+    await query;
   }
 }
 
@@ -485,7 +499,7 @@ export async function addWord(word: {
       hsk_level: word.hsk_level,
       is_slang: word.is_slang ?? false,
     },
-    { onConflict: "user_id,hanzi", ignoreDuplicates: true }
+    { onConflict: "user_id,hanzi,pinyin,meaning", ignoreDuplicates: true }
   );
   if (error) throw new Error(error.message);
 }
@@ -513,6 +527,6 @@ export async function addWords(
 
   const { error } = await supabase
     .from("vocabulary_mastery")
-    .upsert(rows, { onConflict: "user_id,hanzi", ignoreDuplicates: true });
+    .upsert(rows, { onConflict: "user_id,hanzi,pinyin,meaning", ignoreDuplicates: true });
   if (error) throw new Error(error.message);
 }
