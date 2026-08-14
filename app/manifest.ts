@@ -7,7 +7,11 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Adaptive Mandarin learning powered by FSRS and Gemini Live",
     start_url: "/",
     display: "standalone",
-    background_color: "#0a0a0a",
+    // background_color matches the new icon's rice-paper cream so the
+    // launch splash doesn't flash dark-then-cream before content paints.
+    // theme_color stays the app's actual dark UI color — that hasn't
+    // changed, only the icon artwork has.
+    background_color: "#faf7f2",
     theme_color: "#0a0a0a",
     // Desktop Chrome/Edge only: asks installed-app links (e.g. a word URL
     // opened from outside the app) to navigate the existing app window
