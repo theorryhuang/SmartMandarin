@@ -9,6 +9,13 @@ export default function manifest(): MetadataRoute.Manifest {
     display: "standalone",
     background_color: "#0a0a0a",
     theme_color: "#0a0a0a",
+    // Desktop Chrome/Edge only: asks installed-app links (e.g. a word URL
+    // opened from outside the app) to navigate the existing app window
+    // instead of opening a browser tab. Not in Next's Manifest type yet, so
+    // it's spread in untyped below. No iOS equivalent — Apple gates that
+    // (Universal Links) behind a paid Developer Program account.
+    // @ts-expect-error -- capture_links isn't in Next's MetadataRoute.Manifest type yet
+    capture_links: "existing-client-navigate",
     icons: [
       // Next's manifest type only allows one purpose per entry (the actual
       // web-manifest spec permits a space-separated list) — list "any" and
