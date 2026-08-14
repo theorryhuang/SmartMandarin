@@ -172,17 +172,15 @@ async function greedySegment(
 ): Promise<Array<{ simplified: string; pinyin: string; english: string }>> {
   const chars = [...q];
 
-  // Round 1: find which substrings are valid PREFIXES of any cedict entry (one query)
+  // Round 1: find which substrings are themselves an exact cedict entry (one query)
   const allSubs = new Set<string>();
   for (let i = 0; i < chars.length; i++)
     for (let j = i + 1; j <= chars.length; j++)
       allSubs.add(chars.slice(i, j).join(""));
 
-  const orFilter = [...allSubs].map(sub => `simplified.ilike.${sub}%`).join(",");
   const { data: existing } = await supabase.from("cedict")
     .select("simplified")
-    .or(orFilter)
-    .limit(500);
+    .in("simplified", [...allSubs]);
 
   // Which substrings are themselves an actual cedict entry (not just a prefix
   // of some longer one — a segment must be a real word, or Round 2's lookup
