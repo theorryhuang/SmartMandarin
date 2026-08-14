@@ -184,9 +184,15 @@
     }
 
     if (result.parts && result.parts.length > 0) {
-      cardEl.appendChild(
-        renderRows(result.parts.map((p) => ({ word: p.word, pinyin: p.pinyin, meaning: p.meaning, hsk_level: p.hsk_level, isPart: true })))
+      // A part with multiple CEDICT senses (e.g. 乘 as Chéng/chéng/shèng)
+      // gets one row per sense instead of collapsing to just the first —
+      // otherwise the other readings are silently dropped from the popup.
+      const rows = result.parts.flatMap((p) =>
+        p.senses && p.senses.length > 0
+          ? p.senses.map((s) => ({ word: p.word, pinyin: s.pinyin, meaning: s.meaning, hsk_level: s.hsk_level, isPart: true }))
+          : [{ word: p.word, pinyin: p.pinyin, meaning: p.meaning, hsk_level: p.hsk_level, isPart: true }]
       );
+      cardEl.appendChild(renderRows(rows));
     } else if (result.senses && result.senses.length > 0) {
       cardEl.appendChild(
         renderRows(result.senses.map((s) => ({ word, pinyin: s.pinyin, meaning: s.meaning, hsk_level: s.hsk_level })))

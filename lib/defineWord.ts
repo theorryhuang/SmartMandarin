@@ -27,6 +27,9 @@ export interface WordPart {
   pinyin?: string;
   meaning?: string;
   hsk_level?: number | null;
+  /** Every CEDICT sense for this part, when it has more than one (e.g. 乘
+   *  as Chéng/chéng/shèng) — pinyin/meaning above are just senses[0]. */
+  senses?: WordSense[];
 }
 
 export interface DefineWordResult {
@@ -55,7 +58,7 @@ async function slangBankLookup(supabase: SupabaseClient<Database>, hanzi: string
   return null;
 }
 
-function primaryEntry(entries: DictResult[]) {
+function primaryEntry(entries: DictResult[]): (DictResult & { senses?: DictResult[] }) | null {
   if (entries.length === 0) return null;
   const substantive = entries.filter(
     (e) => !/^(variant of|old variant of|see |abbr\.? for)/i.test(e.meaning.trim())
@@ -104,7 +107,7 @@ async function resolveCedict(word: string) {
 
   const parts = decomposed.map((p) => {
     const entry = primaryEntry(p.entries);
-    return { word: p.word, pinyin: entry?.pinyin, meaning: entry?.meaning, hsk_level: entry?.hsk_level };
+    return { word: p.word, pinyin: entry?.pinyin, meaning: entry?.meaning, hsk_level: entry?.hsk_level, senses: entry?.senses };
   });
   return {
     pinyin: parts.map((p) => p.pinyin).filter(Boolean).join(" "),
