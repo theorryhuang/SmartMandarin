@@ -244,7 +244,11 @@ export function HomeClient({ dueCount, slangDueCount, totalWords, masteredCount,
             <h2 className="font-semibold text-sm text-[var(--color-text-primary)]">{t.learningModes}</h2>
           </div>
 
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          {/* Explicit id: DndContext otherwise derives its aria-describedby
+              id from a module-level counter, which can land on a different
+              number during SSR vs. the client's first hydration pass and
+              throw a hydration-mismatch warning. */}
+          <DndContext id="home-learning-modes" sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={order} strategy={verticalListSortingStrategy}>
               <div className="flex flex-col gap-2">
                 {orderedModes.map((mode) => (
