@@ -269,7 +269,8 @@
         cache.set(word, res.data);
         renderResult(word, res.data);
       });
-    } catch {
+    } catch (e) {
+      console.error("[SmartMandarin] sendMessage threw synchronously:", e);
       renderResult(word, { error: "Extension was updated — reload this page and try again" });
     }
   }

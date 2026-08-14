@@ -8,10 +8,13 @@ import type { Database } from "@/lib/supabase/database.types";
  * extension). Takes an already-resolved supabase client + userId instead of
  * doing its own auth, so both callers can supply whichever fits how they
  * authenticated the request.
+ *
+ * No AI fallback: a word with no CEDICT/slang match returns the raw
+ * character/sub-word breakdown instead of an AI-generated guess. An AI
+ * guess got saved into vocabulary_mastery wrong once before (生意
+ * postmortem) — showing "no definition, but here's what this decomposes
+ * into" is honest instead of confidently wrong.
  */
-
-const INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
-const MODEL = "gemini-3.1-flash-lite"; // free tier: RPM 15, RPD 500 vs 3.6-flash's RPM 5, RPD 20
 
 export interface WordSense {
   pinyin: string;
@@ -30,7 +33,7 @@ export interface DefineWordResult {
   pinyin?: string;
   meaning?: string;
   hsk_level?: number | null;
-  source?: "saved" | "cedict" | "slang" | "ai";
+  source?: "saved" | "cedict" | "slang";
   senses?: WordSense[];
   already_saved?: boolean;
   parts?: WordPart[];
@@ -50,29 +53,6 @@ async function slangBankLookup(supabase: SupabaseClient<Database>, hanzi: string
     }
   } catch { /* ignore */ }
   return null;
-}
-
-async function geminiJSON(prompt: string, apiKey: string, maxTokens = 64): Promise<string> {
-  try {
-    const res = await fetch(INTERACTIONS_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      // thinking_level "low" (not "minimal"): this route fires live mid-conversation
-      // (tap-to-define), so a rushed answer is more disruptive than an extra ~1s here.
-      body: JSON.stringify({
-        model: MODEL,
-        input: prompt,
-        store: false,
-        generation_config: { thinking_level: "low", max_output_tokens: maxTokens },
-      }),
-    });
-    if (!res.ok) return "{}";
-    const data = await res.json();
-    const modelStep = data.steps?.find((s: { type: string }) => s.type === "model_output");
-    return modelStep?.content?.filter((c: { type: string }) => c.type === "text").map((c: { text: string }) => c.text).join("") ?? "{}";
-  } catch {
-    return "{}";
-  }
 }
 
 function primaryEntry(entries: DictResult[]) {
@@ -146,13 +126,11 @@ export async function defineWord({
   hanzi: string;
   slangMode?: boolean;
 }): Promise<DefineWordResult> {
-  const apiKey = process.env.GEMINI_API_KEY;
-
   if (userId) {
     // A hanzi can now have multiple saved senses (行 xíng vs háng) — only
     // short-circuit here when there's exactly one, unambiguous saved row.
-    // Multi-sense words fall through to the normal CEDICT/AI path below;
-    // the client merges in every saved sense from its own masteryMap anyway.
+    // Multi-sense words fall through to the normal CEDICT path below; the
+    // client merges in every saved sense from its own masteryMap anyway.
     const { data: existingRows } = await supabase
       .from("vocabulary_mastery")
       .select("pinyin, meaning, hsk_level")
@@ -182,22 +160,14 @@ export async function defineWord({
     if (slangResult) return slangResult;
   }
 
+  // Nothing in CEDICT or the slang bank for any part of this span. Surface
+  // the raw character/sub-word breakdown (blank pinyin/meaning per part)
+  // instead of an AI guess — see the module-level comment for why.
+  const decomposed = await cedictDecompose(hanzi);
   const hsk_level = await hskLookup(hanzi);
-  if (!apiKey) return { error: "GEMINI_API_KEY not set" };
-
-  const prompt = `You are a Mandarin dictionary. Define the word or phrase "${hanzi}".
-
-Return ONLY valid JSON (no markdown, no extra keys):
-{
-  "pinyin": "pīnyīn with tone marks",
-  "meaning": "concise English definition (≤10 words)"
-}`;
-
-  try {
-    const text = await geminiJSON(prompt, apiKey, 128);
-    const def = JSON.parse(text);
-    return { pinyin: def.pinyin ?? "", meaning: def.meaning ?? "", hsk_level, source: "ai" };
-  } catch {
-    return { error: "Failed to parse response" };
-  }
+  return {
+    hsk_level,
+    source: "cedict",
+    parts: decomposed.map((p) => ({ word: p.word })),
+  };
 }

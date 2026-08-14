@@ -26,6 +26,11 @@ async function apiFetch(path, options = {}) {
   const { serverUrl, token } = await getStored(["serverUrl", "token"]);
   if (!serverUrl || !token) return { ok: false, reason: "not-configured" };
 
+  // Without this, a stalled server request (e.g. the AI dictionary fallback
+  // hanging on Gemini) left the popup spinning on "…" forever with no way
+  // out — nothing here ever bounded how long a lookup could take.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
   try {
     const res = await fetch(normalizeUrl(serverUrl) + path, {
       ...options,
@@ -34,12 +39,16 @@ async function apiFetch(path, options = {}) {
         Authorization: `Bearer ${token}`,
         ...(options.headers || {}),
       },
+      signal: controller.signal,
     });
     const json = await res.json().catch(() => ({}));
     if (!res.ok) return { ok: false, reason: "api-error", status: res.status, message: json.error };
     return { ok: true, data: json };
   } catch (e) {
-    return { ok: false, reason: "network", message: String(e) };
+    const timedOut = e?.name === "AbortError";
+    return { ok: false, reason: "network", message: timedOut ? "Request timed out" : String(e) };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -97,25 +106,40 @@ async function testConnection(serverUrl, token) {
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  // Logged synchronously, before anything async — if this line never shows
+  // up in the service worker's console for a highlight that's stuck
+  // loading, the message from content.js isn't reaching this listener at
+  // all (dead/asleep service worker), rather than anything below failing.
+  console.log("[SmartMandarin] onMessage:", msg?.type, msg);
   (async () => {
-    switch (msg?.type) {
-      case "getConfig":
-        sendResponse(await getConfig());
-        break;
-      case "lookup":
-        sendResponse(await lookup(msg.hanzi));
-        break;
-      case "queue":
-        sendResponse(await queueToggle(msg.payload));
-        break;
-      case "refreshState":
-        sendResponse(await refreshState());
-        break;
-      case "testConnection":
-        sendResponse(await testConnection(msg.serverUrl, msg.token));
-        break;
-      default:
-        sendResponse({ ok: false, reason: "unknown-message" });
+    try {
+      switch (msg?.type) {
+        case "getConfig":
+          sendResponse(await getConfig());
+          break;
+        case "lookup":
+          sendResponse(await lookup(msg.hanzi));
+          break;
+        case "queue":
+          sendResponse(await queueToggle(msg.payload));
+          break;
+        case "refreshState":
+          sendResponse(await refreshState());
+          break;
+        case "testConnection":
+          sendResponse(await testConnection(msg.serverUrl, msg.token));
+          break;
+        default:
+          sendResponse({ ok: false, reason: "unknown-message" });
+      }
+    } catch (e) {
+      // Safety net: previously, any unexpected throw here (as opposed to
+      // the ones already caught inside apiFetch/testConnection) meant
+      // sendResponse was never called at all — the popup would spin on
+      // "…" forever with nothing logged, since the throw was inside an
+      // unawaited async IIFE.
+      console.error("[SmartMandarin] handler threw:", e);
+      sendResponse({ ok: false, reason: "internal-error", message: String(e) });
     }
   })();
   return true; // keep the message channel open for the async response

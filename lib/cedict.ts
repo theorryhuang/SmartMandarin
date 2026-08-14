@@ -75,7 +75,7 @@ export interface DictResult {
   pinyin: string;
   meaning: string;
   hsk_level: number | null;
-  source: "cedict" | "ai";
+  source: "cedict";
 }
 
 export async function cedictLookup(hanzi: string): Promise<DictResult | null> {

@@ -178,7 +178,6 @@ const en = {
   wordAdded: "Added to review",
   wordNotFound: "Word not found",
   wordAlreadySaved: "Already saved",
-  aiDefinitionWarning: "AI-generated definition — verify accuracy before adding",
   addWordDesc: "Manually add a word to your review queue",
 
   // ── Vocabulary list ──────────────────────────────────────────────────────────
@@ -389,7 +388,6 @@ const zh: typeof en = {
   wordAdded: "已加入复习",
   wordNotFound: "未找到该词",
   wordAlreadySaved: "已保存",
-  aiDefinitionWarning: "AI 生成的释义 — 添加前请核实准确性",
   addWordDesc: "手动添加单词到复习队列",
 
   // ── Vocabulary list ──────────────────────────────────────────────────────────

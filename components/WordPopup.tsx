@@ -422,9 +422,6 @@ export function WordPopupCard({
         </div>
       )}
 
-      {popup.source === "ai" && (
-        <div className="text-[10px] text-amber-400/80 mt-1.5">{t.aiDefinitionWarning}</div>
-      )}
     </div>
   );
 }
