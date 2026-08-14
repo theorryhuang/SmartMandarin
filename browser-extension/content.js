@@ -244,25 +244,34 @@
       return;
     }
 
-    chrome.runtime.sendMessage({ type: "lookup", hanzi: word }, (res) => {
-      if (!cardEl) return; // dismissed while waiting
-      if (!res?.ok) {
-        const detail =
-          res?.reason === "not-configured"
-            ? "Extension not connected — open Settings"
-            : res?.reason === "network"
-            ? `Can't reach server: ${res.message || "network error"}`
-            : res?.reason === "api-error"
-            ? `Server error ${res.status ?? ""}${res.message ? ": " + res.message : ""}`
-            : chrome.runtime.lastError
-            ? chrome.runtime.lastError.message
-            : "Lookup failed";
-        renderResult(word, { error: detail });
-        return;
-      }
-      cache.set(word, res.data);
-      renderResult(word, res.data);
-    });
+    // chrome.runtime.sendMessage throws synchronously (not via the callback)
+    // once the extension has been reloaded/updated and this content script's
+    // context is stale — any tab that was open before the reload hits this
+    // on its first lookup. Catch it and point at the fix instead of an
+    // uncaught error + a card stuck on "…" forever.
+    try {
+      chrome.runtime.sendMessage({ type: "lookup", hanzi: word }, (res) => {
+        if (!cardEl) return; // dismissed while waiting
+        if (!res?.ok) {
+          const detail =
+            res?.reason === "not-configured"
+              ? "Extension not connected — open Settings"
+              : res?.reason === "network"
+              ? `Can't reach server: ${res.message || "network error"}`
+              : res?.reason === "api-error"
+              ? `Server error ${res.status ?? ""}${res.message ? ": " + res.message : ""}`
+              : chrome.runtime.lastError
+              ? chrome.runtime.lastError.message
+              : "Lookup failed";
+          renderResult(word, { error: detail });
+          return;
+        }
+        cache.set(word, res.data);
+        renderResult(word, res.data);
+      });
+    } catch {
+      renderResult(word, { error: "Extension was updated — reload this page and try again" });
+    }
   }
 
   function extractHanziSelection() {
