@@ -119,6 +119,12 @@
     el.addEventListener("pointerdown", (e) => {
       if (e.button !== undefined && e.button !== 0) return;
       if (e.target.closest(".queue-btn")) return;
+      // Same reason as .queue-btn: capturing the pointer here means the
+      // *click* event that follows gets dispatched at the card itself
+      // instead of the part row actually under the cursor, so its own
+      // stopPropagation()+openWordPage(row.word) handler never runs and the
+      // click silently falls through to the card's whole-chunk handler.
+      if (e.target.closest(".partword-link")) return;
       dragging = true;
       dragged = false;
       const r = el.getBoundingClientRect();
