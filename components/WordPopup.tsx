@@ -521,7 +521,7 @@ export function WordPopupCard({
           {popup.parts.map((part) => (
             <div key={part.word} className="flex flex-col gap-1.5">
               <div
-                className="text-[11px] font-medium text-white/55 hover:text-white/85 hover:underline cursor-pointer w-fit"
+                className="text-[11px] font-medium text-white/55 hover:text-white/85 hover:underline cursor-pointer -mx-1 px-1 py-0.5 rounded hover:bg-white/[.06]"
                 onClick={(e) => {
                   e.stopPropagation();
                   onNavigatePart?.(part.word, part.senses.length === 1 ? part.senses[0].pinyin : undefined);
@@ -535,14 +535,19 @@ export function WordPopupCard({
                 part.senses.map((sense, i) => {
                   const saved = part.savedSenseKeys.has(senseKey(sense));
                   return (
-                    <div key={i} className="flex items-start justify-between gap-2">
-                      <div
-                        className="min-w-0 cursor-pointer"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onNavigatePart?.(part.word, sense.pinyin);
-                        }}
-                      >
+                    // The whole row (not just the tight text) is the click
+                    // target — a small hit area was the actual bug: most
+                    // clicks landed just outside the text and fell through
+                    // to the card's own onClick (whole-chunk navigation).
+                    <div
+                      key={i}
+                      className="flex items-start justify-between gap-2 cursor-pointer -mx-1 px-1 py-0.5 rounded hover:bg-white/[.06]"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onNavigatePart?.(part.word, sense.pinyin);
+                      }}
+                    >
+                      <div className="min-w-0">
                         {sense.pinyin && <div className="text-xs text-violet-300">{sense.pinyin}</div>}
                         <div className="text-xs text-white/90">{sense.meaning}</div>
                       </div>

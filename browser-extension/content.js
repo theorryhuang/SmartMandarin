@@ -46,7 +46,7 @@
       .loading, .empty { color: rgba(255,255,255,.5); font-style: italic; }
       .rows { display: flex; flex-direction: column; gap: 6px; }
       .row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-      .row .text { min-width: 0; }
+      .row .text { min-width: 0; flex: 1; }
       .partword-link { border-radius: 6px; margin: -3px -4px; padding: 3px 4px; }
       .partword-link:hover { background: rgba(255,255,255,.08); }
       .pinyin { color: #c4b5fd; font-size: 12px; }

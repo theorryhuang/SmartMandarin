@@ -67,35 +67,66 @@ function primaryEntry(entries: DictResult[]): (DictResult & { senses?: DictResul
   return candidates.length > 1 ? { ...candidates[0], senses: candidates } : candidates[0];
 }
 
-// Forward maximum matching against CEDICT itself: at each position, try the
-// longest remaining substring first and shrink until something hits, then
-// continue from where that match ended. Segmentation and CEDICT are separate
-// word lists, so a span like "一步步" may not be a CEDICT headword even
-// though its pieces are — this walks the whole span into real headwords
-// ("一" + "步步") instead of guessing one substring and dropping the rest.
-export async function cedictDecompose(word: string): Promise<{ word: string; entries: DictResult[] }[]> {
-  const chars = Array.from(word);
-  const parts: { word: string; entries: DictResult[] }[] = [];
-  let i = 0;
-  while (i < chars.length) {
-    let hit: { sub: string; entries: DictResult[] } | null = null;
-    for (let len = chars.length - i; len >= 1; len--) {
-      const sub = chars.slice(i, i + len).join("");
+// Maximum matching against CEDICT itself, run in BOTH directions and unioned.
+// At each position, try the longest remaining substring first and shrink
+// until something hits, then continue from where that match ended — but a
+// single left-to-right pass picks *one* parse and silently hides any other
+// valid one. "耀华中学" (Yaohua Middle School) forward-greedy reads as
+// 耀+华中+学 ("central China" + a lone character) — real CEDICT words, but
+// the wrong split; a backward pass from the right finds 学+中学+华+耀 instead,
+// correctly keeping "中学" (middle school) together. Neither direction is
+// reliably "more correct" in general, so instead of guessing, union both:
+// surface every real headword either pass finds — 天津市/耀/华中/学/华/中学 all
+// show up as their own candidate — rather than committing to one split and
+// dropping the alternative.
+async function maxMatchWalk(
+  chars: string[],
+  forward: boolean
+): Promise<{ word: string; entries: DictResult[]; start: number }[]> {
+  const n = chars.length;
+  const out: { word: string; entries: DictResult[]; start: number }[] = [];
+  let i = forward ? 0 : n;
+  while (forward ? i < n : i > 0) {
+    let hit: { sub: string; entries: DictResult[]; start: number } | null = null;
+    const remaining = forward ? n - i : i;
+    for (let len = remaining; len >= 1; len--) {
+      const start = forward ? i : i - len;
+      const sub = chars.slice(start, start + len).join("");
       const entries = await cedictLookupAll(sub);
       if (entries.length > 0) {
-        hit = { sub, entries };
+        hit = { sub, entries, start };
         break;
       }
     }
     if (hit) {
-      parts.push({ word: hit.sub, entries: hit.entries });
-      i += Array.from(hit.sub).length;
+      out.push({ word: hit.sub, entries: hit.entries, start: hit.start });
+      i = forward ? i + Array.from(hit.sub).length : i - Array.from(hit.sub).length;
     } else {
-      parts.push({ word: chars[i], entries: [] }); // no CEDICT entry at all for this char
-      i += 1;
+      const start = forward ? i : i - 1;
+      out.push({ word: chars[start], entries: [], start }); // no CEDICT entry at all for this char
+      i = forward ? i + 1 : i - 1;
     }
   }
-  return parts;
+  return forward ? out : out.reverse();
+}
+
+export async function cedictDecompose(word: string): Promise<{ word: string; entries: DictResult[] }[]> {
+  const chars = Array.from(word);
+  const [fwd, bwd] = await Promise.all([maxMatchWalk(chars, true), maxMatchWalk(chars, false)]);
+
+  // Union by word text — prefer whichever pass actually found real entries
+  // (a char that's a real single-char word in one direction shouldn't be
+  // shadowed by an empty-entries fallback hit from the other).
+  const byWord = new Map<string, { word: string; entries: DictResult[]; start: number }>();
+  for (const hit of [...fwd, ...bwd]) {
+    const existing = byWord.get(hit.word);
+    if (!existing || (existing.entries.length === 0 && hit.entries.length > 0)) {
+      byWord.set(hit.word, hit);
+    }
+  }
+  return [...byWord.values()]
+    .sort((a, b) => a.start - b.start || b.word.length - a.word.length)
+    .map(({ word, entries }) => ({ word, entries }));
 }
 
 async function resolveCedict(word: string) {

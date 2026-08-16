@@ -195,24 +195,38 @@ async function greedySegment(
   // Greedy longest-match using real word existence, falling back to a lone
   // character when nothing at this position matches any dictionary entry
   // (so every character still gets looked up instead of being dropped).
-  const segments: string[] = [];
-  let pos = 0;
-  while (pos < chars.length) {
-    let matched = false;
-    for (let len = chars.length - pos; len >= 1; len--) {
-      const sub = chars.slice(pos, pos + len).join("");
-      if (validWords.has(sub)) {
-        segments.push(sub);
-        pos += len;
-        matched = true;
-        break;
+  // Run in BOTH directions and union the result — a single left-to-right
+  // pass picks one parse and can silently hide a valid alternative (e.g.
+  // "耀华中学" forward-greedy reads as 耀+华中+学, missing that 华+中学 is
+  // the actually-intended split); backward-from-the-right catches what
+  // forward missed and vice versa, so both show up as candidates instead of
+  // one being dropped. No extra query — reuses the validWords set above.
+  function walk(forward: boolean): string[] {
+    const out: string[] = [];
+    let i = forward ? 0 : chars.length;
+    while (forward ? i < chars.length : i > 0) {
+      let matched = false;
+      const remaining = forward ? chars.length - i : i;
+      for (let len = remaining; len >= 1; len--) {
+        const start = forward ? i : i - len;
+        const sub = chars.slice(start, start + len).join("");
+        if (validWords.has(sub)) {
+          out.push(sub);
+          i = forward ? i + len : i - len;
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        const start = forward ? i : i - 1;
+        out.push(chars[start]);
+        i = forward ? i + 1 : i - 1;
       }
     }
-    if (!matched) {
-      segments.push(chars[pos]);
-      pos += 1;
-    }
+    return forward ? out : out.reverse();
   }
+
+  const segments = [...new Set([...walk(true), ...walk(false)])];
   if (segments.length === 0) return [];
 
   // Round 2: fetch prefix results for each segment in parallel
