@@ -6,6 +6,7 @@ import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
 import { useLanguage } from "@/app/_components/LanguageContext";
 import { segmentIntoWords, charSegmentIndex } from "@/lib/segment";
 import { useWordPopup, WordPopupCard } from "@/components/WordPopup";
+import { useIsDesktopPointer } from "@/lib/useIsDesktopPointer";
 
 interface StorySentence {
   hanzi: string;
@@ -193,6 +194,12 @@ function StoryLine({
   // lands (resolveRange itself reads a ref, so it won't trigger renders).
   activeWord: string | null;
 }) {
+  // Desktop (real mouse) defers entirely to the browser extension — native
+  // text selection stays enabled and none of this component's own pointer
+  // handling runs, so the extension's own selection-based lookup is the only
+  // thing that fires. Touch devices (no extension) keep this custom
+  // tap/drag-to-select system exactly as before.
+  const isDesktop = useIsDesktopPointer();
   const chars = Array.from(sentence.hanzi);
   const [selStart, setSelStart] = useState<number | null>(null);
   const [selEnd, setSelEnd] = useState<number | null>(null);
@@ -235,6 +242,7 @@ function StoryLine({
   }
 
   function handlePointerDown(i: number) {
+    if (isDesktop) return; // let native mousedown+drag selection happen instead
     setSelStart(i);
     setSelEnd(i);
     setIsSelecting(true);
@@ -245,7 +253,7 @@ function StoryLine({
   }
 
   function handlePointerUp(e: React.PointerEvent) {
-    if (!isSelecting || selStart === null || selEnd === null) return;
+    if (isDesktop || !isSelecting || selStart === null || selEnd === null) return;
     setIsSelecting(false);
     const lo = Math.min(selStart, selEnd);
     const hi = Math.max(selStart, selEnd);
@@ -271,7 +279,7 @@ function StoryLine({
 
   return (
     <div
-      className="leading-loose text-lg select-none"
+      className={`leading-loose text-lg ${isDesktop ? "" : "select-none"}`}
       onPointerUp={handlePointerUp}
       onPointerLeave={(e) => {
         if (isSelecting) handlePointerUp(e);
@@ -298,7 +306,7 @@ function StoryLine({
             onPointerDown={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); handlePointerDown(i); }}
             onPointerEnter={(e) => {
               handlePointerEnter(i);
-              if (e.pointerType === "mouse" && !isSelecting) {
+              if (!isDesktop && e.pointerType === "mouse" && !isSelecting) {
                 const seg = wordSegments[segIndexAt[i]];
                 const segWord = seg && seg.isWordLike ? seg.word : char;
                 const offset = seg && seg.isWordLike ? i - seg.start : 0;
@@ -307,12 +315,12 @@ function StoryLine({
               }
             }}
             onPointerLeave={(e) => {
-              if (e.pointerType === "mouse") {
+              if (!isDesktop && e.pointerType === "mouse") {
                 setHoverCharIdx(null);
                 onHoverLeave();
               }
             }}
-            className={`word-token px-0.5 transition-all cursor-pointer touch-none ${
+            className={`word-token px-0.5 transition-all ${isDesktop ? "cursor-text" : "cursor-pointer touch-none"} ${
               isInSelection
                 ? "bg-violet-600/40 rounded"
                 : isQueued

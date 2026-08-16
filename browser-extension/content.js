@@ -29,15 +29,19 @@
         position: fixed;
         z-index: 2147483647;
         max-width: 280px;
+        max-height: calc(100vh - 16px);
+        overflow-y: auto;
         padding: 10px 12px;
         border-radius: 12px;
         background: #171717;
         color: #fff;
         box-shadow: 0 12px 32px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.1);
         font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        cursor: pointer;
+        cursor: grab;
+        touch-action: none;
         user-select: none;
       }
+      .card.dragging { cursor: grabbing; }
       .word { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
       .loading, .empty { color: rgba(255,255,255,.5); font-style: italic; }
       .rows { display: flex; flex-direction: column; gap: 6px; }
@@ -72,9 +76,94 @@
   function positionCard(el, rect) {
     const margin = 8;
     const preferBelow = rect.top < 90;
-    el.style.left = `${Math.min(Math.max(rect.left + rect.width / 2, 140), window.innerWidth - 140)}px`;
+    el.style.left = `${rect.left + rect.width / 2}px`;
     el.style.top = preferBelow ? `${rect.bottom + margin}px` : `${rect.top - margin}px`;
     el.style.transform = preferBelow ? "translate(-50%, 0)" : "translate(-50%, -100%)";
+    clampCardPosition(el);
+  }
+
+  // Nudges the card back inside the viewport based on its *actual* rendered
+  // size — called again after content replaces the loading placeholder,
+  // since a long decomposed-word list (many parts, each with multiple
+  // senses) can grow well past what fit at the initial guess. Deltas are
+  // additive on top of whatever position is already live, so repeat calls
+  // as content grows keep it correct instead of re-deriving from scratch.
+  function clampCardPosition(el) {
+    const margin = 8;
+    const r = el.getBoundingClientRect();
+    let dx = 0;
+    let dy = 0;
+    if (r.left < margin) dx = margin - r.left;
+    else if (r.right > window.innerWidth - margin) dx = window.innerWidth - margin - r.right;
+    if (r.top < margin) dy = margin - r.top;
+    else if (r.bottom > window.innerHeight - margin) dy = window.innerHeight - margin - r.bottom;
+    if (dx) el.style.left = `${(parseFloat(el.style.left) || 0) + dx}px`;
+    if (dy) el.style.top = `${(parseFloat(el.style.top) || 0) + dy}px`;
+  }
+
+  // Drag-to-move: pointerdown on the card body (not a queue button) grabs it;
+  // dropping off the anchor-centered transform in favor of plain top-left so
+  // it can just follow the cursor. A short move threshold before treating it
+  // as a drag (rather than a click) keeps "click to open full word page"
+  // working for an actual click.
+  function makeDraggable(el) {
+    let dragging = false;
+    let dragged = false;
+    let startX = 0;
+    let startY = 0;
+    let baseLeft = 0;
+    let baseTop = 0;
+
+    el.addEventListener("pointerdown", (e) => {
+      if (e.button !== undefined && e.button !== 0) return;
+      if (e.target.closest(".queue-btn")) return;
+      dragging = true;
+      dragged = false;
+      const r = el.getBoundingClientRect();
+      el.style.left = `${r.left}px`;
+      el.style.top = `${r.top}px`;
+      el.style.transform = "none";
+      baseLeft = r.left;
+      baseTop = r.top;
+      startX = e.clientX;
+      startY = e.clientY;
+      el.setPointerCapture(e.pointerId);
+    });
+
+    el.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if (!dragged && Math.hypot(dx, dy) > 4) {
+        dragged = true;
+        el.classList.add("dragging");
+      }
+      if (dragged) {
+        el.style.left = `${baseLeft + dx}px`;
+        el.style.top = `${baseTop + dy}px`;
+      }
+    });
+
+    function endDrag(e) {
+      if (!dragging) return;
+      dragging = false;
+      el.classList.remove("dragging");
+      el.releasePointerCapture(e.pointerId);
+      if (dragged) clampCardPosition(el);
+    }
+    el.addEventListener("pointerup", endDrag);
+    el.addEventListener("pointercancel", endDrag);
+
+    // Registered before the click-to-open-word-page listener so it can veto
+    // it via stopImmediatePropagation — at the target element, listeners run
+    // in registration order regardless of capture/bubble phase.
+    el.addEventListener("click", (e) => {
+      if (dragged) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        dragged = false;
+      }
+    });
   }
 
   function openWordPage(word) {
@@ -206,17 +295,12 @@
       cardEl.appendChild(e);
     }
 
-    if (result.source === "ai") {
-      const note = document.createElement("div");
-      note.className = "ai-note";
-      note.textContent = "AI-generated — verify before adding";
-      cardEl.appendChild(note);
-    }
-
     const hint = document.createElement("div");
     hint.className = "hint";
     hint.textContent = "Click to open full word page →";
     cardEl.appendChild(hint);
+
+    clampCardPosition(cardEl);
   }
 
   function showCard(word, rect) {
@@ -225,6 +309,7 @@
     cardEl = document.createElement("div");
     cardEl.className = "card";
     positionCard(cardEl, rect);
+    makeDraggable(cardEl);
     cardEl.addEventListener("click", () => openWordPage(word));
     shadow.appendChild(cardEl);
 
@@ -244,6 +329,8 @@
       note.textContent = "Connect your account in the extension settings to save words.";
       cardEl.appendChild(note);
     }
+
+    clampCardPosition(cardEl);
 
     if (cache.has(word)) {
       renderResult(word, cache.get(word));

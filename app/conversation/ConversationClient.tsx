@@ -11,6 +11,7 @@ import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
 import { useLanguage } from "@/app/_components/LanguageContext";
 import { segmentIntoWords, charSegmentIndex } from "@/lib/segment";
 import { useWordPopup, WordPopupCard } from "@/components/WordPopup";
+import { useIsDesktopPointer } from "@/lib/useIsDesktopPointer";
 
 interface Message {
   role: "user" | "assistant";
@@ -41,7 +42,14 @@ export function ConversationClient({ masteryMap }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [savedWords, setSavedWords] = useState<Set<string>>(new Set());
+  // Seeded from masteryMap (fetched fresh from the DB on every navigation to
+  // this page), not the capped getConversationContext() query below — that one
+  // is limit(15)'d and used for AI context, not as the source of truth for
+  // which words are actually saved. Session-local toggleSense() adds/removes
+  // layer on top of this base via onQueueChange.
+  const [savedWords, setSavedWords] = useState<Set<string>>(
+    () => new Set(Object.keys(masteryMap))
+  );
   const [slangMode, setSlangMode] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("sm_slang_mode") === "1";
@@ -51,6 +59,13 @@ export function ConversationClient({ masteryMap }: Props) {
   const [unknownWords, setUnknownWords] = useState<
     { hanzi: string; pinyin: string; meaning: string }[]
   >([]);
+  // "将使用" — words queued this chat *session*, not "everything ever
+  // flagged": flagged_for_immediate_use in the DB is set by every save
+  // action app-wide and is never cleared, so deriving this from masteryMap
+  // pulls in a user's entire saved-word history instead of just this
+  // conversation's additions. Persisted per-conversation in localStorage
+  // instead (same pattern as sm_conv_messages_/sm_conv_history_ below) so it
+  // survives navigating away and back without accumulating across sessions.
   const [forcedWords, setForcedWords] = useState<string[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -86,10 +101,12 @@ export function ConversationClient({ masteryMap }: Props) {
   }, [activeConvId]);
 
   useEffect(() => {
+    // hskLevel/unknownWords here are AI-context only (capped, sent to the
+    // model) — savedWords/forcedWords are already seeded from masteryMap
+    // above and must not be overwritten by this narrower, capped fetch.
     getConversationContext().then(({ hskLevel, unknownWords }) => {
       setHskLevel(hskLevel);
       setUnknownWords(unknownWords);
-      setSavedWords(new Set(unknownWords.map((w) => w.hanzi)));
     });
   }, []);
 
@@ -140,8 +157,10 @@ export function ConversationClient({ masteryMap }: Props) {
     try {
       const msgs = localStorage.getItem(`sm_conv_messages_${activeId}`);
       const hist = localStorage.getItem(`sm_conv_history_${activeId}`);
+      const forced = localStorage.getItem(`sm_conv_forced_${activeId}`);
       if (msgs) setMessages(JSON.parse(msgs));
       if (hist) historyRef.current = JSON.parse(hist);
+      if (forced) setForcedWords(JSON.parse(forced));
     } catch {}
 
     setConversations(convs);
@@ -161,6 +180,14 @@ export function ConversationClient({ masteryMap }: Props) {
     } catch {}
   }, [messages, activeConvId]);
 
+  // Persist "将使用" whenever it changes
+  useEffect(() => {
+    if (!activeConvId) return;
+    try {
+      localStorage.setItem(`sm_conv_forced_${activeConvId}`, JSON.stringify(forcedWords));
+    } catch {}
+  }, [forcedWords, activeConvId]);
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -177,15 +204,19 @@ export function ConversationClient({ masteryMap }: Props) {
 
     let newMsgs: Message[] = [];
     let newHist: { role: "user" | "assistant"; content: string }[] = [];
+    let newForced: string[] = [];
     try {
       const msgs = localStorage.getItem(`sm_conv_messages_${convId}`);
       const hist = localStorage.getItem(`sm_conv_history_${convId}`);
+      const forced = localStorage.getItem(`sm_conv_forced_${convId}`);
       if (msgs) newMsgs = JSON.parse(msgs);
       if (hist) newHist = JSON.parse(hist);
+      if (forced) newForced = JSON.parse(forced);
     } catch {}
 
     historyRef.current = newHist;
     setMessages(newMsgs);
+    setForcedWords(newForced);
     setActiveConvId(convId);
     localStorage.setItem("sm_active_conv", convId);
     setShowChatList(false);
@@ -208,6 +239,7 @@ export function ConversationClient({ masteryMap }: Props) {
 
     historyRef.current = [];
     setMessages([]);
+    setForcedWords([]);
     setActiveConvId(id);
     localStorage.setItem("sm_active_conv", id);
     setShowChatList(false);
@@ -218,6 +250,7 @@ export function ConversationClient({ masteryMap }: Props) {
 
     localStorage.removeItem(`sm_conv_messages_${convId}`);
     localStorage.removeItem(`sm_conv_history_${convId}`);
+    localStorage.removeItem(`sm_conv_forced_${convId}`);
 
     let remaining: ConversationMeta[] = [];
     try {
@@ -234,14 +267,18 @@ export function ConversationClient({ masteryMap }: Props) {
         const target = remaining[0];
         let newMsgs: Message[] = [];
         let newHist: { role: "user" | "assistant"; content: string }[] = [];
+        let newForced: string[] = [];
         try {
           const msgs = localStorage.getItem(`sm_conv_messages_${target.id}`);
           const hist = localStorage.getItem(`sm_conv_history_${target.id}`);
+          const forced = localStorage.getItem(`sm_conv_forced_${target.id}`);
           if (msgs) newMsgs = JSON.parse(msgs);
           if (hist) newHist = JSON.parse(hist);
+          if (forced) newForced = JSON.parse(forced);
         } catch {}
         historyRef.current = newHist;
         setMessages(newMsgs);
+        setForcedWords(newForced);
         setActiveConvId(target.id);
         localStorage.setItem("sm_active_conv", target.id);
       } else {
@@ -252,6 +289,7 @@ export function ConversationClient({ masteryMap }: Props) {
         setConversations([meta]);
         historyRef.current = [];
         setMessages([]);
+        setForcedWords([]);
         setActiveConvId(newId);
       }
     }
@@ -685,6 +723,12 @@ function TappableMessage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hoverCharIdx, wordSegments, segIndexAt, resolveRange, activeWord]);
 
+  // Desktop (real mouse) defers entirely to the browser extension, which
+  // needs a genuine native selection to detect — and would otherwise pop up
+  // side-by-side with this component's own card for the same selection.
+  // Touch devices (no extension, worse UX for drag-to-select CJK text) keep
+  // the in-app popup exactly as before.
+  const isDesktop = useIsDesktopPointer();
   const containerRef = useRef<HTMLDivElement>(null);
   const onWordClickRef = useRef(onWordClick);
   useEffect(() => { onWordClickRef.current = onWordClick; }, [onWordClick]);
@@ -703,6 +747,7 @@ function TappableMessage({
   }
 
   useEffect(() => {
+    if (isDesktop) return; // leave native selection alone for the extension
     const el = containerRef.current;
     if (!el) return;
     const onEnd = () => {
@@ -724,7 +769,7 @@ function TappableMessage({
       el.removeEventListener("mouseup", onEnd);
       el.removeEventListener("touchend", onEnd);
     };
-  }, []);
+  }, [isDesktop]);
 
   return (
     <div
@@ -757,24 +802,25 @@ function TappableMessage({
             key={i}
             data-word-token
             onClick={(e) => {
+              if (isDesktop) return; // extension owns clicks/selection here
               const sel = window.getSelection();
               if (sel && !sel.isCollapsed) return;
               const rect = e.currentTarget.getBoundingClientRect();
               onWordClick(dictWord, offset, rect.left + rect.width / 2, rect.top);
             }}
             onPointerEnter={(e) => {
-              if (e.pointerType === "mouse") {
+              if (!isDesktop && e.pointerType === "mouse") {
                 setHoverCharIdx(i);
                 onWordHover(dictWord, offset, e.currentTarget.getBoundingClientRect());
               }
             }}
             onPointerLeave={(e) => {
-              if (e.pointerType === "mouse") {
+              if (!isDesktop && e.pointerType === "mouse") {
                 setHoverCharIdx(null);
                 onHoverLeave();
               }
             }}
-            className={`cursor-pointer rounded-sm transition-colors ${
+            className={`${isDesktop ? "cursor-text" : "cursor-pointer"} rounded-sm transition-colors ${
               isSaved
                 ? "word-token word-token--mistake"
                 : isLearning

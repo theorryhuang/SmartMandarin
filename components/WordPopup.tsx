@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { logMistake, removeFromReviewQueue } from "@/app/actions/vocabulary";
 import { useLanguage } from "@/app/_components/LanguageContext";
@@ -376,6 +376,27 @@ export function WordPopupCard({
   onToggleSense: (sense: WordSense) => void;
 }) {
   const { t } = useLanguage();
+  const below = popup.y < 90;
+
+  // Anchor is a single point (the hovered/clicked char); the card is
+  // centered under/over it via translate(-50%, …). Runs after every commit
+  // (no dep array) since React re-applies the raw, unclamped left/top from
+  // the style prop on every render — reasserting the clamp only when deps
+  // happened to change would let it get clobbered by unrelated re-renders.
+  useLayoutEffect(() => {
+    const el = popupRef.current;
+    if (!el) return;
+    const margin = 8;
+    const rect = el.getBoundingClientRect();
+    let dx = 0;
+    let dy = 0;
+    if (rect.left < margin) dx = margin - rect.left;
+    else if (rect.right > window.innerWidth - margin) dx = window.innerWidth - margin - rect.right;
+    if (rect.top < margin) dy = margin - rect.top;
+    else if (rect.bottom > window.innerHeight - margin) dy = window.innerHeight - margin - rect.bottom;
+    if (dx) el.style.left = `${popup.x + dx}px`;
+    if (dy) el.style.top = `${(below ? popup.y + 26 : popup.y - 10) + dy}px`;
+  });
 
   return (
     <div
@@ -384,8 +405,8 @@ export function WordPopupCard({
       className="fixed z-[60] px-3 py-2 rounded-xl bg-neutral-900 text-white shadow-xl border border-white/10 max-w-[260px] cursor-pointer select-none"
       style={{
         left: popup.x,
-        top: popup.y < 90 ? popup.y + 26 : popup.y - 10,
-        transform: popup.y < 90 ? "translate(-50%, 0)" : "translate(-50%, -100%)",
+        top: below ? popup.y + 26 : popup.y - 10,
+        transform: below ? "translate(-50%, 0)" : "translate(-50%, -100%)",
       }}
     >
       <div className="text-sm font-medium leading-tight mb-1">{popup.word}</div>

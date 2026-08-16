@@ -168,6 +168,7 @@ export async function getConversationContext(): Promise<{
     .select("hanzi, pinyin, meaning")
     .eq("user_id", userId)
     .eq("flagged_for_immediate_use", true)
+    .order("updated_at", { ascending: false })
     .limit(15);
 
   const { data: weak } = await supabase
