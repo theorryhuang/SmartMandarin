@@ -1,4 +1,5 @@
 import { cedictLookupAll, hskLookup } from "@/lib/cedict";
+import { cedictDecompose } from "@/lib/defineWord";
 import { createClient } from "@/lib/supabase/server";
 import type { VocabularyMastery } from "@/lib/types";
 import { WordDetailClient } from "./WordDetailClient";
@@ -37,6 +38,21 @@ export default async function WordDetailPage({
     hskLookup(hanzi),
   ]);
 
+  // Not a CEDICT headword itself (e.g. a raw multi-char selection dragged
+  // from the popup or the extension, like "哪个内蒙古自治") — instead of a
+  // dead end, break it into its real constituent words the same way the
+  // popup's own decomposition does, so there's still something useful here.
+  let breakdown: { word: string; entries: { pinyin: string; meaning: string; hsk_level: number | null }[] }[] | null = null;
+  if (entries.length === 0 && Array.from(hanzi).length > 1 && !savedWords.length) {
+    const decomposed = await cedictDecompose(hanzi);
+    if (decomposed.some((p) => p.entries.length > 0)) {
+      breakdown = decomposed.map((p) => ({
+        word: p.word,
+        entries: p.entries.map((e) => ({ pinyin: e.pinyin, meaning: e.meaning, hsk_level: e.hsk_level })),
+      }));
+    }
+  }
+
   return (
     <WordDetailClient
       hanzi={hanzi}
@@ -44,6 +60,7 @@ export default async function WordDetailPage({
       hskLevel={hsk_level}
       savedWords={savedWords}
       selectedPinyin={selectedPinyin ?? null}
+      breakdown={breakdown}
     />
   );
 }

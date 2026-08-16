@@ -797,17 +797,15 @@ function TappableMessage({
         const offset = wordSeg && wordSeg.isWordLike ? i - wordSeg.start : 0;
         const isInHoverWord = hoverRange !== null && i >= hoverRange.start && i < hoverRange.end;
 
+        // No per-token tap-to-open — the extension never responds to a bare
+        // tap/click either, only to an actual text selection (the `onEnd`
+        // listener above). Matching that exactly means a single tap here
+        // does nothing on any device; only drag-select / double-tap-select
+        // (a real selection) triggers a lookup, same as the extension.
         return (
           <span
             key={i}
             data-word-token
-            onClick={(e) => {
-              if (isDesktop) return; // extension owns clicks/selection here
-              const sel = window.getSelection();
-              if (sel && !sel.isCollapsed) return;
-              const rect = e.currentTarget.getBoundingClientRect();
-              onWordClick(dictWord, offset, rect.left + rect.width / 2, rect.top);
-            }}
             onPointerEnter={(e) => {
               if (!isDesktop && e.pointerType === "mouse") {
                 setHoverCharIdx(i);
@@ -820,7 +818,7 @@ function TappableMessage({
                 onHoverLeave();
               }
             }}
-            className={`${isDesktop ? "cursor-text" : "cursor-pointer"} rounded-sm transition-colors ${
+            className={`cursor-text rounded-sm transition-colors ${
               isSaved
                 ? "word-token word-token--mistake"
                 : isLearning

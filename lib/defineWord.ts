@@ -73,7 +73,7 @@ function primaryEntry(entries: DictResult[]): (DictResult & { senses?: DictResul
 // word lists, so a span like "一步步" may not be a CEDICT headword even
 // though its pieces are — this walks the whole span into real headwords
 // ("一" + "步步") instead of guessing one substring and dropping the rest.
-async function cedictDecompose(word: string): Promise<{ word: string; entries: DictResult[] }[]> {
+export async function cedictDecompose(word: string): Promise<{ word: string; entries: DictResult[] }[]> {
   const chars = Array.from(word);
   const parts: { word: string; entries: DictResult[] }[] = [];
   let i = 0;

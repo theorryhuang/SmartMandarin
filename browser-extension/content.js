@@ -363,7 +363,13 @@
         renderResult(word, res.data);
       });
     } catch (e) {
-      console.error("[SmartMandarin] sendMessage threw synchronously:", e);
+      // Expected, not a bug: this tab's content script predates the
+      // extension's last reload/update, so its runtime context is stale.
+      // Already fully handled (the card shows a "reload this page" message
+      // below) — console.warn instead of console.error so it doesn't show
+      // up as a red error in chrome://extensions for a condition we already
+      // recovered from.
+      console.warn("[SmartMandarin] sendMessage threw synchronously:", e);
       renderResult(word, { error: "Extension was updated — reload this page and try again" });
     }
   }
