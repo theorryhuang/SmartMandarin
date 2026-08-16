@@ -70,7 +70,7 @@ export function ConversationClient({ masteryMap }: Props) {
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
 
-  const { popup, popupRef, showHover, hideHover, toggleClick, toggleSense, navigateToWord, resolveRange } = useWordPopup({
+  const { popup, popupRef, showHover, hideHover, toggleClick, toggleSense, togglePartSense, navigateToWord, navigateToPart, resolveRange } = useWordPopup({
     masteryMap,
     slangMode,
     // Styling (blue/red highlight) and forced-word injection are per-hanzi,
@@ -640,6 +640,8 @@ export function ConversationClient({ masteryMap }: Props) {
           popupRef={popupRef}
           onNavigate={() => navigateToWord(popup)}
           onToggleSense={(sense) => toggleSense(popup, sense)}
+          onNavigatePart={navigateToPart}
+          onTogglePartSense={(part, sense) => togglePartSense(popup, part, sense)}
         />
       )}
     </div>

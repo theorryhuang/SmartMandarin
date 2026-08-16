@@ -210,6 +210,7 @@ const en = {
   wordNotInDictionary: "No dictionary entry found for this word.",
   wordBreakdownIntro: "Not a single dictionary entry — here's its breakdown:",
   searchWholePhrase: (phrase: string) => `Search "${phrase}" instead →`,
+  openFullWordPage: "Click to open full word page →",
 };
 
 const zh: typeof en = {
@@ -422,6 +423,7 @@ const zh: typeof en = {
   wordNotInDictionary: "未找到该词的词典释义。",
   wordBreakdownIntro: "这不是一个词典词条，以下是拆分结果：",
   searchWholePhrase: (phrase: string) => `改为搜索"${phrase}" →`,
+  openFullWordPage: "点击查看完整词条页面 →",
 };
 
 export const translations: Record<Lang, typeof en> = { en, zh };

@@ -35,7 +35,7 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
   const [isGenerating, startGenerate] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const { popup, popupRef, showHover, hideHover, toggleClick, toggleSense, navigateToWord, hide, resolveRange } = useWordPopup({
+  const { popup, popupRef, showHover, hideHover, toggleClick, toggleSense, togglePartSense, navigateToWord, navigateToPart, hide, resolveRange } = useWordPopup({
     masteryMap,
     slangMode,
     // Styling (blue/red highlight) is per-character, not per-sense — any
@@ -161,6 +161,8 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
           popupRef={popupRef}
           onNavigate={() => navigateToWord(popup)}
           onToggleSense={(sense) => toggleSense(popup, sense)}
+          onNavigatePart={navigateToPart}
+          onTogglePartSense={(part, sense) => togglePartSense(popup, part, sense)}
         />
       )}
     </div>

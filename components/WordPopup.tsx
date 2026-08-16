@@ -46,6 +46,9 @@ export interface WordPart {
   pinyin?: string;
   meaning?: string;
   hsk_level?: number | null;
+  /** Every CEDICT sense for this part, when it has more than one (e.g. 乘
+   *  as Chéng/chéng/shèng) — same shape as the server's lib/defineWord.ts. */
+  senses?: WordSense[];
 }
 
 /** Raw shape returned by /api/define-word. */
@@ -61,6 +64,15 @@ export interface WordDef {
   parts?: WordPart[];
 }
 
+/** One row of a decomposed breakdown (word isn't itself a CEDICT headword,
+ *  but splits into real ones) — same shape as the extension's part rows,
+ *  each independently viewable and addable. */
+export interface DecomposedPart {
+  word: string;
+  senses: WordSense[];
+  savedSenseKeys: Set<string>;
+}
+
 export interface WordPopupState {
   word: string;
   x: number;
@@ -68,11 +80,17 @@ export interface WordPopupState {
   pinned: boolean;
   loading: boolean;
   /** Every known sense of `word` — from CEDICT plus any saved-but-uncatalogued
-   *  ones — each independently addable/removable. Empty once resolved = nothing found. */
+   *  ones — each independently addable/removable. Empty once resolved = nothing found.
+   *  Unused (empty) when `parts` is set instead. */
   senses: WordSense[];
   /** senseKey()s of `senses` that currently have a saved review card. */
   savedSenseKeys: Set<string>;
   source?: string;
+  /** Set instead of `senses` when `word` isn't itself a CEDICT headword but
+   *  decomposes into real ones (e.g. a raw multi-char drag-selection) — the
+   *  same breakdown the browser extension's popup shows, each part its own
+   *  independently viewable/addable row rather than one merged, garbled row. */
+  parts?: DecomposedPart[];
 }
 
 /**
@@ -109,8 +127,14 @@ function partRangeAt(parts: WordPart[], offset: number): { word: string; start: 
   return last ? { word: last.word, start: acc - Array.from(last.word).length, end: acc } : null;
 }
 
-/** Merge the API's senses (or flat pinyin/meaning) with any saved rows CEDICT didn't mention (AI/slang defs). */
-function normalizeSenses(def: WordDef, savedRows: { pinyin: string; meaning: string; hsk_level: number | null }[]): WordSense[] {
+/** Merge the API's senses (or flat pinyin/meaning) with any saved rows CEDICT
+ *  didn't mention (AI/slang defs). Takes either a whole WordDef or a single
+ *  WordPart — both share this pinyin/meaning/hsk_level/senses shape, so the
+ *  same merge logic covers a resolved word and one row of a decomposed one. */
+function normalizeSenses(
+  def: { pinyin?: string; meaning?: string; hsk_level?: number | null; senses?: WordSense[] },
+  savedRows: { pinyin: string; meaning: string; hsk_level: number | null }[]
+): WordSense[] {
   const fromDef: WordSense[] =
     def.senses && def.senses.length > 0
       ? def.senses
@@ -149,6 +173,22 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPo
     setPopup(null);
   }, [clearTimer]);
 
+  // Same breakdown the extension shows — one row per real CEDICT word inside
+  // a span that isn't itself a headword, each with its own saved-state
+  // pulled from masteryMap under *that part's own* hanzi, not the whole span's.
+  const buildParts = useCallback(
+    (def: WordDef): DecomposedPart[] =>
+      (def.parts ?? []).map((part) => {
+        const savedRows = masteryMap[part.word] ?? [];
+        return {
+          word: part.word,
+          senses: normalizeSenses(part, savedRows),
+          savedSenseKeys: new Set(savedRows.map((r) => senseKey(r))),
+        };
+      }),
+    [masteryMap]
+  );
+
   /** Final step once a word is fully resolved (a real headword, no decomposition left). */
   const openResolved = useCallback(
     (word: string, x: number, y: number, pinned: boolean) => {
@@ -157,7 +197,12 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPo
 
       const cached = cacheRef.current.get(word);
       if (cached) {
-        setPopup({ word, x, y, pinned, loading: false, senses: normalizeSenses(cached, savedRows), savedSenseKeys, source: cached.source });
+        const parts = cached.parts && cached.parts.length > 0 ? buildParts(cached) : undefined;
+        setPopup({
+          word, x, y, pinned, loading: false,
+          senses: parts ? [] : normalizeSenses(cached, savedRows),
+          savedSenseKeys, source: cached.source, parts,
+        });
         return;
       }
 
@@ -175,13 +220,18 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPo
           });
           const def: WordDef = await res.json();
           cacheRef.current.set(word, def);
-          setPopup((p) => (p && p.word === word ? { ...p, loading: false, senses: normalizeSenses(def, savedRows), source: def.source } : p));
+          const parts = def.parts && def.parts.length > 0 ? buildParts(def) : undefined;
+          setPopup((p) => (p && p.word === word ? {
+            ...p, loading: false,
+            senses: parts ? [] : normalizeSenses(def, savedRows),
+            source: def.source, parts,
+          } : p));
         } catch {
           setPopup((p) => (p && p.word === word ? { ...p, loading: false } : p));
         }
       })();
     },
-    [masteryMap, slangMode]
+    [masteryMap, slangMode, buildParts]
   );
 
   /** Fetches + caches the decomposition for a not-yet-seen segmenter word, then resolves whichever offset is current by the time it lands. */
@@ -322,6 +372,41 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPo
     [onQueueChange, masteryMap]
   );
 
+  /** Add/remove a review card for one sense of one part of a decomposed
+   *  breakdown — mirrors toggleSense but attributes the save to that part's
+   *  own hanzi, not the popup's overall (non-headword) `word`. */
+  const togglePartSense = useCallback(
+    async (p: WordPopupState, part: DecomposedPart, sense: WordSense) => {
+      const key = senseKey(sense);
+      const nowSaved = !part.savedSenseKeys.has(key);
+      setPopup((cur) => {
+        if (!cur || cur.word !== p.word || !cur.parts) return cur;
+        return {
+          ...cur,
+          parts: cur.parts.map((pt) => {
+            if (pt.word !== part.word) return pt;
+            const next = new Set(pt.savedSenseKeys);
+            nowSaved ? next.add(key) : next.delete(key);
+            return { ...pt, savedSenseKeys: next };
+          }),
+        };
+      });
+      onQueueChange?.(part.word, sense.pinyin, nowSaved, sense);
+
+      const existingRow = (masteryMap[part.word] ?? []).find((r) => r.pinyin === sense.pinyin && r.meaning === sense.meaning);
+      if (nowSaved) {
+        await logMistake(existingRow?.id ?? part.word, {
+          pinyin: sense.pinyin,
+          meaning: sense.meaning,
+          hsk_level: sense.hsk_level ?? undefined,
+        }).catch(() => {});
+      } else {
+        await removeFromReviewQueue(existingRow?.id ?? part.word, sense.pinyin, sense.meaning).catch(() => {});
+      }
+    },
+    [onQueueChange, masteryMap]
+  );
+
   const navigateToWord = useCallback(
     (p: WordPopupState) => {
       hide();
@@ -329,6 +414,15 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPo
       // let the word page itself show the full breakdown.
       const pinyin = p.senses.length === 1 ? p.senses[0].pinyin : undefined;
       router.push(`/vocab/word/${encodeURIComponent(p.word)}${pinyin ? `?pinyin=${encodeURIComponent(pinyin)}` : ""}`);
+    },
+    [hide, router]
+  );
+
+  /** Navigate to one part's own word page (not the whole decomposed span). */
+  const navigateToPart = useCallback(
+    (word: string, pinyin?: string) => {
+      hide();
+      router.push(`/vocab/word/${encodeURIComponent(word)}${pinyin ? `?pinyin=${encodeURIComponent(pinyin)}` : ""}`);
     },
     [hide, router]
   );
@@ -361,7 +455,7 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPo
     return () => document.removeEventListener("pointerdown", onDocPointerDown);
   }, [hide]);
 
-  return { popup, popupRef, showHover, hideHover, toggleClick, toggleSense, navigateToWord, hide, resolveRange };
+  return { popup, popupRef, showHover, hideHover, toggleClick, toggleSense, togglePartSense, navigateToWord, navigateToPart, hide, resolveRange };
 }
 
 export function WordPopupCard({
@@ -369,11 +463,17 @@ export function WordPopupCard({
   popupRef,
   onNavigate,
   onToggleSense,
+  onNavigatePart,
+  onTogglePartSense,
 }: {
   popup: WordPopupState;
   popupRef: React.RefObject<HTMLDivElement | null>;
   onNavigate: () => void;
   onToggleSense: (sense: WordSense) => void;
+  /** Required when popup.parts is set — navigate to one part's own page. */
+  onNavigatePart?: (word: string, pinyin?: string) => void;
+  /** Required when popup.parts is set — toggle one sense of one part. */
+  onTogglePartSense?: (part: DecomposedPart, sense: WordSense) => void;
 }) {
   const { t } = useLanguage();
   const below = popup.y < 90;
@@ -411,7 +511,64 @@ export function WordPopupCard({
     >
       <div className="text-sm font-medium leading-tight mb-1">{popup.word}</div>
 
-      {popup.loading && popup.senses.length === 0 ? (
+      {popup.parts ? (
+        // Not a single headword — same per-part breakdown the extension
+        // shows. Each part's text is its own click target (stopPropagation
+        // so it doesn't also fire the card's own onNavigate, which points at
+        // the whole span); the rest of the card (incl. the hint below) still
+        // goes to the full span's page, unchanged.
+        <div className="flex flex-col gap-2.5">
+          {popup.parts.map((part) => (
+            <div key={part.word} className="flex flex-col gap-1.5">
+              <div
+                className="text-[11px] font-medium text-white/55 hover:text-white/85 hover:underline cursor-pointer w-fit"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onNavigatePart?.(part.word, part.senses.length === 1 ? part.senses[0].pinyin : undefined);
+                }}
+              >
+                {part.word}
+              </div>
+              {part.senses.length === 0 ? (
+                <div className="text-xs text-white/50 italic">{t.notInVocab}</div>
+              ) : (
+                part.senses.map((sense, i) => {
+                  const saved = part.savedSenseKeys.has(senseKey(sense));
+                  return (
+                    <div key={i} className="flex items-start justify-between gap-2">
+                      <div
+                        className="min-w-0 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onNavigatePart?.(part.word, sense.pinyin);
+                        }}
+                      >
+                        {sense.pinyin && <div className="text-xs text-violet-300">{sense.pinyin}</div>}
+                        <div className="text-xs text-white/90">{sense.meaning}</div>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onTogglePartSense?.(part, sense);
+                        }}
+                        title={saved ? t.removeFromReview : t.queueForReview}
+                        className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold leading-none transition-colors ${
+                          saved ? "bg-red-500/90 hover:bg-red-500" : "bg-violet-500/90 hover:bg-violet-500"
+                        }`}
+                      >
+                        {saved ? "–" : "+"}
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          ))}
+          <div className="pt-1.5 mt-0.5 border-t border-white/10 text-[10px] text-white/40">
+            {t.openFullWordPage}
+          </div>
+        </div>
+      ) : popup.loading && popup.senses.length === 0 ? (
         <div className="text-xs text-white/50">…</div>
       ) : popup.senses.length === 0 ? (
         <div className="text-xs text-white/50 italic">{t.notInVocab}</div>

@@ -47,6 +47,8 @@
       .rows { display: flex; flex-direction: column; gap: 6px; }
       .row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
       .row .text { min-width: 0; }
+      .partword-link { border-radius: 6px; margin: -3px -4px; padding: 3px 4px; }
+      .partword-link:hover { background: rgba(255,255,255,.08); }
       .pinyin { color: #c4b5fd; font-size: 12px; }
       .meaning { color: rgba(255,255,255,.9); font-size: 12px; }
       .partword { color: rgba(255,255,255,.55); font-size: 11px; margin-bottom: 1px; }
@@ -237,6 +239,17 @@
       m.className = "meaning";
       m.textContent = row.meaning || "";
       textEl.appendChild(m);
+
+      if (row.isPart) {
+        // A decomposed part is its own word — clicking it should open *its*
+        // full word page, not the original multi-char chunk's (that's what
+        // the card's own click handler / hint at the bottom already does).
+        textEl.classList.add("partword-link");
+        textEl.addEventListener("click", (e) => {
+          e.stopPropagation();
+          openWordPage(row.word);
+        });
+      }
       rowEl.appendChild(textEl);
 
       if (config.connected && (row.pinyin || row.meaning)) {
@@ -409,13 +422,10 @@
     if (e.key === "Escape") hideCard();
   });
 
-  window.addEventListener(
-    "scroll",
-    () => {
-      if (cardEl) hideCard();
-    },
-    true
-  );
+  // Deliberately no scroll-to-dismiss — the card is `position: fixed`, so it
+  // just stays put on screen while the page scrolls under it instead of
+  // tracking the original selection. Only a click outside it (pointerdown
+  // listener above) or Escape closes it now.
 
   function loadConfig() {
     chrome.runtime.sendMessage({ type: "getConfig" }, (res) => {
