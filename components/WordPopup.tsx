@@ -646,11 +646,24 @@ export function WordPopupCard({
                           onTogglePartSense?.(part, sense);
                         }}
                         title={saved ? t.removeFromReview : t.queueForReview}
-                        className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold leading-none transition-colors ${
-                          saved ? "bg-red-500/90 hover:bg-red-500" : "bg-violet-500/90 hover:bg-violet-500"
-                        }`}
+                        // 20px of visible dot sitting inside a ~36px tap target — a
+                        // mouse lands on the dot precisely every time, but a finger
+                        // routinely misses it by a few px, and a miss here falls
+                        // through to this row's own onClick (navigate to the part's
+                        // word page) instead of toggling — on mobile that reads as
+                        // "+/- does nothing" (you're actually just being navigated
+                        // away, so the save never happens and nothing highlights).
+                        className="shrink-0 -m-2 p-2 touch-manipulation group"
                       >
-                        {saved ? "–" : "+"}
+                        <span
+                          className={`flex w-5 h-5 rounded-full items-center justify-center text-xs font-bold leading-none transition-colors ${
+                            saved
+                              ? "bg-red-500/90 group-hover:bg-red-500 group-active:bg-red-500"
+                              : "bg-violet-500/90 group-hover:bg-violet-500 group-active:bg-violet-500"
+                          }`}
+                        >
+                          {saved ? "–" : "+"}
+                        </span>
                       </button>
                     </div>
                   );
@@ -682,11 +695,22 @@ export function WordPopupCard({
                     onToggleSense(sense);
                   }}
                   title={saved ? t.removeFromReview : t.queueForReview}
-                  className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold leading-none transition-colors ${
-                    saved ? "bg-red-500/90 hover:bg-red-500" : "bg-violet-500/90 hover:bg-violet-500"
-                  }`}
+                  // Same hit-slop as the decomposed-part rows below — this row has
+                  // no handler of its own, so a near-miss here bubbles all the way
+                  // up to the *card's* onClick (navigate to the word page) instead
+                  // of toggling. On mobile that's a silent navigation-away instead
+                  // of a save, which is why "+/-" felt broken only on touch.
+                  className="shrink-0 -m-2 p-2 touch-manipulation group"
                 >
-                  {saved ? "–" : "+"}
+                  <span
+                    className={`flex w-5 h-5 rounded-full items-center justify-center text-xs font-bold leading-none transition-colors ${
+                      saved
+                        ? "bg-red-500/90 group-hover:bg-red-500 group-active:bg-red-500"
+                        : "bg-violet-500/90 group-hover:bg-violet-500 group-active:bg-violet-500"
+                    }`}
+                  >
+                    {saved ? "–" : "+"}
+                  </span>
                 </button>
               </div>
             );
