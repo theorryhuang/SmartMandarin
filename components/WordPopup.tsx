@@ -275,6 +275,23 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPo
     [masteryMap, applyOverrides]
   );
 
+  // /api/define-word does its own live DB check and can come back with
+  // already_saved: true straight from the source of truth — independent of
+  // masteryMap, which is just a page-load snapshot and can be stale (Next's
+  // router cache, a write from another tab/device, etc). Without this, a
+  // word that really is saved could sit there showing "+" forever even once
+  // this authoritative answer arrives, because savedSenseKeys was computed
+  // from that stale snapshot and nothing ever went back to correct it.
+  const withAlreadySaved = useCallback(
+    (word: string, def: WordDef, savedSenseKeys: Set<string>): Set<string> => {
+      if (!def.already_saved || !def.meaning) return savedSenseKeys;
+      const key = senseKey({ pinyin: def.pinyin ?? "", meaning: def.meaning });
+      if (savedSenseKeys.has(key)) return savedSenseKeys;
+      return applyOverrides(word, new Set(savedSenseKeys).add(key));
+    },
+    [applyOverrides]
+  );
+
   /** Final step once a word is fully resolved (a real headword, no decomposition left). */
   const openResolved = useCallback(
     (word: string, x: number, y: number, pinned: boolean) => {
@@ -287,7 +304,8 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPo
         setPopup({
           word, x, y, pinned, loading: false,
           senses: parts ? [] : normalizeSenses(cached, savedRows),
-          savedSenseKeys, source: cached.source, parts,
+          savedSenseKeys: withAlreadySaved(word, cached, savedSenseKeys),
+          source: cached.source, parts,
         });
         return;
       }
@@ -310,6 +328,7 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPo
           setPopup((p) => (p && p.word === word ? {
             ...p, loading: false,
             senses: parts ? [] : normalizeSenses(def, savedRows),
+            savedSenseKeys: withAlreadySaved(word, def, p.savedSenseKeys),
             source: def.source, parts,
           } : p));
         } catch {
@@ -317,7 +336,7 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPo
         }
       })();
     },
-    [masteryMap, slangMode, buildParts, applyOverrides]
+    [masteryMap, slangMode, buildParts, applyOverrides, withAlreadySaved]
   );
 
   /** Fetches + caches the decomposition for a not-yet-seen segmenter word, then resolves whichever offset is current by the time it lands. */
