@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
-import { Search, Trash2, Plus, Check, ChevronLeft, X } from "lucide-react";
+import { Search, Trash2, Plus, Minus, ChevronLeft, X } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
 import type { VocabularyMastery } from "@/lib/types";
 import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
@@ -318,6 +318,11 @@ function SearchTab({ savedSenseSet, initialQuery = "" }: { savedSenseSet: Set<st
   const [searching, setSearching] = useState(false);
   const [lastSearchedQuery, setLastSearchedQuery] = useState("");
   const [addedSet, setAddedSet] = useState<Set<string>>(new Set());
+  // Local override for words already saved before this search — e.g. saved
+  // in a past session, so they arrive as `already_saved: true`/via
+  // savedSenseSet, not through addedSet. Removing one of those has nothing
+  // to "un-add" locally, so it needs its own tracked exclusion instead.
+  const [removedSet, setRemovedSet] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
   const activeQueryRef = useRef("");
 
@@ -355,12 +360,29 @@ function SearchTab({ savedSenseSet, initialQuery = "" }: { savedSenseSet: Set<st
   }, [query, mode]);
 
   async function handleAdd(result: ApiSearchResult) {
+    const key = senseKey(result);
+    setAddedSet((prev) => new Set([...prev, key]));
+    setRemovedSet((prev) => {
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
     await logMistake(result.hanzi, {
       pinyin: result.pinyin,
       meaning: result.meaning,
       hsk_level: result.hsk_level ?? undefined,
     });
-    setAddedSet((prev) => new Set([...prev, senseKey(result)]));
+  }
+
+  async function handleRemove(result: ApiSearchResult) {
+    const key = senseKey(result);
+    setRemovedSet((prev) => new Set([...prev, key]));
+    setAddedSet((prev) => {
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
+    await deleteWord(result.hanzi, result.pinyin, result.meaning).catch(() => {});
   }
 
   return (
@@ -422,13 +444,16 @@ function SearchTab({ savedSenseSet, initialQuery = "" }: { savedSenseSet: Set<st
           </div>
           <div className="flex flex-col divide-y divide-[var(--color-border)]">
             {results.map((r) => {
-              const saved = r.already_saved || savedSenseSet.has(senseKey(r)) || addedSet.has(senseKey(r));
+              const key = senseKey(r);
+              const saved =
+                (r.already_saved || savedSenseSet.has(key) || addedSet.has(key)) && !removedSet.has(key);
               return (
                 <SearchResultRow
                   key={r.hanzi + r.pinyin}
                   result={r}
                   saved={saved}
                   onAdd={() => handleAdd(r)}
+                  onRemove={() => handleRemove(r)}
                 />
               );
             })}
@@ -443,10 +468,12 @@ function SearchResultRow({
   result,
   saved,
   onAdd,
+  onRemove,
 }: {
   result: ApiSearchResult;
   saved: boolean;
   onAdd: () => void;
+  onRemove: () => void;
 }) {
   const level = result.hsk_level !== null ? Math.floor(result.hsk_level) : null;
   const c = hskColor(level);
@@ -470,9 +497,12 @@ function SearchResultRow({
       </Link>
 
       {saved ? (
-        <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-xl bg-emerald-100">
-          <Check size={15} className="text-emerald-600" />
-        </div>
+        <button
+          onClick={onRemove}
+          className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-xl bg-emerald-100 hover:bg-red-100 group transition-colors"
+        >
+          <Minus size={15} className="text-emerald-600 group-hover:text-red-600 transition-colors" />
+        </button>
       ) : (
         <button
           onClick={onAdd}

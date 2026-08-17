@@ -243,6 +243,31 @@ const en = {
   geminiKeyErrorUnreachable: "Couldn't reach Gemini to verify the key — try again",
   geminiKeyErrorSaveFailed: "Something went wrong saving your key — try again.",
   noGeminiKeyError: "Add your Gemini API key in Profile → Gemini API key to use this feature.",
+
+  // ── Extension settings ───────────────────────────────────────────────────────
+  extPageTitle: "Browser extension",
+  extPageDesc:
+    "Pop up the same dictionary you get in the app — hover, click, queue for review — on any page you're reading, like Wikipedia.",
+  extDownloadBtn: "Download extension (.zip)",
+  extSetupTitle: "Setup",
+  extStep1: "Download the zip above and unzip it.",
+  extStep2Open: "Open",
+  extStep2TurnOn: "turn on",
+  extStep2DevMode: "Developer mode",
+  extStep2TopRightThen: "(top right), then",
+  extStep2LoadUnpacked: "Load unpacked",
+  extStep2SelectFolder: "and select the unzipped folder.",
+  extStep3Pre: "Click the extension icon →",
+  extStep3Settings: "Settings",
+  extStep4: "Generate a token below, then paste it — and the server URL — into the extension.",
+  extServerUrlLabel: "Server URL",
+  extNewTokenTitle: "New token — copy it now, it won't be shown again",
+  extGenerateToken: "Generate new token",
+  extActiveTokens: "Active tokens",
+  extNoTokens: "No tokens yet.",
+  extTokenCreated: (date: string) => `Created ${date}`,
+  extTokenLastUsed: (date: string) => ` · last used ${date}`,
+  extRevokeTitle: "Revoke",
 };
 
 const zh: typeof en = {
@@ -488,6 +513,30 @@ const zh: typeof en = {
   geminiKeyErrorUnreachable: "无法连接 Gemini 验证密钥——请重试",
   geminiKeyErrorSaveFailed: "保存密钥时出错——请重试。",
   noGeminiKeyError: "请在「个人资料 → Gemini API 密钥」中添加你的 Gemini API 密钥以使用此功能。",
+
+  // ── Extension settings ───────────────────────────────────────────────────────
+  extPageTitle: "浏览器扩展",
+  extPageDesc: "在任意网页——比如维基百科——弹出和应用内一样的词典：悬停、点击、加入复习队列。",
+  extDownloadBtn: "下载扩展程序（.zip）",
+  extSetupTitle: "安装步骤",
+  extStep1: "下载上方的压缩包并解压。",
+  extStep2Open: "打开",
+  extStep2TurnOn: "开启",
+  extStep2DevMode: "开发者模式",
+  extStep2TopRightThen: "（右上角），然后点击",
+  extStep2LoadUnpacked: "加载已解压的扩展程序",
+  extStep2SelectFolder: "并选择解压后的文件夹。",
+  extStep3Pre: "点击扩展图标 →",
+  extStep3Settings: "设置",
+  extStep4: "在下方生成一个令牌，然后将它和服务器地址一起粘贴到扩展程序里。",
+  extServerUrlLabel: "服务器地址",
+  extNewTokenTitle: "新令牌——请立即复制，此后将不再显示",
+  extGenerateToken: "生成新令牌",
+  extActiveTokens: "有效令牌",
+  extNoTokens: "暂无令牌。",
+  extTokenCreated: (date: string) => `创建于 ${date}`,
+  extTokenLastUsed: (date: string) => ` · 上次使用 ${date}`,
+  extRevokeTitle: "撤销",
 };
 
 export const translations: Record<Lang, typeof en> = { en, zh };

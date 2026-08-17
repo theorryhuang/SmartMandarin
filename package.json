@@ -4,7 +4,8 @@
     "build": "next build",
     "start": "next start",
     "type-check": "tsc --noEmit",
-    "build-cedict-db": "node scripts/build-cedict-db.mjs"
+    "build-cedict-db": "node scripts/build-cedict-db.mjs",
+    "build:extension-zip": "node scripts/build-extension-zip.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
