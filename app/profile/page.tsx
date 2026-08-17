@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Puzzle } from "lucide-react";
+import { Puzzle, KeyRound } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { getServerT } from "@/lib/i18n-server";
 import { BackButton } from "@/app/_components/BackButton";
 import { HomeButton } from "@/app/_components/HomeButton";
 import { SignOutButton } from "./SignOutButton";
@@ -11,6 +12,7 @@ export const metadata = { title: "Profile · SmartMandarin" };
 export default async function ProfilePage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  const t = await getServerT();
 
   if (!user) redirect("/auth");
 
@@ -58,8 +60,20 @@ export default async function ProfilePage() {
         >
           <Puzzle size={18} className="text-violet-600 shrink-0" />
           <div className="flex-1 text-left">
-            <div className="text-sm font-medium text-[var(--color-text-primary)]">Browser extension</div>
-            <div className="text-xs text-[var(--color-text-muted)]">Popup dictionary on any page</div>
+            <div className="text-sm font-medium text-[var(--color-text-primary)]">{t.profileNavExtension}</div>
+            <div className="text-xs text-[var(--color-text-muted)]">{t.profileNavExtensionDesc}</div>
+          </div>
+        </Link>
+
+        {/* Gemini API key */}
+        <Link
+          href="/settings/gemini-key"
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-violet-300 transition-colors"
+        >
+          <KeyRound size={18} className="text-violet-600 shrink-0" />
+          <div className="flex-1 text-left">
+            <div className="text-sm font-medium text-[var(--color-text-primary)]">{t.profileNavGeminiKey}</div>
+            <div className="text-xs text-[var(--color-text-muted)]">{t.profileNavGeminiKeyDesc}</div>
           </div>
         </Link>
 

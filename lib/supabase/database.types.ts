@@ -234,6 +234,38 @@ export type Database = {
           }
         ];
       };
+      user_settings: {
+        Row: {
+          user_id: string;
+          gemini_api_key_encrypted: string | null;
+          gemini_api_key_last4: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          gemini_api_key_encrypted?: string | null;
+          gemini_api_key_last4?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          gemini_api_key_encrypted?: string | null;
+          gemini_api_key_last4?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "user_settings_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: true;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
       review_log: {
         Row: {
           id: string;

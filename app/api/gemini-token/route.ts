@@ -1,18 +1,23 @@
 /**
- * Issues a short-lived Gemini Live session token so the client can open
- * a WebRTC connection without exposing GEMINI_API_KEY in the browser.
+ * Issues Gemini Live session config (model + system prompt + key) so the
+ * client can open its own WebRTC connection. The key is resolved per-caller
+ * via resolveGeminiKey() — see the comment on api_key below for why that's
+ * fine to hand back even though it's client-visible.
  *
  * POST /api/gemini-token
  * Body: { slang_mode: boolean, forced_words: string[] }
  */
 import { NextRequest, NextResponse } from "next/server";
+import { resolveGeminiKey } from "@/lib/gemini/resolveKey";
 
 const GEMINI_LIVE_MODEL = "models/gemini-2.0-flash-live-001";
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: "GEMINI_API_KEY not set" }, { status: 500 });
+  let apiKey: string;
+  try {
+    ({ apiKey } = await resolveGeminiKey());
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "No Gemini key available" }, { status: 500 });
   }
 
   const {
@@ -31,8 +36,12 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     model: GEMINI_LIVE_MODEL,
     system_instruction: systemInstruction,
-    // API key returned only as a session hint — rotate to short-lived in production
-    // For dev: client uses this directly. In prod, swap for OAuth2 ephemeral token.
+    // The Gemini Live WebRTC handshake requires the raw key client-side —
+    // there's no server-proxy option for this API today. resolveGeminiKey()
+    // means what's exposed here is the caller's own BYOK key when they have
+    // one, so a leaked key only ever spends *their* quota, not the shared
+    // pool's. Users without their own key still get the shared/owner key,
+    // same exposure as before.
     api_key: apiKey,
   });
 }

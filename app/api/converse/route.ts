@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveGeminiKey } from "@/lib/gemini/resolveKey";
 
 export const maxDuration = 60;
 
@@ -6,8 +7,12 @@ const INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/inter
 const MODEL = "gemini-3.1-flash-lite"; // free tier: RPM 15, RPD 500 vs 3.6-flash's RPM 5, RPD 20
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: "GEMINI_API_KEY not set" }, { status: 500 });
+  let apiKey: string;
+  try {
+    ({ apiKey } = await resolveGeminiKey());
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "No Gemini key available" }, { status: 500 });
+  }
 
   const {
     userMessage,

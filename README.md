@@ -89,9 +89,12 @@ npm run dev
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key (browser client) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only Supabase client (extension API routes, seeding scripts) |
-| `GEMINI_API_KEY` | Story generation, conversation, grading, AI dictionary fallback |
 | `ELEVENLABS_API_KEY` | Speech-to-text for Speaking Practice |
+| `SETTINGS_ENCRYPTION_KEY` | Encrypts users' BYOK Gemini keys at rest (`openssl rand -base64 32`) |
+| `GEMINI_API_KEY_OWNER` / `OWNER_USER_ID` | Optional — lets the app owner skip the settings-page BYOK flow |
 | `NEXT_PUBLIC_APP_URL` | Base URL used in generated links (browser extension "open full page", etc.) |
+
+Story generation, conversation, and grading run on Gemini, but there's no app-wide Gemini key — every user brings their own (free, via [aistudio.google.com/apikey](https://aistudio.google.com/apikey)) from Profile → Gemini API key. See `lib/gemini/resolveKey.ts`.
 
 ### Database
 

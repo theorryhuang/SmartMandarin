@@ -211,6 +211,36 @@ const en = {
   wordBreakdownIntro: "Not a single dictionary entry — here's its breakdown:",
   searchWholePhrase: (phrase: string) => `Search "${phrase}" instead →`,
   openFullWordPage: "Click to open full word page →",
+
+  // ── Profile ──────────────────────────────────────────────────────────────────
+  profileNavExtension: "Browser extension",
+  profileNavExtensionDesc: "Popup dictionary on any page",
+  profileNavGeminiKey: "Gemini API key",
+  profileNavGeminiKeyDesc: "Required to use voice, stories, and grading",
+
+  // ── Gemini key settings ─────────────────────────────────────────────────────────
+  geminiKeyPageTitle: "Gemini API key",
+  geminiKeyPageDesc:
+    "Voice conversation, story generation, and grading all run on Gemini. There's no shared key — add your own (it's free) to use these features. Your quota is yours alone, unaffected by other users.",
+  geminiKeyGetFreeTitle: "Get a free key",
+  geminiKeyGetFreeDesc: "Google AI Studio issues free-tier Gemini keys instantly, no billing setup required.",
+  geminiKeyUsingOwn: (last4: string) => `Using your own key — ending in ${last4}`,
+  geminiKeyRemoveTitle: "Remove key",
+  geminiKeyNoneSaved: "No key saved — voice conversation, story generation, and grading are disabled until you add one.",
+  geminiKeyReplace: "Replace key",
+  geminiKeyAddYours: "Add your key",
+  geminiKeyPlaceholder: "AIza…",
+  geminiKeySave: "Save key",
+  geminiKeyVerifying: "Verifying…",
+
+  // ── Gemini key errors (server-side, surfaced verbatim) ──────────────────────────
+  geminiKeyErrorEmpty: "Key is empty",
+  geminiKeyErrorTooShort: "That doesn't look like a valid Gemini API key",
+  geminiKeyErrorNotSignedIn: "Not signed in",
+  geminiKeyErrorRejected: "Gemini rejected this key — double-check it's correct",
+  geminiKeyErrorApi: (status: number) => `Gemini API error (${status})`,
+  geminiKeyErrorUnreachable: "Couldn't reach Gemini to verify the key — try again",
+  noGeminiKeyError: "Add your Gemini API key in Profile → Gemini API key to use this feature.",
 };
 
 const zh: typeof en = {
@@ -424,6 +454,36 @@ const zh: typeof en = {
   wordBreakdownIntro: "这不是一个词典词条，以下是拆分结果：",
   searchWholePhrase: (phrase: string) => `改为搜索"${phrase}" →`,
   openFullWordPage: "点击查看完整词条页面 →",
+
+  // ── Profile ──────────────────────────────────────────────────────────────────
+  profileNavExtension: "浏览器扩展",
+  profileNavExtensionDesc: "在任意网页弹出词典",
+  profileNavGeminiKey: "Gemini API 密钥",
+  profileNavGeminiKeyDesc: "使用语音、故事和批改功能必需",
+
+  // ── Gemini key settings ─────────────────────────────────────────────────────────
+  geminiKeyPageTitle: "Gemini API 密钥",
+  geminiKeyPageDesc:
+    "语音对话、故事生成和批改功能都运行在 Gemini 上。没有共享密钥——请添加你自己的密钥（免费）来使用这些功能。你的额度只属于你，不受其他用户影响。",
+  geminiKeyGetFreeTitle: "获取免费密钥",
+  geminiKeyGetFreeDesc: "Google AI Studio 可立即发放免费额度的 Gemini 密钥，无需设置账单。",
+  geminiKeyUsingOwn: (last4: string) => `正在使用你自己的密钥——尾号 ${last4}`,
+  geminiKeyRemoveTitle: "移除密钥",
+  geminiKeyNoneSaved: "尚未保存密钥——语音对话、故事生成和批改功能已禁用，添加密钥后即可使用。",
+  geminiKeyReplace: "更换密钥",
+  geminiKeyAddYours: "添加你的密钥",
+  geminiKeyPlaceholder: "AIza…",
+  geminiKeySave: "保存密钥",
+  geminiKeyVerifying: "验证中…",
+
+  // ── Gemini key errors (server-side, surfaced verbatim) ──────────────────────────
+  geminiKeyErrorEmpty: "密钥为空",
+  geminiKeyErrorTooShort: "这看起来不是有效的 Gemini API 密钥",
+  geminiKeyErrorNotSignedIn: "尚未登录",
+  geminiKeyErrorRejected: "Gemini 拒绝了此密钥——请检查是否正确",
+  geminiKeyErrorApi: (status: number) => `Gemini API 错误（${status}）`,
+  geminiKeyErrorUnreachable: "无法连接 Gemini 验证密钥——请重试",
+  noGeminiKeyError: "请在「个人资料 → Gemini API 密钥」中添加你的 Gemini API 密钥以使用此功能。",
 };
 
 export const translations: Record<Lang, typeof en> = { en, zh };

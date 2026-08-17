@@ -22,6 +22,32 @@ interface Story {
   sentences: StorySentence[];
 }
 
+const STORAGE_KEY = "sm_reader_story";
+
+interface StoredStory {
+  story: Story;
+  topic: string;
+}
+
+// Only ever read/written here, so the story survives navigating away and
+// back (or a reload) instead of resetting every time this component
+// remounts — it's only ever replaced by generating a new one, never cleared
+// on its own.
+function loadStored(): StoredStory | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as StoredStory) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveStored(stored: StoredStory) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+  } catch {}
+}
+
 interface Props {
   masteryMap: MasteryMap;
   hskLevel: number;
@@ -30,8 +56,8 @@ interface Props {
 
 export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
   const { t } = useLanguage();
-  const [story, setStory] = useState<Story | null>(null);
-  const [topic, setTopic] = useState("");
+  const [story, setStory] = useState<Story | null>(() => loadStored()?.story ?? null);
+  const [topic, setTopic] = useState(() => loadStored()?.topic ?? "");
   const [queuedWords, setQueuedWords] = useState<Set<string>>(new Set());
   const [isGenerating, startGenerate] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -84,6 +110,7 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
       }
       setStory(data);
       setQueuedWords(new Set());
+      saveStored({ story: data, topic });
     });
   }
 
