@@ -233,8 +233,10 @@ export function ConversationClient({ masteryMap }: Props) {
   // effect above and never blocks or clears what's already on screen, only
   // adds conversations local storage doesn't know about yet.
   useEffect(() => {
+    let cancelled = false;
     getConversationList()
       .then((remote) => {
+        if (cancelled) return; // page navigated away before this landed
         setConversations((prev) => {
           const localIds = new Set(prev.map((c) => c.id));
           const additions = remote.filter((r) => !localIds.has(r.id));
@@ -245,6 +247,7 @@ export function ConversationClient({ masteryMap }: Props) {
         });
       })
       .catch(() => {}); // offline or logged out — whatever's local stands as-is
+    return () => { cancelled = true; };
   }, []);
 
   // Backfill messages for whichever conversation is active whenever it has
@@ -255,8 +258,10 @@ export function ConversationClient({ masteryMap }: Props) {
     if (!activeConvId) return;
     if (localStorage.getItem(`sm_conv_messages_${activeConvId}`)) return;
     const id = activeConvId;
+    let cancelled = false;
     loadOlderMessages(null, id)
       .then((remoteMsgs) => {
+        if (cancelled) return; // page navigated away, or switched conversations again, before this landed
         if (remoteMsgs.length === 0 || activeConvIdRef.current !== id) return;
         const remoteHist = remoteMsgs.map((m) => ({ role: m.role, content: m.content }));
         historyRef.current = remoteHist;
@@ -265,6 +270,7 @@ export function ConversationClient({ masteryMap }: Props) {
         localStorage.setItem(`sm_conv_history_${id}`, JSON.stringify(remoteHist));
       })
       .catch(() => {});
+    return () => { cancelled = true; };
   }, [activeConvId]);
 
   // Persist messages whenever they change

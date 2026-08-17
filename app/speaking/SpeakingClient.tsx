@@ -246,8 +246,10 @@ export function SpeakingClient() {
       setSheet((s) => (s ? { ...s, saved: false } : s));
       return;
     }
-    router.refresh();
-  }, [sheet, router]);
+    // Deliberately not calling router.refresh() on success — see WordPopup's
+    // toggleSense for why (it raced with an immediately-following
+    // navigation, e.g. backing out right after a toggle).
+  }, [sheet]);
 
   const handleRemoveFromSaved = useCallback(async () => {
     if (!sheet) return;
@@ -266,8 +268,8 @@ export function SpeakingClient() {
       setSheet((s) => (s ? { ...s, saved: true } : s));
       return;
     }
-    router.refresh();
-  }, [sheet, router]);
+    // See handleAddToSaved above for why there's no router.refresh() here.
+  }, [sheet]);
 
   const isRecording = state === "recording";
   const isBusy = state === "transcribing" || state === "thinking" || state === "speaking";

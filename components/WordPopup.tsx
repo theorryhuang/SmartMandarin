@@ -501,21 +501,21 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange, onAlreadySa
           return { ...cur, savedSenseKeys: next };
         });
         onQueueChange?.(p.word, sense.pinyin, !nowSaved, sense);
-        // Refresh even on a reported failure: the fetch and the sendBeacon
-        // insurance copy in persistVocabToggle race independently, so a
-        // fetch failure doesn't rule out the beacon having landed — this
-        // pulls real server state to catch (and correct) that case instead
-        // of leaving the revert above as the final word.
-        router.refresh();
         return;
       }
-      // Confirmed — pull a fresh masteryMap so the *next* popup open (this
-      // session or not) reads real server state instead of leaning on the
-      // in-memory override forever. Same role as the extension's own
-      // savedWords cache staying in lockstep with every confirmed write.
-      router.refresh();
+      // Deliberately not calling router.refresh() here (used to, right
+      // after a confirmed write) — it raced with an immediately-following
+      // navigation (e.g. tapping "back" right after a toggle): refresh()
+      // targets whatever route is current *when its response lands*, which
+      // could by then be wherever the user just navigated to, and it was
+      // observed re-flashing the chat page briefly after leaving it. Kept
+      // fresh some other way instead: sessionOverridesRef covers this
+      // popup's own session, and the live already_saved check in
+      // openResolved covers any later open — masteryMap itself only needed
+      // to catch up on the *next* real page load (mount/pageshow), not
+      // synchronously after every single toggle.
     },
-    [onQueueChange, masteryMap, recordOverride, router]
+    [onQueueChange, masteryMap, recordOverride]
   );
 
   /** Add/remove a review card for one sense of one part of a decomposed
@@ -559,14 +559,11 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange, onAlreadySa
           };
         });
         onQueueChange?.(part.word, sense.pinyin, !nowSaved, sense);
-        // See toggleSense above — refresh even on failure in case the
-        // sendBeacon insurance copy landed independently of the fetch.
-        router.refresh();
         return;
       }
-      router.refresh();
+      // See toggleSense above for why there's no router.refresh() here.
     },
-    [onQueueChange, masteryMap, recordOverride, router]
+    [onQueueChange, masteryMap, recordOverride]
   );
 
   const navigateToWord = useCallback(
