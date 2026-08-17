@@ -148,16 +148,23 @@ function normalizeSenses(
 }
 
 /**
- * Add/remove one saved-word row. A plain `fetch(..., { keepalive: true })`
- * to a Route Handler instead of a `"use server"` action — the toggle button
- * updates its UI optimistically and doesn't await this before returning
- * control to the user, who's then free to navigate away (or, on mobile,
- * background the tab) an instant later. A Server Action call is just a
- * fetch with no unload protection, so the browser can kill it mid-flight —
- * the popup shows "saved", but the write never lands, and the word quietly
- * reverts to unsaved next time masteryMap loads. `keepalive` is the
- * browser-standard fix: it guarantees the request is still sent even if the
- * page that started it is gone before the response would arrive.
+ * Add/remove one saved-word row. Fires the write two ways at once — a plain
+ * `fetch(..., { keepalive: true })` to a Route Handler (not a `"use server"`
+ * action, so the client can set `keepalive`), *and* a redundant
+ * `navigator.sendBeacon` in parallel. Both landing is harmless: the route is
+ * an idempotent upsert/delete, so a duplicate is a no-op.
+ *
+ * Why both: the toggle button updates its UI optimistically and doesn't
+ * await this before returning control to the user, who's then free to
+ * navigate away (or background the tab) an instant later. `keepalive` is
+ * supposed to guarantee the fetch is still sent in that case, but Safari's
+ * implementation of it has long-standing gaps — reportedly still losing
+ * requests exactly like this on mobile even with the flag set — while
+ * `sendBeacon` is the one API every major browser, WebKit included, has
+ * reliably honored for "send this even if the page is gone" for years. We
+ * still prefer the fetch's response for the return value (revert-on-failure
+ * needs a real answer; sendBeacon only reports whether the browser *queued*
+ * it, not whether the server accepted it) — the beacon is pure insurance.
  */
 export async function persistVocabToggle(
   action: "add" | "remove",
@@ -165,25 +172,36 @@ export async function persistVocabToggle(
   sense: { pinyin: string; meaning: string; hsk_level?: number | null },
   existingId?: string
 ): Promise<boolean> {
+  const body = JSON.stringify({
+    action,
+    id: existingId,
+    hanzi: word,
+    pinyin: sense.pinyin,
+    meaning: sense.meaning,
+    hsk_level: sense.hsk_level ?? null,
+  });
+
+  if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+    try {
+      navigator.sendBeacon("/api/vocab/toggle", new Blob([body], { type: "application/json" }));
+    } catch {
+      // Best-effort insurance — the fetch below is still the primary path.
+    }
+  }
+
   try {
     const res = await fetch("/api/vocab/toggle", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       keepalive: true,
-      body: JSON.stringify({
-        action,
-        id: existingId,
-        hanzi: word,
-        pinyin: sense.pinyin,
-        meaning: sense.meaning,
-        hsk_level: sense.hsk_level ?? null,
-      }),
+      body,
     });
     return res.ok;
   } catch {
-    // Killed mid-flight (page gone) or a real network failure — either way
-    // the caller needs to know it didn't land so it can undo its optimistic
-    // UI update instead of quietly lying about what's actually saved.
+    // Fetch didn't make it — the beacon above may still have. We can't know
+    // either way from here (no response), so report failure and let the
+    // caller revert its optimistic UI; the next masteryMap load is the real
+    // source of truth regardless.
     return false;
   }
 }
@@ -446,6 +464,12 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPo
           return { ...cur, savedSenseKeys: next };
         });
         onQueueChange?.(p.word, sense.pinyin, !nowSaved, sense);
+        // Refresh even on a reported failure: the fetch and the sendBeacon
+        // insurance copy in persistVocabToggle race independently, so a
+        // fetch failure doesn't rule out the beacon having landed — this
+        // pulls real server state to catch (and correct) that case instead
+        // of leaving the revert above as the final word.
+        router.refresh();
         return;
       }
       // Confirmed — pull a fresh masteryMap so the *next* popup open (this
@@ -498,6 +522,9 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPo
           };
         });
         onQueueChange?.(part.word, sense.pinyin, !nowSaved, sense);
+        // See toggleSense above — refresh even on failure in case the
+        // sendBeacon insurance copy landed independently of the fetch.
+        router.refresh();
         return;
       }
       router.refresh();

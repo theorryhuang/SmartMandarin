@@ -156,104 +156,110 @@ export function ConversationClient({ masteryMap }: Props) {
     });
   }, []);
 
-  // Init: migrate old single-chat format, reconcile with the database, then load conversations
+  // Init: migrate old single-chat format, then load conversations —
+  // entirely synchronous, no network wait. This must render whatever's
+  // cached locally *instantly*: a previous version of this effect awaited a
+  // database call before its first setState, which meant navigating back to
+  // this page rendered a blank chat for however long that round trip took
+  // (worse on mobile) even though the real messages were sitting in local
+  // storage the whole time, unchanged. DB reconciliation now happens in a
+  // separate, non-blocking effect below.
   useEffect(() => {
-    (async () => {
-      const oldMsgs = localStorage.getItem("sm_conv_messages");
-      const existingConvs = localStorage.getItem("sm_conversations");
+    const oldMsgs = localStorage.getItem("sm_conv_messages");
+    const existingConvs = localStorage.getItem("sm_conversations");
 
-      if (oldMsgs && !existingConvs) {
-        let msgs: Message[] = [];
-        try { msgs = JSON.parse(oldMsgs); } catch {}
-        const id = `conv_${Date.now()}`;
-        const firstUserMsg = msgs.find((m) => m.role === "user");
-        const title = firstUserMsg ? autoTitle(firstUserMsg.content) : "Chat 1";
-        const meta: ConversationMeta = { id, title, createdAt: Date.now(), updatedAt: Date.now() };
-        localStorage.setItem("sm_conversations", JSON.stringify([meta]));
-        localStorage.setItem(`sm_conv_messages_${id}`, oldMsgs);
-        const oldHistory = localStorage.getItem("sm_conv_history");
-        if (oldHistory) {
-          localStorage.setItem(`sm_conv_history_${id}`, oldHistory);
-          localStorage.removeItem("sm_conv_history");
-        }
-        localStorage.removeItem("sm_conv_messages");
-        localStorage.setItem("sm_active_conv", id);
-      }
-
-      let convs: ConversationMeta[] = [];
-      try {
-        const data = localStorage.getItem("sm_conversations");
-        convs = data ? JSON.parse(data) : [];
-      } catch {}
-
-      let activeId = localStorage.getItem("sm_active_conv") ?? "";
-
-      // Reconcile with the database — the only thing that survives a fresh
-      // device, browser, or reinstalled home-screen PWA, all of which start
-      // with empty local storage even though nothing was actually deleted
-      // (see getConversationList). Local metadata (title/timestamps) wins
-      // when a conversation is known both places — it's more current than
-      // what a DB scan can cheaply derive.
-      try {
-        const remote = await getConversationList();
-        const localIds = new Set(convs.map((c) => c.id));
-        for (const r of remote) {
-          if (!localIds.has(r.id)) {
-            convs.push({ id: r.id, title: r.title, createdAt: r.createdAt, updatedAt: r.updatedAt });
-          }
-        }
-        convs.sort((a, b) => b.updatedAt - a.updatedAt);
-      } catch {
-        // Offline or logged out — fall back to whatever's local.
-      }
-
-      if (convs.length === 0) {
-        const id = `conv_${Date.now()}`;
-        convs = [{ id, title: "", createdAt: Date.now(), updatedAt: Date.now() }];
-        activeId = id;
-      }
-
-      if (!activeId || !convs.find((c) => c.id === activeId)) {
-        activeId = convs[0].id;
-      }
-
-      localStorage.setItem("sm_conversations", JSON.stringify(convs));
-      localStorage.setItem("sm_active_conv", activeId);
-
+    if (oldMsgs && !existingConvs) {
       let msgs: Message[] = [];
-      let hist: { role: "user" | "assistant"; content: string }[] = [];
-      let forced: string[] = [];
-      try {
-        const m = localStorage.getItem(`sm_conv_messages_${activeId}`);
-        const h = localStorage.getItem(`sm_conv_history_${activeId}`);
-        const f = localStorage.getItem(`sm_conv_forced_${activeId}`);
-        if (m) msgs = JSON.parse(m);
-        if (h) hist = JSON.parse(h);
-        if (f) forced = JSON.parse(f);
-      } catch {}
-
-      // No local cache for this conversation — it only exists in the DB
-      // (from before a reinstall, or another device) — pull its messages
-      // down too instead of showing it as an empty thread.
-      if (msgs.length === 0) {
-        try {
-          const remoteMsgs = await loadOlderMessages(null, activeId);
-          if (remoteMsgs.length > 0) {
-            msgs = remoteMsgs;
-            hist = remoteMsgs.map((m) => ({ role: m.role, content: m.content }));
-            localStorage.setItem(`sm_conv_messages_${activeId}`, JSON.stringify(msgs));
-            localStorage.setItem(`sm_conv_history_${activeId}`, JSON.stringify(hist));
-          }
-        } catch {}
+      try { msgs = JSON.parse(oldMsgs); } catch {}
+      const id = `conv_${Date.now()}`;
+      const firstUserMsg = msgs.find((m) => m.role === "user");
+      const title = firstUserMsg ? autoTitle(firstUserMsg.content) : "Chat 1";
+      const meta: ConversationMeta = { id, title, createdAt: Date.now(), updatedAt: Date.now() };
+      localStorage.setItem("sm_conversations", JSON.stringify([meta]));
+      localStorage.setItem(`sm_conv_messages_${id}`, oldMsgs);
+      const oldHistory = localStorage.getItem("sm_conv_history");
+      if (oldHistory) {
+        localStorage.setItem(`sm_conv_history_${id}`, oldHistory);
+        localStorage.removeItem("sm_conv_history");
       }
+      localStorage.removeItem("sm_conv_messages");
+      localStorage.setItem("sm_active_conv", id);
+    }
 
-      historyRef.current = hist;
-      setMessages(msgs);
-      setForcedWords(forced);
-      setConversations(convs);
-      setActiveConvId(activeId);
-    })();
+    let convs: ConversationMeta[] = [];
+    try {
+      const data = localStorage.getItem("sm_conversations");
+      convs = data ? JSON.parse(data) : [];
+    } catch {}
+
+    let activeId = localStorage.getItem("sm_active_conv") ?? "";
+
+    if (convs.length === 0) {
+      const id = `conv_${Date.now()}`;
+      convs = [{ id, title: "", createdAt: Date.now(), updatedAt: Date.now() }];
+      localStorage.setItem("sm_conversations", JSON.stringify(convs));
+      activeId = id;
+    }
+
+    if (!activeId || !convs.find((c) => c.id === activeId)) {
+      activeId = convs[0].id;
+    }
+
+    localStorage.setItem("sm_active_conv", activeId);
+
+    try {
+      const msgs = localStorage.getItem(`sm_conv_messages_${activeId}`);
+      const hist = localStorage.getItem(`sm_conv_history_${activeId}`);
+      const forced = localStorage.getItem(`sm_conv_forced_${activeId}`);
+      if (msgs) setMessages(JSON.parse(msgs));
+      if (hist) historyRef.current = JSON.parse(hist);
+      if (forced) setForcedWords(JSON.parse(forced));
+    } catch {}
+
+    setConversations(convs);
+    setActiveConvId(activeId);
   }, []);
+
+  // Background reconciliation with the database — covers a fresh device,
+  // browser, or reinstalled home-screen PWA, all of which start with empty
+  // local storage even though nothing was actually deleted (see
+  // getConversationList). Runs once; deliberately separate from the sync
+  // effect above and never blocks or clears what's already on screen, only
+  // adds conversations local storage doesn't know about yet.
+  useEffect(() => {
+    getConversationList()
+      .then((remote) => {
+        setConversations((prev) => {
+          const localIds = new Set(prev.map((c) => c.id));
+          const additions = remote.filter((r) => !localIds.has(r.id));
+          if (additions.length === 0) return prev;
+          const merged = [...prev, ...additions].sort((a, b) => b.updatedAt - a.updatedAt);
+          localStorage.setItem("sm_conversations", JSON.stringify(merged));
+          return merged;
+        });
+      })
+      .catch(() => {}); // offline or logged out — whatever's local stands as-is
+  }, []);
+
+  // Backfill messages for whichever conversation is active whenever it has
+  // nothing cached locally — it only exists in the DB (from before a
+  // reinstall, or another device, or it was just added by the reconciliation
+  // effect above). Runs on every switch, not just mount.
+  useEffect(() => {
+    if (!activeConvId) return;
+    if (localStorage.getItem(`sm_conv_messages_${activeConvId}`)) return;
+    const id = activeConvId;
+    loadOlderMessages(null, id)
+      .then((remoteMsgs) => {
+        if (remoteMsgs.length === 0 || activeConvIdRef.current !== id) return;
+        const remoteHist = remoteMsgs.map((m) => ({ role: m.role, content: m.content }));
+        historyRef.current = remoteHist;
+        setMessages(remoteMsgs);
+        localStorage.setItem(`sm_conv_messages_${id}`, JSON.stringify(remoteMsgs));
+        localStorage.setItem(`sm_conv_history_${id}`, JSON.stringify(remoteHist));
+      })
+      .catch(() => {});
+  }, [activeConvId]);
 
   // Persist messages whenever they change
   useEffect(() => {
@@ -308,22 +314,8 @@ export function ConversationClient({ masteryMap }: Props) {
     setActiveConvId(convId);
     localStorage.setItem("sm_active_conv", convId);
     setShowChatList(false);
-
-    // Not cached locally — this conversation may only exist in the DB
-    // (another device, or from before a reinstall wiped local storage).
-    // Pull it down instead of leaving the thread looking empty.
-    if (newMsgs.length === 0) {
-      loadOlderMessages(null, convId)
-        .then((remoteMsgs) => {
-          if (remoteMsgs.length === 0 || activeConvIdRef.current !== convId) return;
-          const remoteHist = remoteMsgs.map((m) => ({ role: m.role, content: m.content }));
-          historyRef.current = remoteHist;
-          setMessages(remoteMsgs);
-          localStorage.setItem(`sm_conv_messages_${convId}`, JSON.stringify(remoteMsgs));
-          localStorage.setItem(`sm_conv_history_${convId}`, JSON.stringify(remoteHist));
-        })
-        .catch(() => {});
-    }
+    // If nothing's cached locally for convId, the activeConvId-keyed
+    // backfill effect above picks it up from the DB automatically.
   }, []);
 
   const createNewConversation = useCallback(() => {
