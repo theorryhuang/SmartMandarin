@@ -7,6 +7,29 @@ import type { FSRSRating, VocabularyMastery } from "@/lib/types";
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 
+/**
+ * Just the set of saved hanzi — for re-syncing the chat/reader highlight
+ * state (ConversationClient's savedWords) without going through
+ * router.refresh(). That API re-renders the whole route, which turned out
+ * to be dangerous to call from an effect: it can't be cancelled once
+ * called, so if the user navigates away before it lands, the response can
+ * arrive *after* they're already on a different page and briefly re-render
+ * this one over it — reported as "back out of chat, and it flashes back for
+ * a couple seconds." A plain awaited fetch, by contrast, is safe to just
+ * ignore on unmount (see the `cancelled` flag pattern at each call site).
+ */
+export async function getSavedHanziSet(): Promise<string[]> {
+  const supabase = await createClient();
+  const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
+  if (!userId) return [];
+  const { data, error } = await supabase
+    .from("vocabulary_mastery")
+    .select("hanzi")
+    .eq("user_id", userId);
+  if (error) return [];
+  return [...new Set((data ?? []).map((r) => r.hanzi as string))];
+}
+
 export async function getDueWords(limit = 20): Promise<VocabularyMastery[]> {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("get_due_words", {

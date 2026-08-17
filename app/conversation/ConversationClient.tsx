@@ -4,7 +4,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { ArrowUp, ChevronLeft, LayoutList, Mic, Plus, Trash2 } from "lucide-react";
 import { HomeButton } from "@/app/_components/HomeButton";
 import { useRouter } from "next/navigation";
-import { getConversationContext } from "@/app/actions/vocabulary";
+import { getConversationContext, getSavedHanziSet } from "@/app/actions/vocabulary";
 import { saveMessages, loadOlderMessages, getConversationList } from "@/app/actions/chat";
 import type { MasteryMap } from "@/lib/types";
 import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
@@ -56,11 +56,10 @@ export function ConversationClient({ masteryMap }: Props) {
   // masteryMap can arrive stale on that very first mount (Next.js's
   // client-side Router Cache can serve an up-to-30s-old cached render of
   // this route on a soft navigation back to it) and only becomes correct
-  // once router.refresh() below lands a fresher one. Without this, a word
+  // once the resync effect below lands a fresher one. Without this, a word
   // saved just before navigating away — or one that was simply missing from
-  // that stale first snapshot — stays permanently unmarked (both here and in
-  // the popup's own saved-state, which reads masteryMap directly) until a
-  // hard reload. Union, never remove, so this can't clobber an optimistic
+  // that stale first snapshot — stays permanently unmarked until a hard
+  // reload. Union, never remove, so this can't clobber an optimistic
   // same-session add that masteryMap hasn't caught up to yet.
   useEffect(() => {
     setSavedWords((prev) => {
@@ -71,13 +70,31 @@ export function ConversationClient({ masteryMap }: Props) {
   }, [masteryMap]);
 
   // Actively self-heal the staleness above rather than hoping it doesn't
-  // happen: force a fresh server render every time this page mounts, so a
+  // happen: pull a fresh saved-hanzi set every time this page mounts, so a
   // cached masteryMap from before you last saved a word gets replaced with
   // a real one instead of sitting there until the cache's ~30s window lapses
   // on its own (or forever, if you're back before then).
+  //
+  // Deliberately a plain fetch (getSavedHanziSet), not router.refresh() —
+  // that was tried first and had to be reverted: refresh() re-renders the
+  // whole route and can't be cancelled once called, so if you navigated
+  // away again before it resolved, its response could land *after* you'd
+  // already left and briefly re-render this page over wherever you'd gone —
+  // reported as "back out of chat, and it flashes back for a couple
+  // seconds." A plain promise is safe to just ignore via `cancelled` below.
   useEffect(() => {
-    router.refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let cancelled = false;
+    getSavedHanziSet()
+      .then((hanzi) => {
+        if (cancelled) return;
+        setSavedWords((prev) => {
+          const next = new Set(prev);
+          for (const h of hanzi) next.add(h);
+          return next;
+        });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
   }, []);
 
   // The mount effect above misses the common mobile case: navigating to the
@@ -87,14 +104,29 @@ export function ConversationClient({ masteryMap }: Props) {
   // effect never re-fires. Without this, a word saved elsewhere while you
   // were away (another tab, the extension, another device) stays unhighlighted
   // until a hard reload. `pageshow`'s `persisted` flag is true only on a
-  // bfcache restore; a real mount already got the effect above.
+  // bfcache restore; a real mount already got the effect above. Same
+  // plain-fetch-not-router.refresh() reasoning as above.
   useEffect(() => {
+    let cancelled = false;
     function onPageShow(e: PageTransitionEvent) {
-      if (e.persisted) router.refresh();
+      if (!e.persisted) return;
+      getSavedHanziSet()
+        .then((hanzi) => {
+          if (cancelled) return;
+          setSavedWords((prev) => {
+            const next = new Set(prev);
+            for (const h of hanzi) next.add(h);
+            return next;
+          });
+        })
+        .catch(() => {});
     }
     window.addEventListener("pageshow", onPageShow);
-    return () => window.removeEventListener("pageshow", onPageShow);
-  }, [router]);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("pageshow", onPageShow);
+    };
+  }, []);
 
   const [slangMode, setSlangMode] = useState(() => {
     if (typeof window === "undefined") return false;
