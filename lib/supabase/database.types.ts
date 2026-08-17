@@ -167,6 +167,7 @@ export type Database = {
           raw_text: string;
           tokens: Json;
           created_at: string;
+          conversation_id: string | null;
         };
         Insert: {
           id?: string;
@@ -176,6 +177,7 @@ export type Database = {
           raw_text: string;
           tokens: Json;
           created_at?: string;
+          conversation_id?: string | null;
         };
         Update: {
           id?: string;
@@ -185,6 +187,7 @@ export type Database = {
           raw_text?: string;
           tokens?: Json;
           created_at?: string;
+          conversation_id?: string | null;
         };
         Relationships: [
           {

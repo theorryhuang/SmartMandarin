@@ -1,8 +1,10 @@
 /**
  * Issues Gemini Live session config (model + system prompt + key) so the
- * client can open its own WebRTC connection. The key is resolved per-caller
- * via resolveGeminiKey() — see the comment on api_key below for why that's
- * fine to hand back even though it's client-visible.
+ * client can open its own WebSocket connection (see hooks/useGeminiLive.ts —
+ * raw BidiGenerateContent over `wss://`, not the @google/genai SDK). The key
+ * is resolved per-caller via resolveGeminiKey() — see the comment on
+ * api_key below for why that's fine to hand back even though it's
+ * client-visible.
  *
  * POST /api/gemini-token
  * Body: { slang_mode: boolean, forced_words: string[] }
@@ -10,7 +12,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveGeminiKey } from "@/lib/gemini/resolveKey";
 
-const GEMINI_LIVE_MODEL = "models/gemini-2.0-flash-live-001";
+// "Native Audio Dialog"-class model — audio in, audio out, single streaming
+// session (see hooks/useGeminiLive.ts's doc comment for the wire format).
+// Free tier as of 2026-08: RPM and RPD both unlimited (TPM is still capped,
+// check the current figure in Google AI Studio's rate-limits page) — no
+// shared-quota contention the way the text routes have, which is the whole
+// reason this is worth finishing over the turn-based ElevenLabs+browser-TTS
+// pipeline in useVoiceConversation.ts.
+const GEMINI_LIVE_MODEL = "models/gemini-3.1-flash-live-preview";
 
 export async function POST(req: NextRequest) {
   let apiKey: string;
@@ -29,14 +38,15 @@ export async function POST(req: NextRequest) {
 
   const systemInstruction = buildSystemPrompt(slang_mode, forced_words, hsk_level, unknown_words);
 
-  // No token-exchange call needed here — the client opens the WebRTC session
-  // itself via the @google/generative-ai SDK using the config below. (This
-  // used to also fire a throwaway :generateContent call that spent a real
-  // Gemini request per session start without ever reading the response.)
+  // No token-exchange call needed here — the client opens the WebSocket
+  // session itself (raw BidiGenerateContent, see useGeminiLive.ts) using
+  // the config below. (This used to also fire a throwaway :generateContent
+  // call that spent a real Gemini request per session start without ever
+  // reading the response.)
   return NextResponse.json({
     model: GEMINI_LIVE_MODEL,
     system_instruction: systemInstruction,
-    // The Gemini Live WebRTC handshake requires the raw key client-side —
+    // The Gemini Live WebSocket handshake requires the raw key client-side —
     // there's no server-proxy option for this API today. resolveGeminiKey()
     // means what's exposed here is the caller's own BYOK key when they have
     // one, so a leaked key only ever spends *their* quota, not the shared

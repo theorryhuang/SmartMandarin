@@ -1,22 +1,27 @@
-"use client";
+import { createClient } from "@/lib/supabase/server";
+import type { VocabularyMastery, MasteryMap } from "@/lib/types";
+import { SpeakingClientLoader } from "./SpeakingClientLoader";
 
-import dynamic from "next/dynamic";
+export default async function SpeakingPage() {
+  const supabase = await createClient();
+  const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
 
-// SpeakingClient reads localStorage synchronously (turns, revealed state,
-// slang mode) to seed conversation history before the mic hook mounts.
-// That output necessarily differs from the server's empty-state HTML, which
-// trips React's hydration check. The page has no SEO/SSR value anyway
-// (private, client-only voice practice UI), so skip SSR for it entirely
-// rather than fighting the mismatch.
-const SpeakingClient = dynamic(
-  () => import("./SpeakingClient").then((m) => m.SpeakingClient),
-  { ssr: false }
-);
+  const { data } = await supabase
+    .from("vocabulary_mastery")
+    .select("*")
+    .eq("user_id", userId);
 
-export default function SpeakingPage() {
+  // Group by hanzi — a hanzi can have multiple saved senses. Same shape
+  // ConversationClient's page.tsx builds — needed by the shared word popup
+  // (useWordPopup/TappableText) for the mastery-level highlight.
+  const masteryMap: MasteryMap = {};
+  for (const word of (data ?? []) as VocabularyMastery[]) {
+    (masteryMap[word.hanzi] ??= []).push(word);
+  }
+
   return (
     <main className="h-screen overflow-hidden">
-      <SpeakingClient />
+      <SpeakingClientLoader masteryMap={masteryMap} />
     </main>
   );
 }

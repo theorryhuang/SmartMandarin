@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveGeminiKey } from "@/lib/gemini/resolveKey";
-
-const INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
-const MODEL = "gemini-3.1-flash-lite"; // free tier: RPM 15, RPD 500 vs 3.6-flash's RPM 5, RPD 20
+import { fetchGeminiInteractions } from "@/lib/gemini/interactions";
 
 export async function POST(req: NextRequest) {
   let apiKey: string;
@@ -22,11 +20,7 @@ export async function POST(req: NextRequest) {
   const prompt = buildPrompt(hsk_level, known_words, slang_mode, topic);
 
   try {
-    const res = await fetch(INTERACTIONS_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify({ model: MODEL, input: prompt, store: false }),
-    });
+    const res = await fetchGeminiInteractions(apiKey, { input: prompt, store: false });
 
     if (!res.ok) {
       const errText = await res.text();

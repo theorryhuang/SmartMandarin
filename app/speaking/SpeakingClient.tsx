@@ -1,50 +1,50 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Mic, ChevronLeft } from "lucide-react";
+import { Mic, ChevronLeft, LayoutList, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useVoiceConversation } from "@/hooks/useVoiceConversation";
+import { useTurnPlayback } from "@/hooks/useTurnPlayback";
 import { TranscriptView } from "@/components/TranscriptView";
 import { getConversationContext } from "@/app/actions/vocabulary";
-import { persistVocabToggle } from "@/components/WordPopup";
-import { saveSpeakingTurns, loadRecentSpeakingTurns } from "@/app/actions/speaking";
-import type { ConversationTurn, TranscriptToken } from "@/lib/types";
+import { useWordPopup, WordPopupCard } from "@/components/WordPopup";
+import { saveSpeakingTurns, loadRecentSpeakingTurns, getSpeakingConversationList } from "@/app/actions/speaking";
+import type { ConversationTurn, MasteryMap, TranscriptToken } from "@/lib/types";
 import { useLanguage } from "@/app/_components/LanguageContext";
 import { HomeButton } from "@/app/_components/HomeButton";
 
-interface WordSense {
-  pinyin: string;
-  meaning: string;
-  hsk_level?: number | null;
+interface Props {
+  masteryMap: MasteryMap;
 }
 
-interface SheetInfo {
-  word: string;
-  pinyin?: string;
-  meaning?: string;
-  hsk_level?: number | null;
-  saved: boolean;
-  source?: string;
-  senses?: WordSense[];
+interface ConversationMeta {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
 }
 
 // Keep at most this many turns in localStorage; older ones live in Supabase.
 const MAX_LOCAL_TURNS = 60;
 
-function loadTurnsFromStorage(): ConversationTurn[] {
-  if (typeof window === "undefined") return [];
+function autoTitle(text: string): string {
+  return text.length > 28 ? text.slice(0, 28) + "…" : text;
+}
+
+function loadTurns(convId: string): ConversationTurn[] {
+  if (typeof window === "undefined" || !convId) return [];
   try {
-    const raw = localStorage.getItem("sm_speaking_turns");
+    const raw = localStorage.getItem(`sm_speaking_conv_turns_${convId}`);
     return raw ? (JSON.parse(raw) as ConversationTurn[]) : [];
   } catch {
     return [];
   }
 }
 
-function initRevealedTurns(turns: ConversationTurn[]): Set<number> {
-  if (typeof window === "undefined") return new Set();
+function loadRevealed(convId: string, turns: ConversationTurn[]): Set<number> {
+  if (typeof window === "undefined" || !convId) return new Set();
   try {
-    const raw = localStorage.getItem("sm_revealed_turns");
+    const raw = localStorage.getItem(`sm_speaking_revealed_${convId}`);
     if (!raw) return new Set();
     const timestamps = new Set(JSON.parse(raw) as string[]);
     const revealed = new Set<number>();
@@ -55,13 +55,21 @@ function initRevealedTurns(turns: ConversationTurn[]): Set<number> {
   }
 }
 
-export function SpeakingClient() {
+export function SpeakingClient({ masteryMap }: Props) {
   const router = useRouter();
   const { t } = useLanguage();
 
-  // ── Turns — initialised synchronously from localStorage ──────────────────
-  const [turns, setTurns] = useState<ConversationTurn[]>(loadTurnsFromStorage);
-  const [revealedTurns, setRevealedTurns] = useState<Set<number>>(() => initRevealedTurns(loadTurnsFromStorage()));
+  // ── Multi-conversation state — mirrors ConversationClient.tsx's pattern,
+  //    adapted for turns/speaking_turns instead of messages/chat_messages. ──
+  const [conversations, setConversations] = useState<ConversationMeta[]>([]);
+  const [activeConvId, setActiveConvId] = useState<string>("");
+  const [showChatList, setShowChatList] = useState(false);
+  const activeConvIdRef = useRef<string>("");
+  useEffect(() => { activeConvIdRef.current = activeConvId; }, [activeConvId]);
+
+  // ── Turns for the active conversation ─────────────────────────────────────
+  const [turns, setTurns] = useState<ConversationTurn[]>([]);
+  const [revealedTurns, setRevealedTurns] = useState<Set<number>>(new Set());
 
   const [slangMode, setSlangMode] = useState(false);
   useEffect(() => {
@@ -72,35 +80,134 @@ export function SpeakingClient() {
   const [isSpeechPaused, setIsSpeechPaused] = useState(false);
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
   const [forcedWords, setForcedWords] = useState<string[]>([]);
-  const [savedWords, setSavedWords] = useState<Set<string>>(new Set());
+  // Seeded from masteryMap (fetched fresh from the DB on every SSR render of
+  // this page) — previously seeded from getConversationContext()'s
+  // unknownWords instead, which is a capped list of just the flagged/weak
+  // words used for AI context, not the full saved-vocab set, so most saved
+  // words never actually highlighted in the transcript.
+  const [savedWords, setSavedWords] = useState<Set<string>>(
+    () => new Set(Object.keys(masteryMap))
+  );
+  useEffect(() => {
+    setSavedWords((prev) => {
+      const next = new Set(prev);
+      for (const hanzi of Object.keys(masteryMap)) next.add(hanzi);
+      return next;
+    });
+  }, [masteryMap]);
   const [hskLevel, setHskLevel] = useState(1);
   const [unknownWords, setUnknownWords] = useState<
     { hanzi: string; pinyin: string; meaning: string }[]
   >([]);
-  const [sheet, setSheet] = useState<SheetInfo | null>(null);
 
-  // Track which client_ids have been persisted to Supabase already
-  const persistedIdsRef = useRef<Set<string>>(new Set(turns.map((t) => t.timestamp)));
+  // Track which client_ids have been persisted to Supabase already — reset
+  // on every conversation switch (see switchConversation et al. below).
+  const persistedIdsRef = useRef<Set<string>>(new Set());
   const isFirstRender = useRef(true);
 
-  // ── If localStorage was empty, fall back to Supabase ─────────────────────
+  // ── Init: migrate the old single-session format (one global transcript,
+  //    no conversation concept), then load the conversation list —
+  //    synchronous, no network wait. Must render whatever's cached locally
+  //    instantly (same reasoning as ConversationClient's equivalent effect);
+  //    DB reconciliation happens in a separate, non-blocking effect below. ──
   useEffect(() => {
-    if (turns.length > 0) return; // already have data
-    loadRecentSpeakingTurns(MAX_LOCAL_TURNS)
+    const oldTurns = localStorage.getItem("sm_speaking_turns");
+    const existingConvs = localStorage.getItem("sm_speaking_conversations");
+
+    if (oldTurns && !existingConvs) {
+      const id = `sconv_${Date.now()}`;
+      let parsedTurns: ConversationTurn[] = [];
+      try { parsedTurns = JSON.parse(oldTurns); } catch {}
+      const firstUser = parsedTurns.find((turn) => turn.role === "user");
+      const title = firstUser ? autoTitle(firstUser.raw_text) : "";
+      const meta: ConversationMeta = { id, title, createdAt: Date.now(), updatedAt: Date.now() };
+      localStorage.setItem("sm_speaking_conversations", JSON.stringify([meta]));
+      localStorage.setItem(`sm_speaking_conv_turns_${id}`, oldTurns);
+      const oldRevealed = localStorage.getItem("sm_revealed_turns");
+      if (oldRevealed) {
+        localStorage.setItem(`sm_speaking_revealed_${id}`, oldRevealed);
+        localStorage.removeItem("sm_revealed_turns");
+      }
+      localStorage.removeItem("sm_speaking_turns");
+      localStorage.setItem("sm_speaking_active_conv", id);
+    }
+
+    let convs: ConversationMeta[] = [];
+    try {
+      const data = localStorage.getItem("sm_speaking_conversations");
+      convs = data ? JSON.parse(data) : [];
+    } catch {}
+
+    let activeId = localStorage.getItem("sm_speaking_active_conv") ?? "";
+
+    if (convs.length === 0) {
+      const id = `sconv_${Date.now()}`;
+      convs = [{ id, title: "", createdAt: Date.now(), updatedAt: Date.now() }];
+      localStorage.setItem("sm_speaking_conversations", JSON.stringify(convs));
+      activeId = id;
+    }
+
+    if (!activeId || !convs.find((c) => c.id === activeId)) {
+      activeId = convs[0].id;
+    }
+
+    localStorage.setItem("sm_speaking_active_conv", activeId);
+
+    const initTurns = loadTurns(activeId);
+    setTurns(initTurns);
+    setRevealedTurns(loadRevealed(activeId, initTurns));
+    persistedIdsRef.current = new Set(initTurns.map((turn) => turn.timestamp));
+
+    setConversations(convs);
+    setActiveConvId(activeId);
+  }, []);
+
+  // ── If the active conversation has nothing cached locally, fall back to
+  //    Supabase — covers a fresh device/browser/reinstalled PWA, or a
+  //    conversation the reconciliation effect below just discovered. ──
+  useEffect(() => {
+    if (!activeConvId) return;
+    if (localStorage.getItem(`sm_speaking_conv_turns_${activeConvId}`)) return;
+    const id = activeConvId;
+    let cancelled = false;
+    loadRecentSpeakingTurns(MAX_LOCAL_TURNS, id)
       .then((loaded) => {
-        if (loaded.length === 0) return;
+        if (cancelled || activeConvIdRef.current !== id || loaded.length === 0) return;
         setTurns(loaded);
         setRevealedTurns(new Set(loaded.map((_, i) => i)));
-        persistedIdsRef.current = new Set(loaded.map((t) => t.timestamp));
+        persistedIdsRef.current = new Set(loaded.map((turn) => turn.timestamp));
+        localStorage.setItem(`sm_speaking_conv_turns_${id}`, JSON.stringify(loaded));
       })
       .catch(() => {});
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { cancelled = true; };
+  }, [activeConvId]);
+
+  // ── Background reconciliation with the database — same reasoning as
+  //    ConversationClient's getConversationList() effect: never blocks or
+  //    clears what's already on screen, only adds conversations local
+  //    storage doesn't know about yet. ──
+  useEffect(() => {
+    let cancelled = false;
+    getSpeakingConversationList()
+      .then((remote) => {
+        if (cancelled) return;
+        setConversations((prev) => {
+          const localIds = new Set(prev.map((c) => c.id));
+          const additions = remote.filter((r) => !localIds.has(r.id));
+          if (additions.length === 0) return prev;
+          const merged = [...prev, ...additions].sort((a, b) => b.updatedAt - a.updatedAt);
+          localStorage.setItem("sm_speaking_conversations", JSON.stringify(merged));
+          return merged;
+        });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     getConversationContext().then(({ hskLevel, unknownWords }) => {
       setHskLevel(hskLevel);
       setUnknownWords(unknownWords);
-      setSavedWords(new Set(unknownWords.map((w) => w.hanzi)));
     });
   }, []);
 
@@ -110,28 +217,24 @@ export function SpeakingClient() {
       isFirstRender.current = false;
       return;
     }
+    if (!activeConvId) return;
 
     // Save recent turns to localStorage
     const toStore = turns.slice(-MAX_LOCAL_TURNS);
     try {
-      localStorage.setItem("sm_speaking_turns", JSON.stringify(toStore));
+      localStorage.setItem(`sm_speaking_conv_turns_${activeConvId}`, JSON.stringify(toStore));
     } catch { /* ignore quota errors */ }
 
     // Push any turns not yet in Supabase
-    const newTurns = turns.filter((t) => !persistedIdsRef.current.has(t.timestamp));
+    const newTurns = turns.filter((turn) => !persistedIdsRef.current.has(turn.timestamp));
     if (newTurns.length > 0) {
-      saveSpeakingTurns(newTurns).catch(() => {});
-      for (const t of newTurns) persistedIdsRef.current.add(t.timestamp);
+      saveSpeakingTurns(newTurns, activeConvId).catch(() => {});
+      for (const turn of newTurns) persistedIdsRef.current.add(turn.timestamp);
     }
-  }, [turns]);
-
-  // ── Derive LLM history from loaded turns (for AI context continuity) ─────
-  const initialHistory = useRef(
-    turns.slice(-20).map((t) => ({ role: t.role, content: t.raw_text }))
-  );
+  }, [turns, activeConvId]);
 
   const handleTranscriptUpdate = useCallback(
-    (tokens: TranscriptToken[], role: "user" | "assistant", audioUrl?: string) => {
+    (tokens: TranscriptToken[], role: "user" | "assistant", rawText: string, audioUrl?: string) => {
       setTurns((prev) => {
         const last = prev[prev.length - 1];
         if (last && last.role === role) {
@@ -141,19 +244,37 @@ export function SpeakingClient() {
             {
               ...last,
               tokens: [...last.tokens, ...tokens],
-              raw_text: last.raw_text + tokens.map((tk) => tk.hanzi).join(""),
+              // A space keeps this from fusing two sentences together with
+              // no boundary at all if this merge path is ever actually hit.
+              raw_text: last.raw_text + " " + rawText,
             },
           ];
         }
         const newTurn: ConversationTurn = {
           role,
           tokens,
-          raw_text: tokens.map((tk) => tk.hanzi).join(""),
+          raw_text: rawText,
           timestamp: new Date().toISOString(),
           audioUrl,
         };
         return [...prev, newTurn];
       });
+
+      // Auto-title on first user turn; bump updatedAt on every one —
+      // mirrors ConversationClient.tsx's sendMessage.
+      if (role === "user") {
+        const convId = activeConvIdRef.current;
+        setConversations((prev) => {
+          const isFirst = !prev.find((c) => c.id === convId)?.title;
+          const updated = prev.map((c) =>
+            c.id === convId
+              ? { ...c, updatedAt: Date.now(), title: isFirst ? autoTitle(rawText) : c.title }
+              : c
+          );
+          localStorage.setItem("sm_speaking_conversations", JSON.stringify(updated));
+          return updated;
+        });
+      }
     },
     []
   );
@@ -161,9 +282,10 @@ export function SpeakingClient() {
   const handleAITurnEnd = useCallback(() => setForcedWords([]), []);
 
   useEffect(() => {
+    if (!activeConvId) return;
     const timestamps = [...revealedTurns].map((i) => turns[i]?.timestamp).filter(Boolean);
-    localStorage.setItem("sm_revealed_turns", JSON.stringify(timestamps));
-  }, [revealedTurns, turns]);
+    localStorage.setItem(`sm_speaking_revealed_${activeConvId}`, JSON.stringify(timestamps));
+  }, [revealedTurns, turns, activeConvId]);
 
   const revealTurn = useCallback(
     (i: number) => setRevealedTurns((s) => new Set(s).add(i)),
@@ -175,101 +297,133 @@ export function SpeakingClient() {
     []
   );
 
-  const { state, error, startRecording, stopRecording, cancel, replay } = useVoiceConversation({
+  const { state, error, startRecording, stopRecording, cancel, resetHistory } = useVoiceConversation({
     slangMode,
     forcedWords,
     hskLevel,
     unknownWords,
     onTranscriptUpdate: handleTranscriptUpdate,
     onAITurnEnd: handleAITurnEnd,
-    initialHistory: initialHistory.current,
     speechRate,
   });
 
-  // ── Word lookup sheet ─────────────────────────────────────────────────────
-  const handleWordSelect = useCallback(
-    async (word: string) => {
-      const cached = unknownWords.find((w) => w.hanzi === word);
-      setSheet({
-        word,
-        pinyin: cached?.pinyin,
-        meaning: cached?.meaning,
-        saved: savedWords.has(word),
-      });
+  // Turn-replay playback (the per-turn Play/Pause button + speed slider) —
+  // separate from the hook's own auto-speak-the-reply flow above, and
+  // deliberately the *only* place touching window.speechSynthesis for it
+  // (see useTurnPlayback's doc comment for why that matters).
+  const turnPlayback = useTurnPlayback();
 
-      if (!cached?.pinyin && !cached?.meaning) {
-        try {
-          const res = await fetch("/api/define-word", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ hanzi: word, slang_mode: slangMode }),
-          });
-          const def = await res.json();
-          if (def.pinyin || def.meaning) {
-            setSheet((s) =>
-              s?.word === word
-                ? { ...s, pinyin: def.pinyin || s.pinyin, meaning: def.meaning || s.meaning, hsk_level: def.hsk_level ?? null, source: def.source, senses: def.senses, saved: s.saved || !!def.already_saved }
-                : s
-            );
-          }
-        } catch { /* ignore */ }
-      }
-    },
-    [unknownWords, savedWords, slangMode]
-  );
+  // Re-seed the hook's AI-context history from whatever `turns` currently
+  // holds — fires on every turn added (a no-op re-derivation of what the
+  // hook just appended internally itself) AND on every conversation switch
+  // (the case that actually matters: the hook only reads a seed once at
+  // mount, so without this, switching conversations without remounting the
+  // component would leave it talking with the *previous* conversation's
+  // context).
+  useEffect(() => {
+    resetHistory(turns.slice(-20).map((turn) => ({ role: turn.role, content: turn.raw_text })));
+  }, [turns, resetHistory]);
 
-  // User picked a specific sense from the sheet's disambiguation list.
-  const handlePickSense = useCallback((sense: WordSense) => {
-    setSheet((s) =>
-      s ? { ...s, pinyin: sense.pinyin, meaning: sense.meaning, hsk_level: sense.hsk_level ?? s.hsk_level, senses: undefined } : s
-    );
-  }, []);
+  const switchConversation = useCallback((convId: string) => {
+    const currentId = activeConvIdRef.current;
+    if (convId === currentId) { setShowChatList(false); return; }
 
-  const handleAddToSaved = useCallback(async () => {
-    if (!sheet) return;
-    const { word } = sheet;
-    setSavedWords((prev) => new Set([...prev, word]));
-    setForcedWords((prev) => (prev.includes(word) ? prev : [...prev, word]));
-    setSheet((s) => (s ? { ...s, saved: true } : s));
-    // keepalive fetch, not a Server Action — see persistVocabToggle for why
-    // (this fires right before the user is free to navigate away).
-    const ok = await persistVocabToggle("add", word, {
-      pinyin: sheet.pinyin ?? "",
-      meaning: sheet.meaning ?? "",
-      hsk_level: sheet.hsk_level ?? null,
+    cancel(); // stop any in-flight recording/speaking before swapping context
+
+    const newTurns = loadTurns(convId);
+    setTurns(newTurns);
+    setRevealedTurns(loadRevealed(convId, newTurns));
+    persistedIdsRef.current = new Set(newTurns.map((turn) => turn.timestamp));
+    setForcedWords([]);
+    setActiveConvId(convId);
+    localStorage.setItem("sm_speaking_active_conv", convId);
+    setShowChatList(false);
+    // If nothing's cached locally for convId, the activeConvId-keyed
+    // backfill effect above picks it up from the DB automatically.
+  }, [cancel]);
+
+  const createNewConversation = useCallback(() => {
+    const id = `sconv_${Date.now()}`;
+    const meta: ConversationMeta = { id, title: "", createdAt: Date.now(), updatedAt: Date.now() };
+
+    setConversations((prev) => {
+      const updated = [meta, ...prev];
+      localStorage.setItem("sm_speaking_conversations", JSON.stringify(updated));
+      return updated;
     });
-    if (!ok) {
-      // Didn't actually land — undo the optimistic flip instead of leaving
-      // the UI claiming a save the database doesn't have.
-      setSavedWords((prev) => { const next = new Set(prev); next.delete(word); return next; });
-      setForcedWords((prev) => prev.filter((w) => w !== word));
-      setSheet((s) => (s ? { ...s, saved: false } : s));
-      return;
-    }
-    // Deliberately not calling router.refresh() on success — see WordPopup's
-    // toggleSense for why (it raced with an immediately-following
-    // navigation, e.g. backing out right after a toggle).
-  }, [sheet]);
 
-  const handleRemoveFromSaved = useCallback(async () => {
-    if (!sheet) return;
-    const { word } = sheet;
-    setSavedWords((prev) => { const next = new Set(prev); next.delete(word); return next; });
-    setForcedWords((prev) => prev.filter((w) => w !== word));
-    setSheet((s) => (s ? { ...s, saved: false } : s));
-    // Actually delete — this is the "remove from my vocab list" action, not
-    // just clearing the forced-reinjection flag (see WordPopup's toggleSense
-    // for the same fix and why) — and keepalive for the same reason as
-    // handleAddToSaved above.
-    const ok = await persistVocabToggle("remove", word, { pinyin: sheet.pinyin ?? "", meaning: sheet.meaning ?? "" });
-    if (!ok) {
-      setSavedWords((prev) => new Set([...prev, word]));
-      setForcedWords((prev) => (prev.includes(word) ? prev : [...prev, word]));
-      setSheet((s) => (s ? { ...s, saved: true } : s));
-      return;
+    cancel();
+    setTurns([]);
+    setRevealedTurns(new Set());
+    persistedIdsRef.current = new Set();
+    setForcedWords([]);
+    setActiveConvId(id);
+    localStorage.setItem("sm_speaking_active_conv", id);
+    setShowChatList(false);
+  }, [cancel]);
+
+  const deleteConversation = useCallback((convId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    localStorage.removeItem(`sm_speaking_conv_turns_${convId}`);
+    localStorage.removeItem(`sm_speaking_revealed_${convId}`);
+
+    let remaining: ConversationMeta[] = [];
+    try {
+      const data = localStorage.getItem("sm_speaking_conversations");
+      const all: ConversationMeta[] = data ? JSON.parse(data) : [];
+      remaining = all.filter((c) => c.id !== convId);
+    } catch {}
+
+    localStorage.setItem("sm_speaking_conversations", JSON.stringify(remaining));
+    setConversations(remaining);
+
+    if (activeConvIdRef.current === convId) {
+      cancel();
+      if (remaining.length > 0) {
+        const target = remaining[0];
+        const newTurns = loadTurns(target.id);
+        setTurns(newTurns);
+        setRevealedTurns(loadRevealed(target.id, newTurns));
+        persistedIdsRef.current = new Set(newTurns.map((turn) => turn.timestamp));
+        setForcedWords([]);
+        setActiveConvId(target.id);
+        localStorage.setItem("sm_speaking_active_conv", target.id);
+      } else {
+        const newId = `sconv_${Date.now()}`;
+        const meta: ConversationMeta = { id: newId, title: "", createdAt: Date.now(), updatedAt: Date.now() };
+        localStorage.setItem("sm_speaking_conversations", JSON.stringify([meta]));
+        localStorage.setItem("sm_speaking_active_conv", newId);
+        setConversations([meta]);
+        setTurns([]);
+        setRevealedTurns(new Set());
+        persistedIdsRef.current = new Set();
+        setForcedWords([]);
+        setActiveConvId(newId);
+      }
     }
-    // See handleAddToSaved above for why there's no router.refresh() here.
-  }, [sheet]);
+  }, [cancel]);
+
+  // ── Word lookup popup — same useWordPopup/WordPopupCard the chatbot uses
+  //    (hover/click, browser-extension deferral, per-sense add/remove, the
+  //    decomposed-parts breakdown), replacing the old hand-rolled bottom
+  //    sheet that just dumped every CEDICT sense concatenated into one
+  //    paragraph and had no extension support at all. ──────────────────────
+  const { popup, popupRef, showHover, hideHover, toggleClick, toggleSense, togglePartSense, navigateToWord, navigateToPart, resolveRange } = useWordPopup({
+    masteryMap,
+    slangMode,
+    onQueueChange: (word, _pinyin, queued) => {
+      setSavedWords((prev) => {
+        const next = new Set(prev);
+        queued ? next.add(word) : next.delete(word);
+        return next;
+      });
+      setForcedWords((prev) => (queued ? (prev.includes(word) ? prev : [...prev, word]) : prev.filter((w) => w !== word)));
+    },
+    onAlreadySaved: (word) => {
+      setSavedWords((prev) => (prev.has(word) ? prev : new Set(prev).add(word)));
+    },
+  });
 
   const isRecording = state === "recording";
   const isBusy = state === "transcribing" || state === "thinking" || state === "speaking";
@@ -302,6 +456,13 @@ export function SpeakingClient() {
           </p>
         </div>
         <button
+          onClick={() => setShowChatList(true)}
+          className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--color-background)] transition-colors flex-shrink-0"
+          title="All chats"
+        >
+          <LayoutList size={18} className="text-[var(--color-text-muted)]" />
+        </button>
+        <button
           onClick={() => setSlangMode((s) => {
             const next = !s;
             localStorage.setItem("sm_slang_mode", next ? "1" : "0");
@@ -323,38 +484,48 @@ export function SpeakingClient() {
         <TranscriptView
           turns={turns}
           revealedTurns={revealedTurns}
+          masteryMap={masteryMap}
           savedWords={savedWords}
-          onWordSelect={handleWordSelect}
+          onWordClick={toggleClick}
+          onWordHover={showHover}
+          onHoverLeave={hideHover}
+          resolveRange={resolveRange}
+          activeWord={popup?.word ?? null}
           onRevealTurn={revealTurn}
           onHideTurn={hideTurn}
           playingTurnIndex={playingTurnIndex}
           isSpeechPaused={isSpeechPaused}
           onReplayTurn={(i) => {
             const turn = turns[i];
-            const isUser = turn?.role === "user";
+            if (!turn) return;
+            const isUser = turn.role === "user";
 
-            // Toggle pause/resume for the currently playing turn
+            // Toggle pause/resume for the currently playing turn. The rate
+            // actually applied here is always the slider's *current* value —
+            // the slider itself is disabled except while paused (see below),
+            // so "change speed" and "resume" are the same click for TTS turns.
             if (playingTurnIndex === i) {
               if (isSpeechPaused) {
                 if (isUser && activeAudioRef.current) {
+                  activeAudioRef.current.playbackRate = speechRate;
                   activeAudioRef.current.play();
                 } else {
-                  window.speechSynthesis?.resume();
+                  turnPlayback.resume(speechRate, () => setPlayingTurnIndex(null));
                 }
                 setIsSpeechPaused(false);
               } else {
                 if (isUser && activeAudioRef.current) {
                   activeAudioRef.current.pause();
                 } else {
-                  window.speechSynthesis?.pause();
+                  turnPlayback.pause();
                 }
                 setIsSpeechPaused(true);
               }
               return;
             }
 
-            // Stop whatever is currently playing
-            window.speechSynthesis?.cancel();
+            // Switching to a different turn — stop whatever's currently playing.
+            turnPlayback.stop();
             if (activeAudioRef.current) {
               activeAudioRef.current.pause();
               activeAudioRef.current = null;
@@ -362,13 +533,14 @@ export function SpeakingClient() {
             setIsSpeechPaused(false);
             setPlayingTurnIndex(i);
 
-            if (isUser && turn?.audioUrl) {
+            if (isUser && turn.audioUrl) {
               const audio = new Audio(turn.audioUrl);
+              audio.playbackRate = speechRate;
               activeAudioRef.current = audio;
               audio.onended = () => { setPlayingTurnIndex(null); activeAudioRef.current = null; };
               audio.play();
             } else {
-              replay(turn?.raw_text ?? "", () => setPlayingTurnIndex(null));
+              turnPlayback.play(turn.raw_text, speechRate, () => setPlayingTurnIndex(null));
             }
           }}
         />
@@ -406,7 +578,14 @@ export function SpeakingClient() {
             step={0.1}
             value={speechRate}
             onChange={(e) => setSpeechRate(parseFloat(e.target.value))}
-            className="flex-1 accent-violet-600 cursor-pointer"
+            // Only adjustable while a turn is paused (or nothing's playing at
+            // all — sets the rate the *next* playback starts at). TTS has no
+            // way to apply a rate change to audio already playing, and
+            // silently queuing it up for "whenever this happens to end" read
+            // as broken; disabling makes it obvious the change is a paused-
+            // state action instead of a while-playing one.
+            disabled={playingTurnIndex !== null && !isSpeechPaused}
+            className="flex-1 accent-violet-600 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           />
           <span className="text-xs text-[var(--color-text-muted)] w-6 text-right">2x</span>
           <span className="text-xs text-violet-600 font-medium w-8 text-right">{speechRate.toFixed(1)}x</span>
@@ -440,72 +619,59 @@ export function SpeakingClient() {
         )}
       </div>
 
-      {/* Bottom sheet — word lookup */}
-      {sheet && (
+      {/* ── Chat list panel ── */}
+      {showChatList && (
         <>
-          <div className="fixed inset-0 z-40 bg-black/30" onClick={() => setSheet(null)} />
-          <div className="fixed bottom-0 left-0 right-0 z-50 bg-[var(--color-surface)] border-t border-[var(--color-border)] rounded-t-3xl px-6 py-6 flex flex-col items-center gap-4 shadow-2xl">
-            <div className="w-10 h-1 rounded-full bg-[var(--color-border)]" />
-            <span className="text-5xl font-medium tracking-tight text-[var(--color-text-primary)]">
-              {sheet.word}
-            </span>
-            {sheet.senses && sheet.senses.length > 1 ? (
-              <div className="w-full max-w-xs flex flex-col gap-2">
-                <span className="text-xs text-[var(--color-text-muted)] text-center">{t.multipleSenses}</span>
-                {sheet.senses.map((sense, i) => (
-                  <button
-                    key={i}
-                    onClick={() => handlePickSense(sense)}
-                    className="w-full text-left px-3 py-2 rounded-xl border border-[var(--color-border)] hover:border-violet-400 hover:bg-violet-50 transition-colors"
-                  >
-                    <div className="text-sm text-[var(--color-text-secondary)]">{sense.pinyin}</div>
-                    <div className="text-sm text-[var(--color-text-primary)]">{sense.meaning}</div>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <>
-                {sheet.pinyin ? (
-                  <span className="text-lg text-[var(--color-text-secondary)]">{sheet.pinyin}</span>
-                ) : (
-                  <span className="text-sm text-[var(--color-text-muted)] italic animate-pulse">
-                    {t.lookingUp}
+          <div className="fixed inset-0 z-40 bg-black/30" onClick={() => setShowChatList(false)} />
+          <div className="fixed inset-y-0 left-0 z-50 w-[280px] bg-[var(--color-surface)] flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between px-4 pt-[max(12px,env(safe-area-inset-top))] pb-3 border-b border-[var(--color-border)]">
+              <span className="font-semibold text-sm text-[var(--color-text-primary)]">{t.chats}</span>
+              <button
+                onClick={createNewConversation}
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--color-background)] transition-colors text-violet-600"
+                title={t.newChat}
+              >
+                <Plus size={18} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto py-1">
+              {conversations.map((conv) => (
+                <button
+                  key={conv.id}
+                  onClick={() => switchConversation(conv.id)}
+                  className={`w-full px-4 py-3 text-left flex items-center gap-3 group transition-colors ${
+                    conv.id === activeConvId
+                      ? "bg-violet-50 border-r-2 border-violet-500"
+                      : "hover:bg-[var(--color-background)]"
+                  }`}
+                >
+                  <span className="flex-1 text-sm text-[var(--color-text-primary)] truncate">
+                    {conv.title || t.newChat}
                   </span>
-                )}
-                {sheet.meaning ? (
-                  <span className="text-base text-[var(--color-text-primary)] text-center">
-                    {sheet.meaning}
-                  </span>
-                ) : sheet.pinyin ? (
-                  <span className="text-sm text-[var(--color-text-muted)] italic">
-                    {t.noDefinition}
-                  </span>
-                ) : null}
-                {sheet.saved ? (
-                  <button
-                    onClick={handleRemoveFromSaved}
-                    className="w-full max-w-xs py-3 rounded-2xl text-sm font-medium transition-all mt-2 bg-red-50 hover:bg-red-100 text-red-500 border border-red-200 cursor-pointer"
+                  <span
+                    onClick={(e) => deleteConversation(conv.id, e)}
+                    className="w-6 h-6 flex items-center justify-center rounded text-[var(--color-text-muted)] active:text-red-500 flex-shrink-0"
                   >
-                    {t.removeFromReview}
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleAddToSaved}
-                    className="w-full max-w-xs py-3 rounded-2xl text-sm font-medium transition-all mt-2 bg-violet-50 hover:bg-violet-100 text-violet-600 border border-violet-200 cursor-pointer"
-                  >
-                    {t.queueForReview}
-                  </button>
-                )}
-              </>
-            )}
-            <button
-              onClick={() => setSheet(null)}
-              className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors pb-2"
-            >
-              {t.dismiss}
-            </button>
+                    <Trash2 size={14} />
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
         </>
+      )}
+
+      {/* Word definition popup — same component the chatbot uses (hover
+          previews, click pins, extension deferral, per-sense add/remove). */}
+      {popup && (
+        <WordPopupCard
+          popup={popup}
+          popupRef={popupRef}
+          onNavigate={() => navigateToWord(popup)}
+          onToggleSense={(sense) => toggleSense(popup, sense)}
+          onNavigatePart={navigateToPart}
+          onTogglePartSense={(part, sense) => togglePartSense(popup, part, sense)}
+        />
       )}
     </div>
   );

@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveGeminiKey } from "@/lib/gemini/resolveKey";
-
-const INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
-const MODEL = "gemini-3.1-flash-lite"; // free tier: RPM 15, RPD 500 vs 3.6-flash's RPM 5, RPD 20
+import { fetchGeminiInteractions } from "@/lib/gemini/interactions";
 
 export async function POST(req: NextRequest) {
   let apiKey: string;
@@ -30,17 +28,12 @@ Respond with ONLY valid JSON (no markdown, no extra text):
 {"correct": true|false, "feedback": "one short sentence explaining why"}`;
 
   try {
-    const res = await fetch(INTERACTIONS_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      // Pin thinking_level low — without it this model uses dynamic thinking
-      // and can spend 60+s deliberating on a simple grading call.
-      body: JSON.stringify({
-        model: MODEL,
-        input: prompt,
-        store: false,
-        generation_config: { thinking_level: "minimal", max_output_tokens: 200 },
-      }),
+    // Pin thinking_level low — without it this model uses dynamic thinking
+    // and can spend 60+s deliberating on a simple grading call.
+    const res = await fetchGeminiInteractions(apiKey, {
+      input: prompt,
+      store: false,
+      generation_config: { thinking_level: "minimal", max_output_tokens: 200 },
     });
 
     if (!res.ok) {

@@ -14,7 +14,7 @@
  */
 
 import { useCallback, useRef, useState } from "react";
-import { tokenizeTranscript } from "./useGeminiLive";
+import { tokenizeTranscript } from "@/lib/tokenizeTranscript";
 import type { TranscriptToken } from "@/lib/types";
 
 export type ConvState = "idle" | "recording" | "transcribing" | "thinking" | "speaking" | "error";
@@ -24,7 +24,13 @@ export interface VoiceConvOptions {
   forcedWords: string[];
   hskLevel: number;
   unknownWords: { hanzi: string; pinyin: string; meaning: string }[];
-  onTranscriptUpdate: (tokens: TranscriptToken[], role: "user" | "assistant", audioUrl?: string) => void;
+  // `rawText` is the original, untokenized string (punctuation intact) —
+  // `tokens` deliberately excludes punctuation (it's built for per-word tap
+  // targets, see tokenizeTranscript), so reconstructing text by joining
+  // token.hanzi loses every 。！？ in it. Callers that need real sentence
+  // boundaries (e.g. chunking replay for pause/resume) need `rawText`, not
+  // a token join.
+  onTranscriptUpdate: (tokens: TranscriptToken[], role: "user" | "assistant", rawText: string, audioUrl?: string) => void;
   onAITurnEnd: () => void;
   speechRate?: number; // multiplier: 1 = normal (0.9), 2 = fast (1.8)
 }
@@ -36,9 +42,17 @@ export interface VoiceConvHandle {
   stopRecording: () => void;
   cancel: () => void;
   replay: (text: string, onEnd?: () => void) => void;
+  /**
+   * Replaces the AI-context history outright. `initialHistory` only seeds it
+   * once, at mount — a caller juggling multiple conversations (switching,
+   * creating, deleting) without remounting this hook needs a way to re-seed
+   * context for whichever conversation is now active, since the hook has no
+   * other way to know the active one changed underneath it.
+   */
+  resetHistory: (entries: HistoryEntry[]) => void;
 }
 
-type HistoryEntry = { role: "user" | "assistant"; content: string };
+export type HistoryEntry = { role: "user" | "assistant"; content: string };
 
 export function useVoiceConversation(opts: VoiceConvOptions & { initialHistory?: HistoryEntry[] }): VoiceConvHandle {
   const [state, setState] = useState<ConvState>("idle");
@@ -182,7 +196,7 @@ export function useVoiceConversation(opts: VoiceConvOptions & { initialHistory?:
       const userText: string = transcribeData.text.trim();
       const userTokens = tokenizeTranscript(userText);
       const audioUrl = URL.createObjectURL(blob);
-      optsRef.current.onTranscriptUpdate(userTokens, "user", audioUrl);
+      optsRef.current.onTranscriptUpdate(userTokens, "user", userText, audioUrl);
 
       // ── Step 2: Get AI reply ──────────────────────────────────────────────
       setState("thinking");
@@ -206,7 +220,7 @@ export function useVoiceConversation(opts: VoiceConvOptions & { initialHistory?:
       }
       const reply: string = converseData.reply;
       const replyTokens = tokenizeTranscript(reply);
-      optsRef.current.onTranscriptUpdate(replyTokens, "assistant");
+      optsRef.current.onTranscriptUpdate(replyTokens, "assistant", reply);
 
       // Update history for context
       historyRef.current = [
@@ -230,7 +244,11 @@ export function useVoiceConversation(opts: VoiceConvOptions & { initialHistory?:
     speakText(text, onEnd ?? (() => {}), optsRef.current.speechRate ?? 1);
   }, []);
 
-  return { state, error, startRecording, stopRecording, cancel, replay };
+  const resetHistory = useCallback((entries: HistoryEntry[]) => {
+    historyRef.current = entries;
+  }, []);
+
+  return { state, error, startRecording, stopRecording, cancel, replay, resetHistory };
 }
 
 /** Speak text using the browser SpeechSynthesis API with a Chinese voice if available. */

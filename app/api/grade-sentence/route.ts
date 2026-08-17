@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveGeminiKey } from "@/lib/gemini/resolveKey";
-
-const INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
-const MODEL = "gemini-3.1-flash-lite"; // free tier: RPM 15, RPD 500 vs 3.6-flash's RPM 5, RPD 20
+import { fetchGeminiInteractions } from "@/lib/gemini/interactions";
 
 export async function POST(req: NextRequest) {
   let apiKey: string;
@@ -43,21 +41,15 @@ Respond with ONLY valid JSON (no markdown, no extra text):
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20_000);
 
-    const res = await fetch(INTERACTIONS_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      // thinking_level pinned to "minimal": without it gemini-3.6-flash uses
-      // dynamic thinking and can burn 60+s of hidden reasoning on subjective
-      // calls (e.g. "is this natural?"). This is a short classification task,
-      // not something that needs deep deliberation.
-      body: JSON.stringify({
-        model: MODEL,
-        input: prompt,
-        store: false,
-        generation_config: { thinking_level: "minimal", max_output_tokens: 300 },
-      }),
-      signal: controller.signal,
-    }).finally(() => clearTimeout(timeout));
+    // thinking_level pinned to "minimal": without it gemini-3.6-flash uses
+    // dynamic thinking and can burn 60+s of hidden reasoning on subjective
+    // calls (e.g. "is this natural?"). This is a short classification task,
+    // not something that needs deep deliberation.
+    const res = await fetchGeminiInteractions(
+      apiKey,
+      { input: prompt, store: false, generation_config: { thinking_level: "minimal", max_output_tokens: 300 } },
+      { signal: controller.signal }
+    ).finally(() => clearTimeout(timeout));
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");

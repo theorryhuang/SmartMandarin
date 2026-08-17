@@ -1,18 +1,16 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
-import { ArrowUp, ChevronLeft, LayoutList, Mic, Plus, Trash2 } from "lucide-react";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { ArrowUp, ChevronLeft, LayoutList, Mic, MicOff, Phone, PhoneOff, Plus, Trash2 } from "lucide-react";
 import { HomeButton } from "@/app/_components/HomeButton";
 import { useRouter } from "next/navigation";
 import { getConversationContext, getSavedHanziSet } from "@/app/actions/vocabulary";
 import { saveMessages, loadOlderMessages, getConversationList } from "@/app/actions/chat";
 import type { MasteryMap } from "@/lib/types";
-import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
 import { useLanguage } from "@/app/_components/LanguageContext";
-import { segmentIntoWords, charSegmentIndex } from "@/lib/segment";
 import { useWordPopup, WordPopupCard } from "@/components/WordPopup";
-import { useIsDesktopPointer } from "@/lib/useIsDesktopPointer";
-import { useHasExtension } from "@/lib/useHasExtension";
+import { TappableText } from "@/components/TappableText";
+import { useGeminiLive } from "@/hooks/useGeminiLive";
 
 interface Message {
   role: "user" | "assistant";
@@ -563,6 +561,65 @@ export function ConversationClient({ masteryMap }: Props) {
     setIsRecording(false);
   }, []);
 
+  // ── Live voice call (Gemini Live — full-duplex, replaces hold-to-record
+  //    + text reply + browser TTS with one streaming audio-to-audio session
+  //    while connected) ──────────────────────────────────────────────────
+  // Tracks the in-flight assistant utterance so onAITurnEnd can persist the
+  // final text without re-reading React state (which would need a stale-
+  // closure-prone functional setState just to peek at the latest value).
+  const liveAssistantRef = useRef<{ id: string; text: string } | null>(null);
+
+  const liveConv = useGeminiLive({
+    slangMode,
+    forcedWords,
+    hskLevel: hskLevel ?? 1,
+    unknownWords,
+    onTranscriptUpdate: (text, role, turnId) => {
+      setMessages((prev) => {
+        const idx = prev.findIndex((m) => m.id === turnId);
+        if (idx === -1) return [...prev, { id: turnId, role, content: text }];
+        const next = [...prev];
+        next[idx] = { ...next[idx], content: text };
+        return next;
+      });
+
+      if (role === "assistant") {
+        liveAssistantRef.current = { id: turnId, text };
+        return;
+      }
+
+      // User speech transcription arrives as one complete message (not
+      // streamed) — safe to fold into history/persist immediately rather
+      // than waiting for a turn-end signal the way the assistant side does.
+      const convId = activeConvIdRef.current;
+      historyRef.current = [...historyRef.current, { role: "user" as const, content: text }].slice(-20);
+      try { localStorage.setItem(`sm_conv_history_${convId}`, JSON.stringify(historyRef.current)); } catch {}
+      if (convId) saveMessages([{ id: turnId, role: "user", content: text }], convId).catch(() => {});
+
+      setConversations((prev) => {
+        const isFirst = !prev.find((c) => c.id === convId)?.title;
+        if (!isFirst) return prev;
+        const updated = prev.map((c) =>
+          c.id === convId ? { ...c, updatedAt: Date.now(), title: autoTitle(text) } : c
+        );
+        localStorage.setItem("sm_conversations", JSON.stringify(updated));
+        return updated;
+      });
+    },
+    onAITurnEnd: () => {
+      const finished = liveAssistantRef.current;
+      liveAssistantRef.current = null;
+      const convId = activeConvIdRef.current;
+      if (finished) {
+        historyRef.current = [...historyRef.current, { role: "assistant" as const, content: finished.text }].slice(-20);
+        try { localStorage.setItem(`sm_conv_history_${convId}`, JSON.stringify(historyRef.current)); } catch {}
+        if (convId) saveMessages([{ id: finished.id, role: "assistant", content: finished.text }], convId).catch(() => {});
+      }
+      setForcedWords([]);
+    },
+  });
+
+  const liveActive = liveConv.connectionState === "connecting" || liveConv.connectionState === "connected";
   const activeConvTitle = conversations.find((c) => c.id === activeConvId)?.title || t.newChat;
 
   return (
@@ -612,8 +669,49 @@ export function ConversationClient({ masteryMap }: Props) {
         >
           {slangMode ? t.slangActive : t.slang}
         </button>
+        <button
+          onClick={() => (liveActive ? liveConv.disconnect() : liveConv.connect())}
+          disabled={hskLevel === null}
+          title={liveConv.connectionState === "connected" ? "End live voice call" : "Start live voice call"}
+          className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors flex-shrink-0 disabled:opacity-40 ${
+            liveActive
+              ? "bg-red-500 text-white"
+              : "hover:bg-[var(--color-background)] text-[var(--color-text-muted)]"
+          }`}
+        >
+          {liveActive ? <PhoneOff size={16} /> : <Phone size={16} />}
+        </button>
         <HomeButton className="flex-shrink-0" />
       </div>
+
+      {/* ── Live call status ── */}
+      {liveConv.connectionState !== "idle" && (
+        <div className="flex items-center justify-between gap-3 px-4 py-2 bg-violet-50 border-b border-violet-200 text-sm">
+          <span className="flex items-center gap-2 text-violet-700 min-w-0">
+            {liveConv.connectionState === "connecting" && t.loading}
+            {liveConv.connectionState === "connected" && (
+              <>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
+                <span className="truncate">Live call — speak naturally</span>
+              </>
+            )}
+            {liveConv.connectionState === "error" && (
+              <span className="text-red-600 truncate">{liveConv.error ?? "Voice call failed"}</span>
+            )}
+          </span>
+          {liveConv.connectionState === "connected" && (
+            <button
+              onClick={liveConv.toggleMute}
+              title={liveConv.isMuted ? "Unmute" : "Mute"}
+              className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
+                liveConv.isMuted ? "bg-red-100 text-red-600" : "bg-white text-violet-700 border border-violet-200"
+              }`}
+            >
+              {liveConv.isMuted ? <MicOff size={13} /> : <Mic size={13} />}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* ── Messages ── */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-5 flex flex-col gap-3">
@@ -649,7 +747,7 @@ export function ConversationClient({ masteryMap }: Props) {
               }`}
             >
               {msg.role === "assistant" ? (
-                <TappableMessage
+                <TappableText
                   text={msg.content}
                   masteryMap={masteryMap}
                   savedWords={savedWords}
@@ -703,6 +801,9 @@ export function ConversationClient({ masteryMap }: Props) {
       )}
 
       {/* ── Input ── */}
+      {/* Disabled while a live call is up — that session owns the mic and
+          drives its own turns, a text/hold-to-record message alongside it
+          would interleave unpredictably with the open audio stream. */}
       <div className="px-4 py-3 bg-[var(--color-surface)] border-t border-[var(--color-border)]">
         <div className="flex items-center gap-2 bg-[var(--color-background)] border border-[var(--color-border)] rounded-2xl px-4 py-2 focus-within:border-violet-400 transition-colors">
           <input
@@ -710,15 +811,15 @@ export function ConversationClient({ masteryMap }: Props) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
-            placeholder={t.typeInput}
-            disabled={isLoading || hskLevel === null}
+            placeholder={liveActive ? "Live call in progress…" : t.typeInput}
+            disabled={isLoading || hskLevel === null || liveActive}
             className="flex-1 bg-transparent text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none disabled:opacity-50"
           />
           <button
             onPointerDown={startRecording}
             onPointerUp={stopRecording}
             onPointerLeave={stopRecording}
-            disabled={isLoading || isTranscribing || hskLevel === null}
+            disabled={isLoading || isTranscribing || hskLevel === null || liveActive}
             className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors disabled:opacity-40 flex-shrink-0 ${
               isRecording
                 ? "bg-red-500"
@@ -733,7 +834,7 @@ export function ConversationClient({ masteryMap }: Props) {
           </button>
           <button
             onClick={sendMessage}
-            disabled={isLoading || !input.trim() || hskLevel === null}
+            disabled={isLoading || !input.trim() || hskLevel === null || liveActive}
             className="w-8 h-8 rounded-full bg-violet-600 hover:bg-violet-700 flex items-center justify-center transition-colors disabled:opacity-40 flex-shrink-0"
           >
             <ArrowUp size={15} className="text-white" />
@@ -813,216 +914,4 @@ function getSupportedMimeType(): string {
     if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(type)) return type;
   }
   return "audio/webm";
-}
-
-// ─── TappableMessage ──────────────────────────────────────────────────────────
-// Renders AI message text with drag-to-select multi-character words.
-// No extra spacing between characters — uses natural inline text flow.
-
-function TappableMessage({
-  text,
-  masteryMap,
-  savedWords,
-  onWordClick,
-  onWordHover,
-  onHoverLeave,
-  resolveRange,
-  activeWord,
-}: {
-  text: string;
-  masteryMap: MasteryMap;
-  savedWords: Set<string>;
-  // `word` here is the raw Intl.Segmenter span, not necessarily a real
-  // dictionary word — the popup hook resolves `offset` against CEDICT
-  // itself. `exact: true` bypasses that (an explicit text selection).
-  onWordClick: (word: string, offset: number, x: number, y: number, exact?: boolean) => void;
-  onWordHover: (word: string, offset: number, rect: DOMRect) => void;
-  onHoverLeave: () => void;
-  // Sync lookup of which char range (within a segment) is the actual
-  // resolved CEDICT headword — so the highlight can track e.g. just "步步"
-  // inside "一步步" instead of lighting up the whole segmenter span.
-  resolveRange: (segWord: string, offset: number) => { start: number; end: number };
-  // Only used to force a recompute of the highlight once async resolution
-  // lands (resolveRange itself reads a ref, so it won't trigger renders).
-  activeWord: string | null;
-}) {
-  type Seg = { type: "hanzi" | "punct" | "other"; content: string; idx: number };
-  const segments: Seg[] = [];
-  let hanziIdx = 0;
-
-  const cleaned = text.replace(/\s*\([^)]{1,30}\)/g, "");
-
-  for (const char of cleaned) {
-    if (/[一-鿿㐀-䶿]/.test(char)) {
-      segments.push({ type: "hanzi", content: char, idx: hanziIdx++ });
-    } else if (/[，。！？、…]/.test(char)) {
-      segments.push({ type: "punct", content: char, idx: -1 });
-    } else {
-      segments.push({ type: "other", content: char, idx: -1 });
-    }
-  }
-
-  // Dictionary-based word segmentation over the same char sequence — hover
-  // and click both target the whole word ("北京", not "北" + "京").
-  const wordSegments = useMemo(() => segmentIntoWords(cleaned), [cleaned]);
-  const segIndexAt = useMemo(() => charSegmentIndex(wordSegments), [wordSegments]);
-  const [hoverCharIdx, setHoverCharIdx] = useState<number | null>(null);
-
-  // The actual highlighted range — the resolved CEDICT headword's char span
-  // within its segment, not the whole (possibly wider) segmenter span.
-  const hoverRange = useMemo(() => {
-    if (hoverCharIdx === null) return null;
-    const seg = wordSegments[segIndexAt[hoverCharIdx]];
-    if (!seg || !seg.isWordLike) return { start: hoverCharIdx, end: hoverCharIdx + 1 };
-    const offset = hoverCharIdx - seg.start;
-    const range = resolveRange(seg.word, offset);
-    return { start: seg.start + range.start, end: seg.start + range.end };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hoverCharIdx, wordSegments, segIndexAt, resolveRange, activeWord]);
-
-  // Desktop (real mouse) defers entirely to the browser extension, which
-  // needs a genuine native selection to detect — and would otherwise pop up
-  // side-by-side with this component's own card for the same selection.
-  // Touch devices (no extension, worse UX for drag-to-select CJK text) keep
-  // the in-app popup exactly as before. Only actually defer when the
-  // extension is confirmed present on this page (see useHasExtension) —
-  // otherwise a desktop browser/profile/window without it installed would
-  // get no popup at all, not even this app's own.
-  const isDesktop = useIsDesktopPointer();
-  const hasExtension = useHasExtension();
-  const deferToExtension = isDesktop && hasExtension;
-  const containerRef = useRef<HTMLDivElement>(null);
-  const onWordClickRef = useRef(onWordClick);
-  useEffect(() => { onWordClickRef.current = onWordClick; }, [onWordClick]);
-  const hanziSegs = segments.filter((s) => s.type === "hanzi");
-  const hanziStr = hanziSegs.map((s) => s.content).join("");
-  const savedCoveredIndices = new Set<number>();
-  for (const word of savedWords) {
-    if (word.length <= 1) continue;
-    let pos = 0;
-    while ((pos = hanziStr.indexOf(word, pos)) !== -1) {
-      for (let j = pos; j < pos + word.length; j++) {
-        savedCoveredIndices.add(hanziSegs[j].idx);
-      }
-      pos++;
-    }
-  }
-
-  useEffect(() => {
-    if (deferToExtension) return; // leave native selection alone for the extension
-    const el = containerRef.current;
-    if (!el) return;
-    const onEnd = () => {
-      setTimeout(() => {
-        const sel = window.getSelection();
-        if (!sel || sel.isCollapsed) return;
-        const selected = sel.toString().replace(/[^一-鿿㐀-䶿]/g, "");
-        // A single-character "selection" here is almost never a deliberate
-        // drag — it's the mobile browser's own native long-press/double-tap
-        // word-select, an artifact of the tap gesture itself (a desktop
-        // mouse click never produces this; there's no equivalent accidental
-        // native-select on mouseup). Left alone, that phantom selection did
-        // two things wrong: it hijacked this ordinary tap into `exact` mode
-        // with whatever single char the OS's own word-boundary guess landed
-        // on — not necessarily the same span the per-token click handler
-        // would've resolved via CEDICT — and since it was never cleared,
-        // it also made the *next* tap's `sel.isCollapsed` check in that
-        // handler misfire and no-op. Only a genuine multi-char drag counts
-        // as an explicit override; anything shorter just gets cleared so
-        // the deliberate, correctly-segmented per-token click handles it.
-        if (selected.length < 2) {
-          sel.removeAllRanges();
-          return;
-        }
-        const rect = sel.getRangeAt(0).getBoundingClientRect();
-        // Explicit text selection — a literal override, skip CEDICT resolution.
-        onWordClickRef.current(selected, 0, rect.left + rect.width / 2, rect.top, true);
-        setTimeout(() => sel.removeAllRanges(), 150);
-      }, 50);
-    };
-    el.addEventListener("mouseup", onEnd);
-    el.addEventListener("touchend", onEnd);
-    return () => {
-      el.removeEventListener("mouseup", onEnd);
-      el.removeEventListener("touchend", onEnd);
-    };
-  }, [deferToExtension]);
-
-  return (
-    <div
-      ref={containerRef}
-      className="leading-loose text-[15px]"
-    >
-      {segments.map((seg, i) => {
-        if (seg.type === "punct") {
-          return (
-            <span key={i} className="text-[var(--color-text-muted)]">
-              {seg.content}
-            </span>
-          );
-        }
-        if (seg.type === "other") {
-          return <span key={i}>{seg.content}</span>;
-        }
-
-        const isSaved = savedWords.has(seg.content) || savedCoveredIndices.has(seg.idx);
-        // Aggregate across every saved sense of this hanzi — the highlight
-        // is per-character, not per-sense (the popup handles per-sense detail).
-        const isLearning = (masteryMap[seg.content] ?? []).some((s) => s.stability < HIGH_STABILITY_THRESHOLD);
-        const wordSeg = wordSegments[segIndexAt[i]];
-        const dictWord = wordSeg && wordSeg.isWordLike ? wordSeg.word : seg.content;
-        const offset = wordSeg && wordSeg.isWordLike ? i - wordSeg.start : 0;
-        const isInHoverWord = hoverRange !== null && i >= hoverRange.start && i < hoverRange.end;
-
-        // Plain tap-to-open on everything except an actual desktop+extension
-        // page (there the extension owns clicks/selection, and would pop up
-        // side-by-side with this on the same tap). Dropping this in favor of
-        // a drag-select-only model (to mirror the extension everywhere) made
-        // mobile — which never has the extension — feel broken: a bare tap,
-        // the only gesture most phone users try, did nothing.
-        return (
-          <span
-            key={i}
-            data-word-token
-            onClick={(e) => {
-              if (deferToExtension) return; // extension owns clicks/selection here
-              const sel = window.getSelection();
-              // Only bail for a genuine multi-char selection (a real drag —
-              // onEnd above already handled it). A 1-char "selection" is the
-              // mobile browser's own native word-select reflex firing off
-              // this exact tap, not a real drag; onEnd clears it shortly
-              // after, but this click can land first, so it needs the same
-              // >= 2 threshold or a bare tap silently does nothing on touch.
-              if (sel && !sel.isCollapsed && sel.toString().replace(/[^一-鿿㐀-䶿]/g, "").length >= 2) return;
-              const rect = e.currentTarget.getBoundingClientRect();
-              onWordClickRef.current(dictWord, offset, rect.left + rect.width / 2, rect.top);
-            }}
-            onPointerEnter={(e) => {
-              if (!deferToExtension && e.pointerType === "mouse") {
-                setHoverCharIdx(i);
-                onWordHover(dictWord, offset, e.currentTarget.getBoundingClientRect());
-              }
-            }}
-            onPointerLeave={(e) => {
-              if (!deferToExtension && e.pointerType === "mouse") {
-                setHoverCharIdx(null);
-                onHoverLeave();
-              }
-            }}
-            className={`${deferToExtension ? "cursor-text" : "cursor-pointer"} rounded-sm transition-colors ${
-              isSaved
-                ? "word-token word-token--mistake"
-                : isLearning
-                ? "word-token word-token--unknown"
-                : isInHoverWord
-                ? "bg-violet-500/15"
-                : "hover:bg-slate-100"
-            }`}
-          >
-            {seg.content}
-          </span>
-        );
-      })}
-    </div>
-  );
 }

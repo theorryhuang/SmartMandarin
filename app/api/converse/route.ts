@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveGeminiKey } from "@/lib/gemini/resolveKey";
+import { fetchGeminiInteractions } from "@/lib/gemini/interactions";
 
 export const maxDuration = 60;
-
-const INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
-const MODEL = "gemini-3.1-flash-lite"; // free tier: RPM 15, RPD 500 vs 3.6-flash's RPM 5, RPD 20
 
 export async function POST(req: NextRequest) {
   let apiKey: string;
@@ -45,17 +43,9 @@ export async function POST(req: NextRequest) {
     .join("\n");
   const fullInput = historyText ? historyText + "\nUser: " + userMessage : userMessage;
 
-  const res = await fetch(INTERACTIONS_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": apiKey,
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      input: "[Instructions]\n" + systemText + "\n[Conversation]\n" + fullInput,
-      store: false,
-    }),
+  const res = await fetchGeminiInteractions(apiKey, {
+    input: "[Instructions]\n" + systemText + "\n[Conversation]\n" + fullInput,
+    store: false,
   });
 
   if (!res.ok) {
