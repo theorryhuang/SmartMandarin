@@ -361,28 +361,6 @@ export async function deleteWord(wordIdOrHanzi: string, pinyin?: string, meaning
   }
 }
 
-export async function removeFromReviewQueue(wordIdOrHanzi: string, pinyin?: string, meaning?: string): Promise<void> {
-  const supabase = await createClient();
-  const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
-  const isUUID = /^[0-9a-f-]{36}$/i.test(wordIdOrHanzi);
-  if (isUUID) {
-    await supabase
-      .from("vocabulary_mastery")
-      .update({ flagged_for_immediate_use: false })
-      .eq("id", wordIdOrHanzi)
-      .eq("user_id", userId);
-  } else {
-    let query = supabase
-      .from("vocabulary_mastery")
-      .update({ flagged_for_immediate_use: false })
-      .eq("hanzi", wordIdOrHanzi)
-      .eq("user_id", userId);
-    if (pinyin) query = query.eq("pinyin", pinyin);
-    if (meaning) query = query.eq("meaning", meaning);
-    await query;
-  }
-}
-
 export async function getDueWordsByLastRating(
   ratings: number[],
   isSlang = false,

@@ -5,7 +5,8 @@ import { Mic, ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useVoiceConversation } from "@/hooks/useVoiceConversation";
 import { TranscriptView } from "@/components/TranscriptView";
-import { logMistake, removeFromReviewQueue, getConversationContext } from "@/app/actions/vocabulary";
+import { getConversationContext } from "@/app/actions/vocabulary";
+import { persistVocabToggle } from "@/components/WordPopup";
 import { saveSpeakingTurns, loadRecentSpeakingTurns } from "@/app/actions/speaking";
 import type { ConversationTurn, TranscriptToken } from "@/lib/types";
 import { useLanguage } from "@/app/_components/LanguageContext";
@@ -230,11 +231,13 @@ export function SpeakingClient() {
     setSavedWords((prev) => new Set([...prev, word]));
     setForcedWords((prev) => (prev.includes(word) ? prev : [...prev, word]));
     setSheet((s) => (s ? { ...s, saved: true } : s));
-    await logMistake(word, {
-      pinyin: sheet.pinyin,
-      meaning: sheet.meaning,
-      hsk_level: sheet.hsk_level ?? undefined,
-    }).catch(() => {});
+    // keepalive fetch, not a Server Action — see persistVocabToggle for why
+    // (this fires right before the user is free to navigate away).
+    await persistVocabToggle("add", word, {
+      pinyin: sheet.pinyin ?? "",
+      meaning: sheet.meaning ?? "",
+      hsk_level: sheet.hsk_level ?? null,
+    });
   }, [sheet]);
 
   const handleRemoveFromSaved = useCallback(async () => {
@@ -243,7 +246,11 @@ export function SpeakingClient() {
     setSavedWords((prev) => { const next = new Set(prev); next.delete(word); return next; });
     setForcedWords((prev) => prev.filter((w) => w !== word));
     setSheet((s) => (s ? { ...s, saved: false } : s));
-    await removeFromReviewQueue(word).catch(() => {});
+    // Actually delete — this is the "remove from my vocab list" action, not
+    // just clearing the forced-reinjection flag (see WordPopup's toggleSense
+    // for the same fix and why) — and keepalive for the same reason as
+    // handleAddToSaved above.
+    await persistVocabToggle("remove", word, { pinyin: sheet.pinyin ?? "", meaning: sheet.meaning ?? "" });
   }, [sheet]);
 
   const isRecording = state === "recording";

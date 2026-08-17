@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { logMistake, removeFromReviewQueue } from "@/app/actions/vocabulary";
 import { useLanguage } from "@/app/_components/LanguageContext";
 import type { MasteryMap } from "@/lib/types";
 
@@ -146,6 +145,44 @@ function normalizeSenses(
     .filter((r) => !seen.has(senseKey(r)))
     .map((r) => ({ pinyin: r.pinyin, meaning: r.meaning, hsk_level: r.hsk_level }));
   return [...fromDef, ...extra];
+}
+
+/**
+ * Add/remove one saved-word row. A plain `fetch(..., { keepalive: true })`
+ * to a Route Handler instead of a `"use server"` action — the toggle button
+ * updates its UI optimistically and doesn't await this before returning
+ * control to the user, who's then free to navigate away (or, on mobile,
+ * background the tab) an instant later. A Server Action call is just a
+ * fetch with no unload protection, so the browser can kill it mid-flight —
+ * the popup shows "saved", but the write never lands, and the word quietly
+ * reverts to unsaved next time masteryMap loads. `keepalive` is the
+ * browser-standard fix: it guarantees the request is still sent even if the
+ * page that started it is gone before the response would arrive.
+ */
+export async function persistVocabToggle(
+  action: "add" | "remove",
+  word: string,
+  sense: { pinyin: string; meaning: string; hsk_level?: number | null },
+  existingId?: string
+): Promise<void> {
+  try {
+    await fetch("/api/vocab/toggle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      keepalive: true,
+      body: JSON.stringify({
+        action,
+        id: existingId,
+        hanzi: word,
+        pinyin: sense.pinyin,
+        meaning: sense.meaning,
+        hsk_level: sense.hsk_level ?? null,
+      }),
+    });
+  } catch {
+    // Best-effort — keepalive already maximizes the odds this lands even
+    // mid-navigation; nothing more useful to do from here.
+  }
 }
 
 export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPopupOptions) {
@@ -388,15 +425,11 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPo
 
       // Match on pinyin AND meaning — pinyin alone can collide between senses.
       const existingRow = (masteryMap[p.word] ?? []).find((r) => r.pinyin === sense.pinyin && r.meaning === sense.meaning);
-      if (nowSaved) {
-        await logMistake(existingRow?.id ?? p.word, {
-          pinyin: sense.pinyin,
-          meaning: sense.meaning,
-          hsk_level: sense.hsk_level ?? undefined,
-        }).catch(() => {});
-      } else {
-        await removeFromReviewQueue(existingRow?.id ?? p.word, sense.pinyin, sense.meaning).catch(() => {});
-      }
+      // Unsaving means "remove this word from my vocab list", not just clear
+      // flagged_for_immediate_use (that only controls forced re-injection
+      // into the next AI turn and would leave the word — and its "saved"
+      // state on the next load — untouched).
+      await persistVocabToggle(nowSaved ? "add" : "remove", p.word, sense, existingRow?.id);
     },
     [onQueueChange, masteryMap, recordOverride]
   );
@@ -424,15 +457,7 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPo
       onQueueChange?.(part.word, sense.pinyin, nowSaved, sense);
 
       const existingRow = (masteryMap[part.word] ?? []).find((r) => r.pinyin === sense.pinyin && r.meaning === sense.meaning);
-      if (nowSaved) {
-        await logMistake(existingRow?.id ?? part.word, {
-          pinyin: sense.pinyin,
-          meaning: sense.meaning,
-          hsk_level: sense.hsk_level ?? undefined,
-        }).catch(() => {});
-      } else {
-        await removeFromReviewQueue(existingRow?.id ?? part.word, sense.pinyin, sense.meaning).catch(() => {});
-      }
+      await persistVocabToggle(nowSaved ? "add" : "remove", part.word, sense, existingRow?.id);
     },
     [onQueueChange, masteryMap, recordOverride]
   );

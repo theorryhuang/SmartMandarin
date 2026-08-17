@@ -7,10 +7,10 @@ export async function OPTIONS() {
 }
 
 /**
- * Add/remove a review card from the extension popup's +/- button. Mirrors
- * app/actions/vocabulary.ts's logMistake / removeFromReviewQueue, just
- * reimplemented against the service-role client since there's no session
- * cookie to authenticate those server actions with here.
+ * Add/remove a saved word from the extension popup's +/- button. Mirrors
+ * app/actions/vocabulary.ts's logMistake / deleteWord, just reimplemented
+ * against the service-role client since there's no session cookie to
+ * authenticate those server actions with here.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -40,10 +40,12 @@ export async function POST(req: NextRequest) {
       );
       if (error) return NextResponse.json({ error: error.message }, { status: 500, headers: EXTENSION_CORS_HEADERS });
     } else {
-      let query = supabase
-        .from("vocabulary_mastery")
-        .update({ flagged_for_immediate_use: false })
-        .eq("user_id", userId);
+      // "Remove" here means delete the saved word, not just clear
+      // flagged_for_immediate_use (that flag only controls forced
+      // re-injection into the app's next AI turn — clearing it left the
+      // word, and its "saved" state, untouched, so pressing "-" in the
+      // extension popup silently did nothing to the actual vocab list).
+      let query = supabase.from("vocabulary_mastery").delete().eq("user_id", userId);
       query = id ? query.eq("id", id) : query.eq("hanzi", hanzi);
       if (!id && pinyin) query = query.eq("pinyin", pinyin);
       if (!id && meaning) query = query.eq("meaning", meaning);
