@@ -159,6 +159,34 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPo
   const timerRef = useRef<number | null>(null);
   const pinnedWordRef = useRef<string | null>(null);
   const popupRef = useRef<HTMLDivElement>(null);
+  // word -> senseKey -> saved/unsaved, for toggles made *this* session.
+  // `masteryMap` only refreshes on a full page (re)load (see ConversationClient's
+  // router.refresh()-on-mount comment), so a save made, then the popup closed
+  // and the same word clicked again, would otherwise read straight back off
+  // the stale masteryMap and show "+" again for a word you just saved — this
+  // overlay is what makes toggles stick for the rest of the session regardless
+  // of how many times the popup for that word is closed and reopened.
+  const sessionOverridesRef = useRef<Map<string, Map<string, boolean>>>(new Map());
+
+  const applyOverrides = useCallback((word: string, keys: Set<string>): Set<string> => {
+    const overrides = sessionOverridesRef.current.get(word);
+    if (!overrides) return keys;
+    const next = new Set(keys);
+    for (const [key, saved] of overrides) {
+      if (saved) next.add(key);
+      else next.delete(key);
+    }
+    return next;
+  }, []);
+
+  const recordOverride = useCallback((word: string, key: string, saved: boolean) => {
+    let overrides = sessionOverridesRef.current.get(word);
+    if (!overrides) {
+      overrides = new Map();
+      sessionOverridesRef.current.set(word, overrides);
+    }
+    overrides.set(key, saved);
+  }, []);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -183,17 +211,17 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPo
         return {
           word: part.word,
           senses: normalizeSenses(part, savedRows),
-          savedSenseKeys: new Set(savedRows.map((r) => senseKey(r))),
+          savedSenseKeys: applyOverrides(part.word, new Set(savedRows.map((r) => senseKey(r)))),
         };
       }),
-    [masteryMap]
+    [masteryMap, applyOverrides]
   );
 
   /** Final step once a word is fully resolved (a real headword, no decomposition left). */
   const openResolved = useCallback(
     (word: string, x: number, y: number, pinned: boolean) => {
       const savedRows = masteryMap[word] ?? [];
-      const savedSenseKeys = new Set(savedRows.map((r) => senseKey(r)));
+      const savedSenseKeys = applyOverrides(word, new Set(savedRows.map((r) => senseKey(r))));
 
       const cached = cacheRef.current.get(word);
       if (cached) {
@@ -231,7 +259,7 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPo
         }
       })();
     },
-    [masteryMap, slangMode, buildParts]
+    [masteryMap, slangMode, buildParts, applyOverrides]
   );
 
   /** Fetches + caches the decomposition for a not-yet-seen segmenter word, then resolves whichever offset is current by the time it lands. */
@@ -349,6 +377,7 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPo
     async (p: WordPopupState, sense: WordSense) => {
       const key = senseKey(sense);
       const nowSaved = !p.savedSenseKeys.has(key);
+      recordOverride(p.word, key, nowSaved);
       setPopup((cur) => {
         if (!cur || cur.word !== p.word) return cur;
         const next = new Set(cur.savedSenseKeys);
@@ -369,7 +398,7 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPo
         await removeFromReviewQueue(existingRow?.id ?? p.word, sense.pinyin, sense.meaning).catch(() => {});
       }
     },
-    [onQueueChange, masteryMap]
+    [onQueueChange, masteryMap, recordOverride]
   );
 
   /** Add/remove a review card for one sense of one part of a decomposed
@@ -379,6 +408,7 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPo
     async (p: WordPopupState, part: DecomposedPart, sense: WordSense) => {
       const key = senseKey(sense);
       const nowSaved = !part.savedSenseKeys.has(key);
+      recordOverride(part.word, key, nowSaved);
       setPopup((cur) => {
         if (!cur || cur.word !== p.word || !cur.parts) return cur;
         return {
@@ -404,7 +434,7 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPo
         await removeFromReviewQueue(existingRow?.id ?? part.word, sense.pinyin, sense.meaning).catch(() => {});
       }
     },
-    [onQueueChange, masteryMap]
+    [onQueueChange, masteryMap, recordOverride]
   );
 
   const navigateToWord = useCallback(

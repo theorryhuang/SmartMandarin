@@ -7,6 +7,7 @@ import { useLanguage } from "@/app/_components/LanguageContext";
 import { segmentIntoWords, charSegmentIndex } from "@/lib/segment";
 import { useWordPopup, WordPopupCard } from "@/components/WordPopup";
 import { useIsDesktopPointer } from "@/lib/useIsDesktopPointer";
+import { useHasExtension } from "@/lib/useHasExtension";
 
 interface StorySentence {
   hanzi: string;
@@ -200,8 +201,13 @@ function StoryLine({
   // text selection stays enabled and none of this component's own pointer
   // handling runs, so the extension's own selection-based lookup is the only
   // thing that fires. Touch devices (no extension) keep this custom
-  // tap/drag-to-select system exactly as before.
+  // tap/drag-to-select system exactly as before. Only actually defer once the
+  // extension is confirmed present on this page (see useHasExtension) — a
+  // desktop browser/profile/window without it installed falls back to this
+  // component's own popup instead of getting neither.
   const isDesktop = useIsDesktopPointer();
+  const hasExtension = useHasExtension();
+  const deferToExtension = isDesktop && hasExtension;
   const chars = Array.from(sentence.hanzi);
   const [selStart, setSelStart] = useState<number | null>(null);
   const [selEnd, setSelEnd] = useState<number | null>(null);
@@ -244,7 +250,7 @@ function StoryLine({
   }
 
   function handlePointerDown(i: number) {
-    if (isDesktop) return; // let native mousedown+drag selection happen instead
+    if (deferToExtension) return; // let native mousedown+drag selection happen instead
     setSelStart(i);
     setSelEnd(i);
     setIsSelecting(true);
@@ -255,7 +261,7 @@ function StoryLine({
   }
 
   function handlePointerUp(e: React.PointerEvent) {
-    if (isDesktop || !isSelecting || selStart === null || selEnd === null) return;
+    if (deferToExtension || !isSelecting || selStart === null || selEnd === null) return;
     setIsSelecting(false);
     const lo = Math.min(selStart, selEnd);
     const hi = Math.max(selStart, selEnd);
@@ -276,7 +282,7 @@ function StoryLine({
 
   return (
     <div
-      className={`leading-loose text-lg ${isDesktop ? "" : "select-none"}`}
+      className={`leading-loose text-lg ${deferToExtension ? "" : "select-none"}`}
       onPointerUp={handlePointerUp}
       onPointerLeave={(e) => {
         if (isSelecting) handlePointerUp(e);
@@ -303,7 +309,7 @@ function StoryLine({
             onPointerDown={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); handlePointerDown(i); }}
             onPointerEnter={(e) => {
               handlePointerEnter(i);
-              if (!isDesktop && e.pointerType === "mouse" && !isSelecting) {
+              if (!deferToExtension && e.pointerType === "mouse" && !isSelecting) {
                 const seg = wordSegments[segIndexAt[i]];
                 const segWord = seg && seg.isWordLike ? seg.word : char;
                 const offset = seg && seg.isWordLike ? i - seg.start : 0;
@@ -312,12 +318,12 @@ function StoryLine({
               }
             }}
             onPointerLeave={(e) => {
-              if (!isDesktop && e.pointerType === "mouse") {
+              if (!deferToExtension && e.pointerType === "mouse") {
                 setHoverCharIdx(null);
                 onHoverLeave();
               }
             }}
-            className={`word-token px-0.5 transition-all ${isDesktop ? "cursor-text" : "cursor-pointer touch-none"} ${
+            className={`word-token px-0.5 transition-all ${deferToExtension ? "cursor-text" : "cursor-pointer touch-none"} ${
               isInSelection
                 ? "bg-violet-600/40 rounded"
                 : isQueued

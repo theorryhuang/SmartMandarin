@@ -6,6 +6,14 @@
 // decomposes it into its constituent words (`parts`) and this renders each
 // one as its own row.
 (() => {
+  // Marks this page as having the extension active — the app's own in-page
+  // popup (ConversationClient/StoryReader) checks for this attribute on
+  // desktop before deferring to the extension's selection-based popup, so it
+  // doesn't go silent in a browser/profile/window where the extension isn't
+  // installed. Set unconditionally, first thing, regardless of whether the
+  // extension is even configured/connected yet.
+  document.documentElement.setAttribute("data-smartmandarin-ext", "1");
+
   const HANZI_RE = /[一-鿿㐀-䶿]/;
 
   let hostEl = null;

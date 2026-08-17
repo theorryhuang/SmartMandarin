@@ -12,6 +12,7 @@ import { useLanguage } from "@/app/_components/LanguageContext";
 import { segmentIntoWords, charSegmentIndex } from "@/lib/segment";
 import { useWordPopup, WordPopupCard } from "@/components/WordPopup";
 import { useIsDesktopPointer } from "@/lib/useIsDesktopPointer";
+import { useHasExtension } from "@/lib/useHasExtension";
 
 interface Message {
   role: "user" | "assistant";
@@ -78,6 +79,22 @@ export function ConversationClient({ masteryMap }: Props) {
     router.refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The mount effect above misses the common mobile case: navigating to the
+  // chatbot away and "coming back" via a swipe-back gesture or the browser's
+  // back button restores the page from bfcache — the whole React tree is
+  // resumed exactly as it was, so this component never remounts and that
+  // effect never re-fires. Without this, a word saved elsewhere while you
+  // were away (another tab, the extension, another device) stays unhighlighted
+  // until a hard reload. `pageshow`'s `persisted` flag is true only on a
+  // bfcache restore; a real mount already got the effect above.
+  useEffect(() => {
+    function onPageShow(e: PageTransitionEvent) {
+      if (e.persisted) router.refresh();
+    }
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, [router]);
 
   const [slangMode, setSlangMode] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -758,8 +775,13 @@ function TappableMessage({
   // needs a genuine native selection to detect — and would otherwise pop up
   // side-by-side with this component's own card for the same selection.
   // Touch devices (no extension, worse UX for drag-to-select CJK text) keep
-  // the in-app popup exactly as before.
+  // the in-app popup exactly as before. Only actually defer when the
+  // extension is confirmed present on this page (see useHasExtension) —
+  // otherwise a desktop browser/profile/window without it installed would
+  // get no popup at all, not even this app's own.
   const isDesktop = useIsDesktopPointer();
+  const hasExtension = useHasExtension();
+  const deferToExtension = isDesktop && hasExtension;
   const containerRef = useRef<HTMLDivElement>(null);
   const onWordClickRef = useRef(onWordClick);
   useEffect(() => { onWordClickRef.current = onWordClick; }, [onWordClick]);
@@ -778,7 +800,7 @@ function TappableMessage({
   }
 
   useEffect(() => {
-    if (isDesktop) return; // leave native selection alone for the extension
+    if (deferToExtension) return; // leave native selection alone for the extension
     const el = containerRef.current;
     if (!el) return;
     const onEnd = () => {
@@ -800,7 +822,7 @@ function TappableMessage({
       el.removeEventListener("mouseup", onEnd);
       el.removeEventListener("touchend", onEnd);
     };
-  }, [isDesktop]);
+  }, [deferToExtension]);
 
   return (
     <div
@@ -838,13 +860,13 @@ function TappableMessage({
             key={i}
             data-word-token
             onPointerEnter={(e) => {
-              if (!isDesktop && e.pointerType === "mouse") {
+              if (!deferToExtension && e.pointerType === "mouse") {
                 setHoverCharIdx(i);
                 onWordHover(dictWord, offset, e.currentTarget.getBoundingClientRect());
               }
             }}
             onPointerLeave={(e) => {
-              if (!isDesktop && e.pointerType === "mouse") {
+              if (!deferToExtension && e.pointerType === "mouse") {
                 setHoverCharIdx(null);
                 onHoverLeave();
               }
