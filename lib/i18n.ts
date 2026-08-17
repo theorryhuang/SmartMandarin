@@ -241,6 +241,7 @@ const en = {
   geminiKeyErrorRejected: "Gemini rejected this key — double-check it's correct",
   geminiKeyErrorApi: (status: number) => `Gemini API error (${status})`,
   geminiKeyErrorUnreachable: "Couldn't reach Gemini to verify the key — try again",
+  geminiKeyErrorSaveFailed: "Something went wrong saving your key — try again.",
   noGeminiKeyError: "Add your Gemini API key in Profile → Gemini API key to use this feature.",
 };
 
@@ -485,6 +486,7 @@ const zh: typeof en = {
   geminiKeyErrorRejected: "Gemini 拒绝了此密钥——请检查是否正确",
   geminiKeyErrorApi: (status: number) => `Gemini API 错误（${status}）`,
   geminiKeyErrorUnreachable: "无法连接 Gemini 验证密钥——请重试",
+  geminiKeyErrorSaveFailed: "保存密钥时出错——请重试。",
   noGeminiKeyError: "请在「个人资料 → Gemini API 密钥」中添加你的 Gemini API 密钥以使用此功能。",
 };
 

@@ -17,14 +17,24 @@ export function GeminiKeySettingsClient({ initialStatus }: { initialStatus: Gemi
     if (!input.trim()) return;
     setSaving(true);
     setError(null);
-    const result = await saveGeminiKey(input.trim());
-    setSaving(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    try {
+      // saveGeminiKey now always resolves to { ok, error } rather than
+      // throwing, but this still needs try/finally on its own — an
+      // unhandled rejection here (a genuinely uncaught server error, a
+      // dropped connection) used to leave `saving` stuck true forever,
+      // which read as the button hanging indefinitely.
+      const result = await saveGeminiKey(input.trim());
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setInput("");
+      setStatus({ hasKey: true, last4: input.trim().slice(-4) });
+    } catch {
+      setError(t.geminiKeyErrorSaveFailed);
+    } finally {
+      setSaving(false);
     }
-    setInput("");
-    setStatus({ hasKey: true, last4: input.trim().slice(-4) });
   }
 
   async function handleRemove() {

@@ -56,15 +56,25 @@ export async function saveGeminiKey(
     return { ok: false, error: t.geminiKeyErrorUnreachable };
   }
 
-  const { error } = await supabase.from("user_settings").upsert(
-    {
-      user_id: userId,
-      gemini_api_key_encrypted: encryptSecret(key),
-      gemini_api_key_last4: key.slice(-4),
-    },
-    { onConflict: "user_id" }
-  );
-  if (error) return { ok: false, error: error.message };
+  // encryptSecret() throws synchronously (e.g. SETTINGS_ENCRYPTION_KEY unset
+  // or malformed) — left unguarded before, that took down the whole server
+  // action with an unhandled exception instead of a normal { ok: false }
+  // reply, which left the client's "Verifying…" button spinning forever
+  // (nothing ever ran to flip it back off).
+  try {
+    const { error } = await supabase.from("user_settings").upsert(
+      {
+        user_id: userId,
+        gemini_api_key_encrypted: encryptSecret(key),
+        gemini_api_key_last4: key.slice(-4),
+      },
+      { onConflict: "user_id" }
+    );
+    if (error) return { ok: false, error: error.message };
+  } catch (e) {
+    console.error("[saveGeminiKey] failed to store key:", e);
+    return { ok: false, error: t.geminiKeyErrorSaveFailed };
+  }
 
   return { ok: true };
 }
