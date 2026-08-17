@@ -50,13 +50,22 @@ export function VocabClient() {
       if (!user) { setLoading(false); return; }
       userId = user.id;
 
-      const { data } = await supabase
-        .from("vocabulary_mastery")
-        .select("*")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false });
+      // PostgREST caps unbounded selects at 1000 rows — page through in
+      // batches so accounts with 1000+ saved words aren't silently truncated.
+      const PAGE_SIZE = 1000;
+      const all: VocabularyMastery[] = [];
+      for (let from = 0; ; from += PAGE_SIZE) {
+        const { data } = await supabase
+          .from("vocabulary_mastery")
+          .select("*")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .range(from, from + PAGE_SIZE - 1);
+        all.push(...((data ?? []) as VocabularyMastery[]));
+        if (!data || data.length < PAGE_SIZE) break;
+      }
 
-      setWords((data ?? []) as VocabularyMastery[]);
+      setWords(all);
       setLoading(false);
     }
 

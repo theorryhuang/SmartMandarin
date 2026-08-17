@@ -36,7 +36,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const initialLang: Lang = cookieLang === "zh" ? "zh" : "en";
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       {/* iOS home screen icon: app/apple-icon.png (Next's file convention)
           injects the <link rel="apple-touch-icon"> automatically, already
           rounded — unlike /icons/icon-192.png which is full-bleed for the

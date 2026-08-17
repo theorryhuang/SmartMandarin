@@ -93,8 +93,16 @@ export function ReviewFilterPicker({ isSlang = false }: Props) {
   function toggleLevel(lvl: HSKLevel) {
     setSelectedLabels((prev) => {
       const next = new Set(prev);
-      if (next.has(lvl.label)) next.delete(lvl.label);
-      else next.add(lvl.label);
+      if (next.has(lvl.label)) {
+        next.delete(lvl.label);
+      } else {
+        // "All Words" pulls the whole account with no HSK filter — mixing it
+        // with a specific level would silently inflate that level's results
+        // (fetchMerged calls getAllWords() for it), so keep selection exclusive.
+        if (lvl.label === "All Words") next.clear();
+        else next.delete("All Words");
+        next.add(lvl.label);
+      }
       return next;
     });
   }
