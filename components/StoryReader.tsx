@@ -48,6 +48,11 @@ export function StoryReader({ masteryMap, hskLevel, slangMode }: Props) {
         return next;
       });
     },
+    // Passive discovery (opening a popup for an already-saved word, not
+    // tapping +/-) — same highlight-only update as an explicit queue.
+    onAlreadySaved: (word) => {
+      setQueuedWords((prev) => (prev.has(word) ? prev : new Set(prev).add(word)));
+    },
   });
 
   function generate() {

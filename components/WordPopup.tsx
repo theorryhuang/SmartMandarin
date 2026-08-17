@@ -112,6 +112,17 @@ interface UseWordPopupOptions {
   masteryMap: MasteryMap;
   slangMode?: boolean;
   onQueueChange?: (word: string, pinyin: string, queued: boolean, sense: WordSense) => void;
+  /** Fired when the popup passively discovers (via /api/define-word's own
+   *  live DB check) that a word is already saved — not from the user
+   *  tapping +/-. Deliberately separate from onQueueChange: that callback
+   *  also does things that only make sense for an actual user action (e.g.
+   *  ConversationClient adds to the "will use this turn" list), which a
+   *  passive discovery while just checking a word shouldn't trigger. This
+   *  is purely "please also mark this word's highlight/queued styling" —
+   *  the character in the text stayed unhighlighted otherwise, since the
+   *  page's own saved-words state never learns about a save it didn't
+   *  itself instigate. */
+  onAlreadySaved?: (word: string, sense: WordSense) => void;
 }
 
 /** Which part of a decomposed segment covers `offset` (char index within the segment), and its char range? */
@@ -206,7 +217,7 @@ export async function persistVocabToggle(
   }
 }
 
-export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPopupOptions) {
+export function useWordPopup({ masteryMap, slangMode, onQueueChange, onAlreadySaved }: UseWordPopupOptions) {
   const router = useRouter();
   const [popup, setPopup] = useState<WordPopupState | null>(null);
   const cacheRef = useRef<Map<string, WordDef>>(new Map());
@@ -287,9 +298,16 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPo
       if (!def.already_saved || !def.meaning) return savedSenseKeys;
       const key = senseKey({ pinyin: def.pinyin ?? "", meaning: def.meaning });
       if (savedSenseKeys.has(key)) return savedSenseKeys;
+      // Newly discovered, not just re-confirmed — also tell the page so its
+      // own highlight/queued-word state (which only otherwise updates from
+      // an actual +/- tap) catches up. Without this the popup would
+      // correctly show "-" while the character in the message text stayed
+      // unhighlighted, since nothing outside the popup ever learned this
+      // word is, in fact, saved.
+      onAlreadySaved?.(word, { pinyin: def.pinyin ?? "", meaning: def.meaning, hsk_level: def.hsk_level ?? null });
       return applyOverrides(word, new Set(savedSenseKeys).add(key));
     },
-    [applyOverrides]
+    [applyOverrides, onAlreadySaved]
   );
 
   /** Final step once a word is fully resolved (a real headword, no decomposition left). */

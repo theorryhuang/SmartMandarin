@@ -129,6 +129,12 @@ export function ConversationClient({ masteryMap }: Props) {
       });
       setForcedWords((prev) => (queued ? (prev.includes(word) ? prev : [...prev, word]) : prev.filter((w) => w !== word)));
     },
+    // Passive discovery (opening a popup for an already-saved word, not
+    // tapping +/-) — only touch the highlight, not the "will use this turn"
+    // list, since the user didn't actually queue anything just now.
+    onAlreadySaved: (word) => {
+      setSavedWords((prev) => (prev.has(word) ? prev : new Set(prev).add(word)));
+    },
   });
 
   const [conversations, setConversations] = useState<ConversationMeta[]>([]);
