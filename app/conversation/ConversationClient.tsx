@@ -42,7 +42,7 @@ export function ConversationClient({ masteryMap }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  // Seeded from masteryMap (fetched fresh from the DB on every navigation to
+  // Seeded from masteryMap (fetched fresh from the DB on every SSR render of
   // this page), not the capped getConversationContext() query below — that one
   // is limit(15)'d and used for AI context, not as the source of truth for
   // which words are actually saved. Session-local toggleSense() adds/removes
@@ -50,6 +50,35 @@ export function ConversationClient({ masteryMap }: Props) {
   const [savedWords, setSavedWords] = useState<Set<string>>(
     () => new Set(Object.keys(masteryMap))
   );
+
+  // The useState initializer above only ever runs once, at mount — but
+  // masteryMap can arrive stale on that very first mount (Next.js's
+  // client-side Router Cache can serve an up-to-30s-old cached render of
+  // this route on a soft navigation back to it) and only becomes correct
+  // once router.refresh() below lands a fresher one. Without this, a word
+  // saved just before navigating away — or one that was simply missing from
+  // that stale first snapshot — stays permanently unmarked (both here and in
+  // the popup's own saved-state, which reads masteryMap directly) until a
+  // hard reload. Union, never remove, so this can't clobber an optimistic
+  // same-session add that masteryMap hasn't caught up to yet.
+  useEffect(() => {
+    setSavedWords((prev) => {
+      const next = new Set(prev);
+      for (const hanzi of Object.keys(masteryMap)) next.add(hanzi);
+      return next;
+    });
+  }, [masteryMap]);
+
+  // Actively self-heal the staleness above rather than hoping it doesn't
+  // happen: force a fresh server render every time this page mounts, so a
+  // cached masteryMap from before you last saved a word gets replaced with
+  // a real one instead of sitting there until the cache's ~30s window lapses
+  // on its own (or forever, if you're back before then).
+  useEffect(() => {
+    router.refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [slangMode, setSlangMode] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("sm_slang_mode") === "1";

@@ -478,12 +478,24 @@ export function WordPopupCard({
   const { t } = useLanguage();
   const below = popup.y < 90;
 
+  // Drag-to-move, same model as the extension's popup: once dragged past a
+  // small threshold, drop the anchor-centered transform for plain top-left
+  // tracking and never let the position effect below touch it again — a
+  // fresh popup (new `popup.word`/`popup.x`/`popup.y`) resets this.
+  const draggedRef = useRef(false);
+  const dragStateRef = useRef<{ startX: number; startY: number; baseLeft: number; baseTop: number } | null>(null);
+  useEffect(() => {
+    draggedRef.current = false;
+  }, [popup.word, popup.x, popup.y]);
+
   // Anchor is a single point (the hovered/clicked char); the card is
   // centered under/over it via translate(-50%, …). Runs after every commit
   // (no dep array) since React re-applies the raw, unclamped left/top from
   // the style prop on every render — reasserting the clamp only when deps
   // happened to change would let it get clobbered by unrelated re-renders.
+  // Skipped entirely once dragged — that position is now fully manual.
   useLayoutEffect(() => {
+    if (draggedRef.current) return;
     const el = popupRef.current;
     if (!el) return;
     const margin = 8;
@@ -498,11 +510,56 @@ export function WordPopupCard({
     if (dy) el.style.top = `${(below ? popup.y + 26 : popup.y - 10) + dy}px`;
   });
 
+  function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    // Don't hijack a tap on the +/- buttons or a navigable part/sense row —
+    // capturing the pointer here would retarget their *click* event at the
+    // card instead of them, silently swallowing it (the exact bug this had
+    // in the extension's popup).
+    const target = e.target as HTMLElement;
+    if (target.closest("button") || target.closest("[data-popup-nav]")) return;
+    const el = popupRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    dragStateRef.current = { startX: e.clientX, startY: e.clientY, baseLeft: r.left, baseTop: r.top };
+    el.setPointerCapture(e.pointerId);
+  }
+
+  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const st = dragStateRef.current;
+    const el = popupRef.current;
+    if (!st || !el) return;
+    const dx = e.clientX - st.startX;
+    const dy = e.clientY - st.startY;
+    if (!draggedRef.current && Math.hypot(dx, dy) > 4) {
+      draggedRef.current = true;
+      el.style.transform = "none";
+    }
+    if (draggedRef.current) {
+      el.style.left = `${st.baseLeft + dx}px`;
+      el.style.top = `${st.baseTop + dy}px`;
+    }
+  }
+
+  function handlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragStateRef.current) return;
+    dragStateRef.current = null;
+    popupRef.current?.releasePointerCapture(e.pointerId);
+  }
+
   return (
     <div
       ref={popupRef}
-      onClick={onNavigate}
-      className="fixed z-[60] px-3 py-2 rounded-xl bg-neutral-900 text-white shadow-xl border border-white/10 max-w-[260px] cursor-pointer select-none"
+      onClick={(e) => {
+        // A drag ending under the cursor still fires a click — swallow just
+        // that one instead of navigating.
+        if (draggedRef.current) { e.stopPropagation(); return; }
+        onNavigate();
+      }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      className="fixed z-[60] px-3 py-2 rounded-xl bg-neutral-900 text-white shadow-xl border border-white/10 max-w-[260px] cursor-grab active:cursor-grabbing select-none touch-none"
       style={{
         left: popup.x,
         top: below ? popup.y + 26 : popup.y - 10,
@@ -521,6 +578,7 @@ export function WordPopupCard({
           {popup.parts.map((part) => (
             <div key={part.word} className="flex flex-col gap-1.5">
               <div
+                data-popup-nav
                 className="text-[11px] font-medium text-white/55 hover:text-white/85 hover:underline cursor-pointer -mx-1 px-1 py-0.5 rounded hover:bg-white/[.06]"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -541,6 +599,7 @@ export function WordPopupCard({
                     // to the card's own onClick (whole-chunk navigation).
                     <div
                       key={i}
+                      data-popup-nav
                       className="flex items-start justify-between gap-2 cursor-pointer -mx-1 px-1 py-0.5 rounded hover:bg-white/[.06]"
                       onClick={(e) => {
                         e.stopPropagation();
