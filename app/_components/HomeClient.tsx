@@ -30,6 +30,10 @@ interface Props {
   masteryPct: number;
   devMode: boolean;
   DevResetButton?: React.ReactNode;
+  /** Read server-side from the sm_mode_order cookie — already the real,
+   *  reordered layout on first paint, no flash-then-correct needed. Null
+   *  when there's no (valid) cookie yet, i.e. never reordered before. */
+  initialOrder: string[] | null;
 }
 
 interface ModeItem {
@@ -52,18 +56,32 @@ const MODE_DEFAULTS: ModeItem[] = [
 ];
 
 const ORDER_KEY = "sm_mode_order";
+export const MODE_IDS = MODE_DEFAULTS.map((m) => m.id);
 
-function loadOrder(): string[] {
-  if (typeof window === "undefined") return MODE_DEFAULTS.map((m) => m.id);
+function isValidOrder(parsed: unknown): parsed is string[] {
+  if (!Array.isArray(parsed)) return false;
+  const known = new Set(MODE_IDS);
+  return parsed.length === known.size && parsed.every((id) => known.has(id));
+}
+
+function loadOrderFromLocalStorage(): string[] | null {
+  if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(ORDER_KEY);
-    if (!raw) return MODE_DEFAULTS.map((m) => m.id);
-    const parsed: string[] = JSON.parse(raw);
-    // Validate: must contain all known IDs
-    const known = new Set(MODE_DEFAULTS.map((m) => m.id));
-    if (parsed.length === known.size && parsed.every((id) => known.has(id))) return parsed;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (isValidOrder(parsed)) return parsed;
   } catch { /* ignore */ }
-  return MODE_DEFAULTS.map((m) => m.id);
+  return null;
+}
+
+function saveOrder(order: string[]) {
+  localStorage.setItem(ORDER_KEY, JSON.stringify(order));
+  // Cookie too, not just localStorage — this is what lets the server render
+  // the *already-reordered* layout on the next load instead of always
+  // starting at the default order and snapping to the real one a beat later
+  // once an effect fires (the "goes back to the order I set" flash).
+  document.cookie = `${ORDER_KEY}=${encodeURIComponent(JSON.stringify(order))}; path=/; max-age=31536000; SameSite=Lax`;
 }
 
 function SortableMode({
@@ -123,12 +141,24 @@ function SortableMode({
   );
 }
 
-export function HomeClient({ dueCount, slangDueCount, totalWords, masteredCount, masteryPct, devMode, DevResetButton }: Props) {
+export function HomeClient({ dueCount, slangDueCount, totalWords, masteredCount, masteryPct, devMode, DevResetButton, initialOrder }: Props) {
   const { t } = useLanguage();
-  const [order, setOrder] = useState<string[]>(() => MODE_DEFAULTS.map((m) => m.id));
+  const [order, setOrder] = useState<string[]>(() => initialOrder ?? MODE_IDS);
 
+  // One-time migration for anyone who reordered before this moved from
+  // localStorage-only to a cookie the server can read — without this,
+  // everyone's custom order would silently reset to default the first time
+  // they load post-upgrade, since the server has never heard of their
+  // localStorage value. No-ops on every load after the first, once the
+  // cookie exists and matches.
   useEffect(() => {
-    setOrder(loadOrder());
+    if (initialOrder) return;
+    const local = loadOrderFromLocalStorage();
+    if (local) {
+      setOrder(local);
+      saveOrder(local);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const sensors = useSensors(
@@ -141,7 +171,7 @@ export function HomeClient({ dueCount, slangDueCount, totalWords, masteredCount,
     if (!over || active.id === over.id) return;
     setOrder((prev) => {
       const next = arrayMove(prev, prev.indexOf(String(active.id)), prev.indexOf(String(over.id)));
-      localStorage.setItem(ORDER_KEY, JSON.stringify(next));
+      saveOrder(next);
       return next;
     });
   }
