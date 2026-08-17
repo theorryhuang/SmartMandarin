@@ -850,15 +850,23 @@ function TappableMessage({
         const offset = wordSeg && wordSeg.isWordLike ? i - wordSeg.start : 0;
         const isInHoverWord = hoverRange !== null && i >= hoverRange.start && i < hoverRange.end;
 
-        // No per-token tap-to-open — the extension never responds to a bare
-        // tap/click either, only to an actual text selection (the `onEnd`
-        // listener above). Matching that exactly means a single tap here
-        // does nothing on any device; only drag-select / double-tap-select
-        // (a real selection) triggers a lookup, same as the extension.
+        // Plain tap-to-open on everything except an actual desktop+extension
+        // page (there the extension owns clicks/selection, and would pop up
+        // side-by-side with this on the same tap). Dropping this in favor of
+        // a drag-select-only model (to mirror the extension everywhere) made
+        // mobile — which never has the extension — feel broken: a bare tap,
+        // the only gesture most phone users try, did nothing.
         return (
           <span
             key={i}
             data-word-token
+            onClick={(e) => {
+              if (deferToExtension) return; // extension owns clicks/selection here
+              const sel = window.getSelection();
+              if (sel && !sel.isCollapsed) return; // a drag just finished — onEnd above already handled it
+              const rect = e.currentTarget.getBoundingClientRect();
+              onWordClickRef.current(dictWord, offset, rect.left + rect.width / 2, rect.top);
+            }}
             onPointerEnter={(e) => {
               if (!deferToExtension && e.pointerType === "mouse") {
                 setHoverCharIdx(i);
@@ -871,7 +879,7 @@ function TappableMessage({
                 onHoverLeave();
               }
             }}
-            className={`cursor-text rounded-sm transition-colors ${
+            className={`${deferToExtension ? "cursor-text" : "cursor-pointer"} rounded-sm transition-colors ${
               isSaved
                 ? "word-token word-token--mistake"
                 : isLearning

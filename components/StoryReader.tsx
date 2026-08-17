@@ -267,9 +267,17 @@ function StoryLine({
     const hi = Math.max(selStart, selEnd);
 
     if (lo === hi) {
-      // Plain tap, no drag — the extension never responds to a bare tap
-      // either, only to an actual selection, so this is a deliberate no-op
-      // to match it exactly. Only a drag (below) triggers a lookup.
+      // Plain tap, no drag — hand off the Intl.Segmenter span + offset; the
+      // popup hook resolves it against CEDICT itself. Skipped only on a real
+      // desktop+extension page (deferToExtension) — everywhere else (chiefly
+      // mobile, which never has the extension) a bare tap is the primary
+      // gesture and must open the popup, not no-op.
+      if (!/[，。！？、…\s]/.test(chars[lo])) {
+        const seg = wordSegments[segIndexAt[lo]];
+        const segWord = seg && seg.isWordLike ? seg.word : chars[lo];
+        const offset = seg && seg.isWordLike ? lo - seg.start : 0;
+        onWordClick(segWord, offset, e.clientX, e.clientY);
+      }
     } else {
       // User dragged across a range — that's an explicit override, honor it exactly.
       const selected = chars.slice(lo, hi + 1);
