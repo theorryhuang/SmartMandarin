@@ -43,6 +43,7 @@ export function ConversationClient({ masteryMap }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
   // Seeded from masteryMap (fetched fresh from the DB on every SSR render of
   // this page), not the capped getConversationContext() query below — that one
   // is limit(15)'d and used for AI context, not as the source of truth for
@@ -442,6 +443,7 @@ export function ConversationClient({ masteryMap }: Props) {
     setInput("");
     inputRef.current?.focus();
 
+    setChatError(null);
     const userMsg: Message = { role: "user", content: text, id: Date.now().toString() };
 
     // Auto-title on first message; update updatedAt on subsequent ones
@@ -494,9 +496,15 @@ export function ConversationClient({ masteryMap }: Props) {
         ].slice(-20);
         try { localStorage.setItem(`sm_conv_history_${activeConvId}`, JSON.stringify(historyRef.current)); } catch {}
         setForcedWords([]);
+      } else {
+        // No reply and no thrown exception — e.g. missing Gemini key, rate
+        // limit, etc. Used to fail silently here (isLoading just flipped
+        // back off with nothing on screen, which read as the request
+        // hanging) — data.error is already localized server-side.
+        setChatError(data.error || t.chatSendFailed);
       }
     } catch {
-      // ignore
+      setChatError(t.chatSendFailed);
     } finally {
       setIsLoading(false);
     }
@@ -671,6 +679,13 @@ export function ConversationClient({ masteryMap }: Props) {
           </div>
         )}
       </div>
+
+      {/* ── Error ── */}
+      {chatError && (
+        <div className="px-4 py-2.5 bg-red-900/10 border-t border-red-800/30">
+          <p className="text-sm text-red-500">{chatError}</p>
+        </div>
+      )}
 
       {/* ── Forced words ── */}
       {forcedWords.length > 0 && (

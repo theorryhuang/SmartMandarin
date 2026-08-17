@@ -145,6 +145,7 @@ const en = {
   savedForReview: "Saved for review",
   typeInput: "Type in Mandarin or English…",
   tapToSelect: "Tap or drag to select words · save them for review",
+  chatSendFailed: "Couldn't reach the server — check your connection and try again.",
 
   // ── Reader ───────────────────────────────────────────────────────────────────
   interactiveReader: "Interactive Reader",
@@ -388,6 +389,7 @@ const zh: typeof en = {
   savedForReview: "已保存",
   typeInput: "用普通话或英文输入…",
   tapToSelect: "点击或拖动选择单词 · 保存以复习",
+  chatSendFailed: "无法连接服务器——请检查网络连接后重试。",
 
   // ── Reader ───────────────────────────────────────────────────────────────────
   interactiveReader: "互动阅读",
