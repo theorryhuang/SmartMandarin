@@ -808,12 +808,27 @@ function TappableMessage({
         const sel = window.getSelection();
         if (!sel || sel.isCollapsed) return;
         const selected = sel.toString().replace(/[^一-鿿㐀-䶿]/g, "");
-        if (selected.length >= 1) {
-          const rect = sel.getRangeAt(0).getBoundingClientRect();
-          // Explicit text selection — a literal override, skip CEDICT resolution.
-          onWordClickRef.current(selected, 0, rect.left + rect.width / 2, rect.top, true);
-          setTimeout(() => sel.removeAllRanges(), 150);
+        // A single-character "selection" here is almost never a deliberate
+        // drag — it's the mobile browser's own native long-press/double-tap
+        // word-select, an artifact of the tap gesture itself (a desktop
+        // mouse click never produces this; there's no equivalent accidental
+        // native-select on mouseup). Left alone, that phantom selection did
+        // two things wrong: it hijacked this ordinary tap into `exact` mode
+        // with whatever single char the OS's own word-boundary guess landed
+        // on — not necessarily the same span the per-token click handler
+        // would've resolved via CEDICT — and since it was never cleared,
+        // it also made the *next* tap's `sel.isCollapsed` check in that
+        // handler misfire and no-op. Only a genuine multi-char drag counts
+        // as an explicit override; anything shorter just gets cleared so
+        // the deliberate, correctly-segmented per-token click handles it.
+        if (selected.length < 2) {
+          sel.removeAllRanges();
+          return;
         }
+        const rect = sel.getRangeAt(0).getBoundingClientRect();
+        // Explicit text selection — a literal override, skip CEDICT resolution.
+        onWordClickRef.current(selected, 0, rect.left + rect.width / 2, rect.top, true);
+        setTimeout(() => sel.removeAllRanges(), 150);
       }, 50);
     };
     el.addEventListener("mouseup", onEnd);
@@ -863,7 +878,13 @@ function TappableMessage({
             onClick={(e) => {
               if (deferToExtension) return; // extension owns clicks/selection here
               const sel = window.getSelection();
-              if (sel && !sel.isCollapsed) return; // a drag just finished — onEnd above already handled it
+              // Only bail for a genuine multi-char selection (a real drag —
+              // onEnd above already handled it). A 1-char "selection" is the
+              // mobile browser's own native word-select reflex firing off
+              // this exact tap, not a real drag; onEnd clears it shortly
+              // after, but this click can land first, so it needs the same
+              // >= 2 threshold or a bare tap silently does nothing on touch.
+              if (sel && !sel.isCollapsed && sel.toString().replace(/[^一-鿿㐀-䶿]/g, "").length >= 2) return;
               const rect = e.currentTarget.getBoundingClientRect();
               onWordClickRef.current(dictWord, offset, rect.left + rect.width / 2, rect.top);
             }}
