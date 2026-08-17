@@ -233,12 +233,21 @@ export function SpeakingClient() {
     setSheet((s) => (s ? { ...s, saved: true } : s));
     // keepalive fetch, not a Server Action — see persistVocabToggle for why
     // (this fires right before the user is free to navigate away).
-    await persistVocabToggle("add", word, {
+    const ok = await persistVocabToggle("add", word, {
       pinyin: sheet.pinyin ?? "",
       meaning: sheet.meaning ?? "",
       hsk_level: sheet.hsk_level ?? null,
     });
-  }, [sheet]);
+    if (!ok) {
+      // Didn't actually land — undo the optimistic flip instead of leaving
+      // the UI claiming a save the database doesn't have.
+      setSavedWords((prev) => { const next = new Set(prev); next.delete(word); return next; });
+      setForcedWords((prev) => prev.filter((w) => w !== word));
+      setSheet((s) => (s ? { ...s, saved: false } : s));
+      return;
+    }
+    router.refresh();
+  }, [sheet, router]);
 
   const handleRemoveFromSaved = useCallback(async () => {
     if (!sheet) return;
@@ -250,8 +259,15 @@ export function SpeakingClient() {
     // just clearing the forced-reinjection flag (see WordPopup's toggleSense
     // for the same fix and why) — and keepalive for the same reason as
     // handleAddToSaved above.
-    await persistVocabToggle("remove", word, { pinyin: sheet.pinyin ?? "", meaning: sheet.meaning ?? "" });
-  }, [sheet]);
+    const ok = await persistVocabToggle("remove", word, { pinyin: sheet.pinyin ?? "", meaning: sheet.meaning ?? "" });
+    if (!ok) {
+      setSavedWords((prev) => new Set([...prev, word]));
+      setForcedWords((prev) => (prev.includes(word) ? prev : [...prev, word]));
+      setSheet((s) => (s ? { ...s, saved: true } : s));
+      return;
+    }
+    router.refresh();
+  }, [sheet, router]);
 
   const isRecording = state === "recording";
   const isBusy = state === "transcribing" || state === "thinking" || state === "speaking";

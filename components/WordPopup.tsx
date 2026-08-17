@@ -164,9 +164,9 @@ export async function persistVocabToggle(
   word: string,
   sense: { pinyin: string; meaning: string; hsk_level?: number | null },
   existingId?: string
-): Promise<void> {
+): Promise<boolean> {
   try {
-    await fetch("/api/vocab/toggle", {
+    const res = await fetch("/api/vocab/toggle", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       keepalive: true,
@@ -179,9 +179,12 @@ export async function persistVocabToggle(
         hsk_level: sense.hsk_level ?? null,
       }),
     });
+    return res.ok;
   } catch {
-    // Best-effort — keepalive already maximizes the odds this lands even
-    // mid-navigation; nothing more useful to do from here.
+    // Killed mid-flight (page gone) or a real network failure — either way
+    // the caller needs to know it didn't land so it can undo its optimistic
+    // UI update instead of quietly lying about what's actually saved.
+    return false;
   }
 }
 
@@ -429,9 +432,29 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPo
       // flagged_for_immediate_use (that only controls forced re-injection
       // into the next AI turn and would leave the word — and its "saved"
       // state on the next load — untouched).
-      await persistVocabToggle(nowSaved ? "add" : "remove", p.word, sense, existingRow?.id);
+      const ok = await persistVocabToggle(nowSaved ? "add" : "remove", p.word, sense, existingRow?.id);
+      if (!ok) {
+        // The write didn't actually land — undo the optimistic flip instead
+        // of leaving the UI claiming a state the database doesn't have.
+        // This is the gap the extension doesn't have: it only ever touches
+        // its local cache *after* the server confirms, so it can't drift.
+        recordOverride(p.word, key, !nowSaved);
+        setPopup((cur) => {
+          if (!cur || cur.word !== p.word) return cur;
+          const next = new Set(cur.savedSenseKeys);
+          nowSaved ? next.delete(key) : next.add(key);
+          return { ...cur, savedSenseKeys: next };
+        });
+        onQueueChange?.(p.word, sense.pinyin, !nowSaved, sense);
+        return;
+      }
+      // Confirmed — pull a fresh masteryMap so the *next* popup open (this
+      // session or not) reads real server state instead of leaning on the
+      // in-memory override forever. Same role as the extension's own
+      // savedWords cache staying in lockstep with every confirmed write.
+      router.refresh();
     },
-    [onQueueChange, masteryMap, recordOverride]
+    [onQueueChange, masteryMap, recordOverride, router]
   );
 
   /** Add/remove a review card for one sense of one part of a decomposed
@@ -457,9 +480,29 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange }: UseWordPo
       onQueueChange?.(part.word, sense.pinyin, nowSaved, sense);
 
       const existingRow = (masteryMap[part.word] ?? []).find((r) => r.pinyin === sense.pinyin && r.meaning === sense.meaning);
-      await persistVocabToggle(nowSaved ? "add" : "remove", part.word, sense, existingRow?.id);
+      const ok = await persistVocabToggle(nowSaved ? "add" : "remove", part.word, sense, existingRow?.id);
+      if (!ok) {
+        // Same revert as toggleSense above — don't leave the UI claiming a
+        // save that didn't actually land.
+        recordOverride(part.word, key, !nowSaved);
+        setPopup((cur) => {
+          if (!cur || cur.word !== p.word || !cur.parts) return cur;
+          return {
+            ...cur,
+            parts: cur.parts.map((pt) => {
+              if (pt.word !== part.word) return pt;
+              const next = new Set(pt.savedSenseKeys);
+              nowSaved ? next.delete(key) : next.add(key);
+              return { ...pt, savedSenseKeys: next };
+            }),
+          };
+        });
+        onQueueChange?.(part.word, sense.pinyin, !nowSaved, sense);
+        return;
+      }
+      router.refresh();
     },
-    [onQueueChange, masteryMap, recordOverride]
+    [onQueueChange, masteryMap, recordOverride, router]
   );
 
   const navigateToWord = useCallback(
