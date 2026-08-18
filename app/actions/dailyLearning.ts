@@ -6,7 +6,7 @@ import { resolveGeminiKey } from "@/lib/gemini/resolveKey";
 import { fetchGeminiInteractions } from "@/lib/gemini/interactions";
 import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
 import type { Json } from "@/lib/supabase/database.types";
-import type { FSRSRating, VocabularyMastery, DailyLearningBatch, DailyLearningWord, DailyState, WordExample } from "@/lib/types";
+import type { FSRSRating, VocabularyMastery, DailyLearningBatch, DailyLearningWord, DailyState, DailyStreak, WordExample } from "@/lib/types";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -35,6 +35,12 @@ function todayStr(clientDate?: string): string {
 
 async function getUserId(supabase: SupabaseClient): Promise<string> {
   return (await supabase.auth.getUser()).data.user?.id ?? "";
+}
+
+function addDays(dateStr: string, delta: number): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + delta);
+  return d.toISOString().slice(0, 10);
 }
 
 async function loadBatchWords(
@@ -516,6 +522,50 @@ export async function resetDailyLearned(wordId: string): Promise<void> {
     .eq("id", wordId)
     .eq("user_id", userId);
   if (error) throw new Error(error.message);
+}
+
+// ─── Streak ─────────────────────────────────────────────────────────────────────
+
+/**
+ * A "streak day" is any calendar day a batch got built — that's the one
+ * action guaranteed to happen every day the program is used (quizzing only
+ * happens from the *second* day onward). Today doesn't have to be built yet
+ * for the streak to still be alive: it only breaks once a full day passes
+ * with no batch at all, so walking back starts from today if it's already
+ * built, otherwise from yesterday.
+ */
+export async function getDailyStreak(clientDate?: string): Promise<DailyStreak> {
+  const supabase = await createClient();
+  const userId = await getUserId(supabase);
+  if (!userId) return { current: 0, longest: 0, activeDates: [] };
+
+  const { data, error } = await supabase
+    .from("daily_learning_batches")
+    .select("batch_date")
+    .eq("user_id", userId)
+    .order("batch_date", { ascending: true });
+  if (error) throw new Error(error.message);
+
+  const activeDates = [...new Set((data ?? []).map((r) => r.batch_date as string))].sort();
+  if (activeDates.length === 0) return { current: 0, longest: 0, activeDates: [] };
+
+  let longest = 1;
+  let run = 1;
+  for (let i = 1; i < activeDates.length; i++) {
+    run = addDays(activeDates[i - 1], 1) === activeDates[i] ? run + 1 : 1;
+    longest = Math.max(longest, run);
+  }
+
+  const dateSet = new Set(activeDates);
+  const today = todayStr(clientDate);
+  let cursor = dateSet.has(today) ? today : addDays(today, -1);
+  let current = 0;
+  while (dateSet.has(cursor)) {
+    current += 1;
+    cursor = addDays(cursor, -1);
+  }
+
+  return { current, longest, activeDates };
 }
 
 // ─── Home page badge ────────────────────────────────────────────────────────────

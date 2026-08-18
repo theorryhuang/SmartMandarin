@@ -2,8 +2,8 @@
 
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { calculateNextReview } from "@/lib/fsrs";
-import type { FSRSRating, VocabularyMastery } from "@/lib/types";
+import { calculateNextReview, deriveCurrentHSK } from "@/lib/fsrs";
+import type { FSRSRating, VocabularyMastery, HSKLevelStats } from "@/lib/types";
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 
@@ -172,19 +172,15 @@ export async function getConversationContext(): Promise<{
   const supabase = await createClient();
   const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
 
-  // Derive current HSK level from per-level stats.
-  // "Current level" = highest level where the user has ≥5 words tracked.
-  const { data: stats } = await supabase.rpc("get_hsk_level_stats");
-
-  let hskLevel = 1;
-  if (stats && stats.length > 0) {
-    const activeLevels = (stats as { level: number; total: number }[]).filter(
-      (s) => s.total >= 1
-    );
-    if (activeLevels.length > 0) {
-      hskLevel = Math.max(...activeLevels.map((s) => s.level));
-    }
-  }
+  // Same derivation the home page's "Current HSK" figure uses (see
+  // deriveCurrentHSK() in lib/fsrs.ts) — one shared source of truth instead
+  // of the AI and the UI each guessing the user's level differently.
+  const [{ data: stats }, { data: settingsRow }] = await Promise.all([
+    supabase.rpc("get_hsk_level_stats"),
+    supabase.from("user_settings").select("assessment_hsk_level").eq("user_id", userId).maybeSingle(),
+  ]);
+  const derived = deriveCurrentHSK((stats ?? []) as unknown as HSKLevelStats[], settingsRow?.assessment_hsk_level ?? null);
+  const hskLevel = derived?.level ?? 1;
 
   // Fetch persistent unknown words: explicitly flagged by user in past sessions,
   // plus low-stability words they've reviewed but keep struggling with.
@@ -234,9 +230,11 @@ export interface AssessmentWord {
  * the vocabulary queue, with stability 0 so they surface for review right
  * away. Words the user already knew are used to derive their starting HSK
  * level (see AssessmentClient's derivedHskLevel) but are deliberately never
- * saved — they'd otherwise sit in the queue at high stability forever,
- * cluttering My Vocabulary with words the user told the quiz they didn't
- * need to learn.
+ * saved *as words* — they'd otherwise sit in the queue at high stability
+ * forever, cluttering My Vocabulary with words the user told the quiz they
+ * didn't need to learn. The derived *level* itself is saved, though — see
+ * saveAssessmentBaseline(), called separately by AssessmentClient right
+ * after this.
  *
  * Also sets the sm_assessed cookie so the home page won't redirect again.
  */
@@ -269,6 +267,24 @@ export async function saveAssessmentResults(words: AssessmentWord[]): Promise<vo
   }
 
   await markAssessmentComplete();
+}
+
+/**
+ * Persists the placement assessment's derived starting HSK level (1 for the
+ * "I'm a complete beginner" skip path) — read back by the home page's
+ * "Current HSK" figure as a floor under whatever the app's own mastery
+ * tracking shows, so someone who tested into HSK 4 on day one but has only
+ * added a handful of HSK-1 words since doesn't get told they're at HSK 1.
+ * See app/page.tsx and supabase/migrations/021_hsk_assessment_baseline.sql.
+ */
+export async function saveAssessmentBaseline(level: number): Promise<void> {
+  const supabase = await createClient();
+  const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
+  if (!userId) return;
+
+  await supabase
+    .from("user_settings")
+    .upsert({ user_id: userId, assessment_hsk_level: level }, { onConflict: "user_id" });
 }
 
 /**

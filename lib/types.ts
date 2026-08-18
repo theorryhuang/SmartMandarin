@@ -79,12 +79,13 @@ export interface ReviewCard extends VocabularyMastery {
 // ─── HSK Level Distribution ───────────────────────────────────────────────────
 
 export interface HSKLevelStats {
-  level: number;
+  /** Null groups every non-HSK word (hsk_level is null) into one bucket */
+  level: number | null;
   total: number;
   /** Count of cards with stability ≥ HIGH_STABILITY_THRESHOLD */
   high_stability_count: number;
-  /** Percentage of cards considered "stable" (0–1) */
-  mastery_ratio: number;
+  /** Percentage of cards considered "stable" (0–1). Null when total is 0. */
+  mastery_ratio: number | null;
 }
 
 // ─── Story / Interactive Reader ───────────────────────────────────────────────
@@ -136,6 +137,15 @@ export interface DailyState {
   quizBatch: DailyLearningBatch | null;
   /** Today's already-built batch, if one exists */
   todayBatch: DailyLearningBatch | null;
+}
+
+
+export interface DailyStreak {
+  /** Consecutive days (through today, or through yesterday if today's batch isn't built yet) */
+  current: number;
+  longest: number;
+  /** Every distinct calendar day a batch was built, YYYY-MM-DD, ascending */
+  activeDates: string[];
 }
 
 // ─── Conversation / Transcript ────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Brain, MessageCircle, BookOpen, TrendingUp, ChevronRight, User, Mic, List, GripVertical, Sparkles } from "lucide-react";
+import { Brain, MessageCircle, BookOpen, TrendingUp, ChevronRight, User, Mic, List, GripVertical, Sparkles, Flame } from "lucide-react";
 import { useLanguage } from "./LanguageContext";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { useState, useEffect } from "react";
@@ -21,15 +21,22 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { StreakCalendar } from "@/components/StreakCalendar";
+import type { DailyStreak } from "@/lib/types";
 
 interface Props {
   /** Combined due count across regular + slang words — review is one merged
    *  session picker now (Slang is just another tile in it), not a separate mode. */
   dueCount: number;
   dailyQuizDueCount: number;
-  totalWords: number;
-  masteredCount: number;
-  masteryPct: number;
+  streak: DailyStreak;
+  /** Whether the account has any tracked words at all — just gates the welcome copy */
+  hasAnyWords: boolean;
+  /** Lowest HSK level not yet promoted past (≥90% high-stability), floored by
+   *  the placement assessment — null with no tracked words and no assessment. */
+  currentHSK: number | null;
+  /** Mastery ratio (0-100) within currentHSK specifically, not diluted by the full backlog */
+  currentLevelMasteryPct: number;
   devMode: boolean;
   DevResetButton?: React.ReactNode;
   /** Read server-side from the sm_mode_order cookie — already the real,
@@ -91,11 +98,13 @@ function SortableMode({
   label,
   description,
   badge,
+  streakChip,
 }: {
   mode: ModeItem;
   label: string;
   description: string;
   badge: number | null;
+  streakChip?: number | null;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: mode.id });
@@ -124,7 +133,14 @@ function SortableMode({
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="font-medium text-sm text-[var(--color-text-primary)]">{label}</div>
+          <div className="flex items-center gap-1.5">
+            <span className="font-medium text-sm text-[var(--color-text-primary)]">{label}</span>
+            {!!streakChip && (
+              <span className="flex items-center gap-0.5 text-[10px] font-medium text-amber-600">
+                🔥{streakChip}
+              </span>
+            )}
+          </div>
           <div className="text-xs text-[var(--color-text-muted)] mt-0.5">{description}</div>
         </div>
         <ChevronRight size={16} className="text-[var(--color-text-muted)] flex-shrink-0" />
@@ -143,7 +159,7 @@ function SortableMode({
   );
 }
 
-export function HomeClient({ dueCount, dailyQuizDueCount, totalWords, masteredCount, masteryPct, devMode, DevResetButton, initialOrder }: Props) {
+export function HomeClient({ dueCount, dailyQuizDueCount, streak, hasAnyWords, currentHSK, currentLevelMasteryPct, devMode, DevResetButton, initialOrder }: Props) {
   const { t } = useLanguage();
   const [order, setOrder] = useState<string[]>(() => initialOrder ?? MODE_IDS);
 
@@ -204,7 +220,7 @@ export function HomeClient({ dueCount, dailyQuizDueCount, totalWords, masteredCo
 
   return (
     <main className="min-h-screen bg-[var(--color-background)]">
-      <div className="max-w-lg mx-auto px-4 pt-12 pb-10">
+      <div className="max-w-lg lg:max-w-3xl mx-auto px-4 pt-12 pb-10">
 
         {/* ── Top bar ── */}
         <div className="flex items-start justify-between mb-8">
@@ -213,10 +229,19 @@ export function HomeClient({ dueCount, dailyQuizDueCount, totalWords, masteredCo
               {t.appName}
             </h1>
             <p className="text-sm text-[var(--color-text-muted)] mt-0.5">
-              {totalWords > 0 ? t.keepItUp : t.startJourney}
+              {hasAnyWords ? t.keepItUp : t.startJourney}
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {streak.current > 0 && (
+              <Link
+                href="/daily"
+                className="flex items-center gap-1 h-10 px-2.5 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] text-amber-600 text-sm font-semibold hover:border-amber-300 transition-colors shadow-sm"
+              >
+                <Flame size={16} className="fill-amber-500 text-amber-500" />
+                {streak.current}
+              </Link>
+            )}
             <LanguageSwitcher />
             <Link
               href="/profile"
@@ -232,74 +257,79 @@ export function HomeClient({ dueCount, dailyQuizDueCount, totalWords, masteredCo
           </div>
         </div>
 
-        {/* ── Progress card ── */}
-        <div className="bg-[var(--color-surface)] rounded-2xl p-5 shadow-sm border border-[var(--color-border)] mb-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-              <TrendingUp size={20} className="text-blue-500" />
+        {/* Below lg this is just stacked block flow (grid/sticky utilities
+            are lg:-prefixed, no-ops on mobile) — the narrow phone layout is
+            unchanged. At lg+, progress+calendar become a sticky left rail
+            instead of a full-width column stacked above the mode list,
+            which is what was leaving so much unused width on desktop. */}
+        <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
+          <div className="lg:sticky lg:top-8">
+            {/* Invisible, same markup as the "✨ 学习模式" header on the right
+                — not a real label, just a same-height spacer so this
+                column's first card starts level with the right column's
+                first card instead of sitting a header's-height higher. */}
+            <div aria-hidden className="hidden lg:flex invisible items-center gap-1.5 mb-3 px-1">
+              <span className="text-base">✨</span>
+              <h2 className="font-semibold text-sm">&nbsp;</h2>
             </div>
-            <div>
-              <h2 className="font-semibold text-[var(--color-text-primary)]">{t.yourProgress}</h2>
-              <p className="text-xs text-[var(--color-text-muted)]">{t.trackJourney}</p>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            {[
-              { value: totalWords, label: t.wordsTracked },
-              { value: masteredCount, label: t.mastered },
-              { value: `${masteryPct}%`, label: t.mastery },
-            ].map((stat) => (
-              <div key={stat.label} className="bg-[var(--color-background)] rounded-xl p-3 text-center">
-                <div className="text-xl font-bold text-[var(--color-text-primary)]">{stat.value}</div>
-                <div className="text-[10px] text-[var(--color-text-muted)] mt-0.5 leading-tight">{stat.label}</div>
+            {/* ── Progress: current level + streak calendar, nothing else ── */}
+            <div className="bg-[var(--color-surface)] rounded-2xl p-3 shadow-sm border border-[var(--color-border)] mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                  <TrendingUp size={16} className="text-blue-500" />
+                </div>
+                <div>
+                  <h2 className="font-semibold text-sm text-[var(--color-text-primary)]">{t.yourProgress}</h2>
+                  <p className="text-[11px] text-[var(--color-text-muted)]">{t.trackJourney}</p>
+                </div>
               </div>
-            ))}
+              <div className="text-right flex-shrink-0">
+                <div className="text-xl font-bold text-[var(--color-text-primary)]">
+                  {currentHSK != null ? `HSK ${(currentHSK + currentLevelMasteryPct / 100).toFixed(1)}` : "–"}
+                </div>
+                <div className="text-[10px] text-[var(--color-text-muted)]">{t.currentHSK}</div>
+              </div>
+            </div>
+
+            <div className="mb-4 lg:mb-0">
+              <StreakCalendar streak={streak} />
+            </div>
           </div>
 
-          <div className="flex items-center justify-between text-xs text-[var(--color-text-muted)] mb-1.5">
-            <span>{t.overallProgress}</span>
-            <span className="text-violet-600 font-medium">{masteryPct}%</span>
-          </div>
-          <div className="h-2 rounded-full bg-[var(--color-background)] overflow-hidden">
-            <div
-              className="h-2 rounded-full bg-gradient-to-r from-violet-500 to-sky-400 transition-all duration-500"
-              style={{ width: `${masteryPct}%` }}
-            />
+          {/* ── Learning modes ── */}
+          <div>
+            <div className="flex items-center gap-1.5 mb-3 px-1">
+              <span className="text-base">✨</span>
+              <h2 className="font-semibold text-sm text-[var(--color-text-primary)]">{t.learningModes}</h2>
+            </div>
+
+            {/* Explicit id: DndContext otherwise derives its aria-describedby
+                id from a module-level counter, which can land on a different
+                number during SSR vs. the client's first hydration pass and
+                throw a hydration-mismatch warning. */}
+            <DndContext id="home-learning-modes" sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={order} strategy={verticalListSortingStrategy}>
+                <div className="flex flex-col gap-2">
+                  {orderedModes.map((mode) => (
+                    <SortableMode
+                      key={mode.id}
+                      mode={mode}
+                      label={getLabel(mode)}
+                      description={getDesc(mode)}
+                      badge={getBadge(mode)}
+                      streakChip={mode.id === "daily" ? streak.current : null}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+
+            {devMode && DevResetButton && (
+              <div className="mt-6">{DevResetButton}</div>
+            )}
           </div>
         </div>
-
-        {/* ── Learning modes ── */}
-        <div>
-          <div className="flex items-center gap-1.5 mb-3 px-1">
-            <span className="text-base">✨</span>
-            <h2 className="font-semibold text-sm text-[var(--color-text-primary)]">{t.learningModes}</h2>
-          </div>
-
-          {/* Explicit id: DndContext otherwise derives its aria-describedby
-              id from a module-level counter, which can land on a different
-              number during SSR vs. the client's first hydration pass and
-              throw a hydration-mismatch warning. */}
-          <DndContext id="home-learning-modes" sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={order} strategy={verticalListSortingStrategy}>
-              <div className="flex flex-col gap-2">
-                {orderedModes.map((mode) => (
-                  <SortableMode
-                    key={mode.id}
-                    mode={mode}
-                    label={getLabel(mode)}
-                    description={getDesc(mode)}
-                    badge={getBadge(mode)}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
-        </div>
-
-        {devMode && DevResetButton && (
-          <div className="mt-6">{DevResetButton}</div>
-        )}
       </div>
     </main>
   );

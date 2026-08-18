@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { saveAssessmentResults, markAssessmentComplete } from "@/app/actions/vocabulary";
+import { saveAssessmentResults, saveAssessmentBaseline, markAssessmentComplete } from "@/app/actions/vocabulary";
 import type { AssessmentWord } from "@/app/actions/vocabulary";
 import { useLanguage } from "@/app/_components/LanguageContext";
 
@@ -156,25 +156,33 @@ export function AssessmentClient() {
       hsk_level: r.hsk_level,
       knew: r.knew,
     }));
-    await saveAssessmentResults(payload);
+    await Promise.all([saveAssessmentResults(payload), saveAssessmentBaseline(deriveLevelFrom(finalResults))]);
     setPhase("done");
   }
 
   async function skip() {
     setPhase("saving");
-    await markAssessmentComplete();
+    // "I'm a complete beginner" is itself the placement signal — HSK 1.
+    await Promise.all([markAssessmentComplete(), saveAssessmentBaseline(1)]);
     setPhase("done");
   }
 
   // ── Derived level ───────────────────────────────────────────────────────────
 
-  function derivedHskLevel(): number {
+  function deriveLevelFrom(fromResults: Result[]): number {
     for (let i = LEVELS.length - 1; i >= 0; i--) {
       const lvl = LEVELS[i].level;
-      const knew = results.filter((r) => r.hsk_level === lvl && r.knew).length;
+      const knew = fromResults.filter((r) => r.hsk_level === lvl && r.knew).length;
       if (knew >= PASS_THRESHOLD) return lvl;
     }
     return 1;
+  }
+
+  // Reads from `results` state — used by the "done" render, one tick behind
+  // finishQuiz's own `finalResults` param, which is why finishQuiz derives
+  // its own level from finalResults directly rather than calling this.
+  function derivedHskLevel(): number {
+    return deriveLevelFrom(results);
   }
 
   // ─── Render ─────────────────────────────────────────────────────────────────

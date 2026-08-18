@@ -247,6 +247,7 @@ export type Database = {
           gemini_api_key_last4: string | null;
           elevenlabs_api_key_encrypted: string | null;
           elevenlabs_api_key_last4: string | null;
+          assessment_hsk_level: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -256,6 +257,7 @@ export type Database = {
           gemini_api_key_last4?: string | null;
           elevenlabs_api_key_encrypted?: string | null;
           elevenlabs_api_key_last4?: string | null;
+          assessment_hsk_level?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -265,6 +267,7 @@ export type Database = {
           gemini_api_key_last4?: string | null;
           elevenlabs_api_key_encrypted?: string | null;
           elevenlabs_api_key_last4?: string | null;
+          assessment_hsk_level?: number | null;
           created_at?: string;
           updated_at?: string;
         };

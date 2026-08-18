@@ -305,3 +305,61 @@ export function weightedHSKLevel(nominalLevel: number, stability: number): numbe
   const masteryFraction = clamp(stability / HIGH_STABILITY_THRESHOLD, 0, 1);
   return nominalLevel - (1 - masteryFraction) * 0.5;
 }
+
+/**
+ * A level needs at least this many tracked words before it's allowed to
+ * count as "promoted past" in deriveCurrentHSK(). Without this guard, a
+ * level with e.g. 2 tracked words that both happen to sit above
+ * HIGH_STABILITY_THRESHOLD reads as "100% mastered" and lets the scan
+ * leapfrog straight past it — which is how a personal test account with a
+ * handful of stray HSK 6 words and almost nothing tracked at HSK 1-5 could
+ * get reported as "working on HSK 6" despite having no real HSK 1-5
+ * engagement to have promoted past in the first place.
+ */
+export const MIN_LEVEL_SAMPLE = 5;
+
+export interface CurrentHSKLevel {
+  level: number;
+  /** 0–0.99 progress within that level (mastery ratio); 0 when nothing in-app backs it yet */
+  fraction: number;
+}
+
+/**
+ * The one "current HSK" derivation — shared by the home page display and
+ * the AI conversation context (getConversationContext), which used to each
+ * compute their own different answer (home page: a promotion-threshold
+ * scan; conversation: "highest level with ≥1 tracked word", not even
+ * mastery-aware). One source of truth instead of two disagreeing ones.
+ *
+ * "Current level" = the lowest level not yet promoted past
+ * (mastery_ratio < HSK_PROMOTION_THRESHOLD), among levels with at least
+ * MIN_LEVEL_SAMPLE tracked words — falling back to the highest
+ * sufficiently-sampled level once everything's promoted. The placement
+ * assessment's baseline (if any) is then applied as a floor: it's a real
+ * signal the app's own mastery tracking has no way to see (the assessment's
+ * "already knew it" words are deliberately never saved — see
+ * saveAssessmentBaseline()), so it can only push the result up, never down.
+ */
+export function deriveCurrentHSK(
+  stats: { level: number | null; total: number; mastery_ratio: number | null }[],
+  assessmentBaseline: number | null
+): CurrentHSKLevel | null {
+  const leveled = stats
+    .filter((s): s is { level: number; total: number; mastery_ratio: number | null } =>
+      s.level != null && s.total >= MIN_LEVEL_SAMPLE
+    )
+    .sort((a, b) => a.level - b.level);
+
+  const working = leveled.find((s) => (s.mastery_ratio ?? 0) < HSK_PROMOTION_THRESHOLD);
+  const active = working ?? leveled[leveled.length - 1];
+  const dataLevel = active ? active.level : null;
+  const dataFraction = active ? clamp(active.mastery_ratio ?? 0, 0, 0.99) : 0;
+
+  if (assessmentBaseline != null && assessmentBaseline > (dataLevel ?? 0)) {
+    return { level: assessmentBaseline, fraction: 0 };
+  }
+  if (dataLevel == null) {
+    return null;
+  }
+  return { level: dataLevel, fraction: dataFraction };
+}
