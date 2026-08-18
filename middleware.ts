@@ -38,6 +38,10 @@ export async function middleware(request: NextRequest) {
   // Routes that don't require a session
   const isPublic =
     pathname.startsWith("/auth") ||
+    // Signed-out visitors land on /auth with no idea what the app does —
+    // this lets the "Learn more" button there send them to /instructions
+    // without bouncing straight back to /auth.
+    pathname.startsWith("/instructions") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     // Bearer-token authed (browser extension) — no session cookie to check

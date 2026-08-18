@@ -1,8 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import { Brain, Sparkles, Mic, MessageCircle, BookOpen, List, type LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/app/_components/LanguageContext";
+import { LanguageSwitcher } from "@/app/_components/LanguageSwitcher";
+
+// Same six modes/icons as the home screen (app/_components/HomeClient.tsx) —
+// signed-out visitors get a preview of what they're signing up for, using
+// the same marketing-style copy as the Instructions page's tab breakdown.
+const FEATURES: { icon: LucideIcon; iconBg: string; iconColor: string; titleKey: "instructionsTabReviewTitle" | "instructionsTabDailyTitle" | "instructionsTabSpeakingTitle" | "instructionsTabConversationTitle" | "instructionsTabReaderTitle" | "instructionsTabVocabTitle"; descKey: "instructionsTabReviewDesc" | "instructionsTabDailyDesc" | "instructionsTabSpeakingDesc" | "instructionsTabConversationDesc" | "instructionsTabReaderDesc" | "instructionsTabVocabDesc" }[] = [
+  { icon: Brain,         iconBg: "bg-violet-100",  iconColor: "text-violet-600",  titleKey: "instructionsTabReviewTitle",       descKey: "instructionsTabReviewDesc" },
+  { icon: Sparkles,      iconBg: "bg-amber-100",   iconColor: "text-amber-600",   titleKey: "instructionsTabDailyTitle",        descKey: "instructionsTabDailyDesc" },
+  { icon: Mic,           iconBg: "bg-rose-100",    iconColor: "text-rose-600",    titleKey: "instructionsTabSpeakingTitle",     descKey: "instructionsTabSpeakingDesc" },
+  { icon: MessageCircle, iconBg: "bg-sky-100",     iconColor: "text-sky-600",     titleKey: "instructionsTabConversationTitle", descKey: "instructionsTabConversationDesc" },
+  { icon: BookOpen,      iconBg: "bg-emerald-100", iconColor: "text-emerald-600", titleKey: "instructionsTabReaderTitle",       descKey: "instructionsTabReaderDesc" },
+  { icon: List,          iconBg: "bg-teal-100",    iconColor: "text-teal-600",    titleKey: "instructionsTabVocabTitle",        descKey: "instructionsTabVocabDesc" },
+];
 
 export function AuthClient({ errorParam }: { errorParam?: string }) {
   const supabase = createClient();
@@ -32,16 +46,44 @@ export function AuthClient({ errorParam }: { errorParam?: string }) {
   // ─── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen px-6">
-      <div className="w-full max-w-sm flex flex-col gap-8">
+    <div className="flex flex-col items-center min-h-screen px-6 py-12">
+      <div className="absolute right-6" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
+        <LanguageSwitcher />
+      </div>
+
+      <div className="w-full max-w-sm flex flex-col gap-8 my-auto">
 
         {/* Header */}
         <div className="text-center">
           <h1 className="text-3xl font-semibold tracking-tight mb-2">{t.appName}</h1>
           <p className="text-sm text-[var(--color-text-muted)]">
-            {t.signInToSave}
+            {t.appTagline}
           </p>
         </div>
+
+        {/* ── What you get ── — same six modes as the home screen, so
+            signed-out visitors see what they're signing up for before the
+            Google button. */}
+        <div className="grid grid-cols-1 gap-2.5">
+          {FEATURES.map(({ icon: Icon, iconBg, iconColor, titleKey, descKey }) => (
+            <div
+              key={titleKey}
+              className="flex items-start gap-3 bg-[var(--color-surface)] rounded-2xl px-4 py-3 border border-[var(--color-border)]"
+            >
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor}`}>
+                <Icon size={18} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-[var(--color-text-primary)]">{t[titleKey]}</div>
+                <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{t[descKey]}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <p className="text-sm text-[var(--color-text-muted)] text-center -mt-2">
+          {t.signInToSave}
+        </p>
 
         {/* Server-side auth error (e.g. OAuth callback failure) */}
         {errorParam === "auth_failed" && (

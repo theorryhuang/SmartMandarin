@@ -13,6 +13,7 @@ const en = {
 
   // ── Home ─────────────────────────────────────────────────────────────────────
   appName: "SmartMandarin",
+  appTagline: "Adaptive Mandarin learning, powered by spaced repetition and AI conversation",
   keepItUp: "Keep up the great work!",
   startJourney: "Start your learning journey",
   yourProgress: "Your Progress",
@@ -37,6 +38,7 @@ const en = {
   continueWithGoogle: "Continue with Google",
   redirecting: "Redirecting…",
   authFailed: "Sign-in failed. Please try again.",
+  learnMore: "Learn more",
 
   // ── Assessment ───────────────────────────────────────────────────────────────
   quickLevelCheck: "Quick level check",
@@ -419,6 +421,7 @@ const zh: typeof en = {
 
   // ── Home ─────────────────────────────────────────────────────────────────────
   appName: "汉智",
+  appTagline: "由间隔重复和 AI 对话驱动的自适应中文学习",
   keepItUp: "继续加油！",
   startJourney: "开始你的学习之旅",
   yourProgress: "你的进度",
@@ -443,6 +446,7 @@ const zh: typeof en = {
   continueWithGoogle: "使用 Google 继续",
   redirecting: "跳转中…",
   authFailed: "登录失败，请重试。",
+  learnMore: "了解更多",
 
   // ── Assessment ───────────────────────────────────────────────────────────────
   quickLevelCheck: "快速水平测试",

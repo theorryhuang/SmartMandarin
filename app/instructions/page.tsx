@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getServerT } from "@/lib/i18n-server";
 import { getOnboardingStatus } from "@/app/actions/onboarding";
@@ -12,18 +11,21 @@ export const metadata = { title: "Instructions · SmartMandarin" };
 export default async function InstructionsPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/auth");
 
+  // Signed out: page still renders (see middleware's /instructions
+  // exception) so "Learn more" on /auth has somewhere to send people who
+  // don't have an account yet. Just route Back/Home to /auth instead of
+  // /profile and "/", which would otherwise bounce them straight back here.
   const [status, t] = await Promise.all([getOnboardingStatus(), getServerT()]);
 
   return (
     <main className="min-h-screen bg-[var(--color-background)] flex flex-col items-center p-6">
       <div className="absolute left-6" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
-        <BackButton href="/profile" />
+        <BackButton href={user ? "/profile" : "/auth"} />
       </div>
       <div className="absolute right-6 flex items-center gap-3" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
         <LanguageSwitcher />
-        <HomeButton />
+        {user && <HomeButton />}
       </div>
 
       <div
