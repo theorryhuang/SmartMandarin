@@ -58,6 +58,16 @@ export function GeminiKeySettingsClient({ initialStatus }: { initialStatus: Gemi
         >
           aistudio.google.com/apikey <ExternalLink size={13} />
         </a>
+
+        {/* Mirrors the ElevenLabs settings page's permissions hint — this
+            app only ever calls the Generative Language API (story
+            generation, conversation, grading, dictionary fallback). IP/HTTP
+            referrer restrictions are called out explicitly as things to
+            *avoid*: this key is used server-side from Vercel, which has no
+            stable outbound IP, so either restriction breaks the key. */}
+        <div className="rounded-xl bg-[var(--color-background)] border border-[var(--color-border)] px-3 py-2.5 text-xs text-[var(--color-text-secondary)] mt-1">
+          {t.geminiKeyScopingHint}
+        </div>
       </div>
 
       {/* Current status */}

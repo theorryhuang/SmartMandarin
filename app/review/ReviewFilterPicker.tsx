@@ -19,6 +19,9 @@ interface HSKLevel {
   min?: number;
   max?: number;
   noHSK?: boolean;
+  /** Slang words aren't leveled by HSK — this tile scopes to is_slang=true
+   *  instead, and is mutually exclusive with every other tile (see toggleLevel). */
+  isSlang?: boolean;
 }
 
 const HSK_LEVELS: HSKLevel[] = [
@@ -30,12 +33,9 @@ const HSK_LEVELS: HSKLevel[] = [
   { label: "HSK 6", min: 6, max: 7 },
   { label: "HSK 7+", min: 7, max: undefined },
   { label: "Non-HSK", min: undefined, max: undefined, noHSK: true },
+  { label: "Slang", isSlang: true },
   { label: "All Words", min: undefined, max: undefined },
 ];
-
-interface Props {
-  isSlang?: boolean;
-}
 
 function mergeDeduped(arrays: VocabularyMastery[][]): VocabularyMastery[] {
   const seen = new Set<string>();
@@ -78,26 +78,23 @@ function NavHeader({
   );
 }
 
-export function ReviewFilterPicker({ isSlang = false }: Props) {
+export function ReviewFilterPicker() {
   const { t } = useLanguage();
   const router = useRouter();
-  // Slang words aren't leveled by HSK (is_slang rows are almost always
-  // hsk_level null — see slangBankLookup in lib/defineWord.ts, which only
-  // gets a level by coincidental overlap with the HSK wordlist), so the
-  // HSK 1-7 grid below has nothing to filter for slang review — skip
-  // straight to the Hard/Easy/New/All sub-picker, scoped to "All Words"
-  // (getAllWords/etc. already scope by is_slang, so this still only ever
-  // surfaces slang rows).
-  const [selectedLabels, setSelectedLabels] = useState<Set<string>>(
-    () => (isSlang ? new Set(["All Words"]) : new Set())
-  );
-  const [showSubFilter, setShowSubFilter] = useState(isSlang);
+  const [selectedLabels, setSelectedLabels] = useState<Set<string>>(() => new Set());
+  const [showSubFilter, setShowSubFilter] = useState(false);
   const [cards, setCards] = useState<VocabularyMastery[] | null>(null);
   const [sessionKey, setSessionKey] = useState("");
   const [isPending, startTransition] = useTransition();
   const [pendingKey, setPendingKey] = useState<string | null>(null);
 
   const activeHSKs = HSK_LEVELS.filter((l) => selectedLabels.has(l.label));
+  // Slang words aren't leveled by HSK (is_slang rows are almost always
+  // hsk_level null — see slangBankLookup in lib/defineWord.ts, which only
+  // gets a level by coincidental overlap with the HSK wordlist), so the
+  // "Slang" tile is exclusive with every other tile (see toggleLevel) —
+  // activeHSKs is always either [Slang] or a set of non-slang tiles, never both.
+  const isSlangSession = activeHSKs.some((l) => l.isSlang);
 
   function toggleLevel(lvl: HSKLevel) {
     setSelectedLabels((prev) => {
@@ -105,11 +102,15 @@ export function ReviewFilterPicker({ isSlang = false }: Props) {
       if (next.has(lvl.label)) {
         next.delete(lvl.label);
       } else {
-        // "All Words" pulls the whole account with no HSK filter — mixing it
-        // with a specific level would silently inflate that level's results
-        // (fetchMerged calls getAllWords() for it), so keep selection exclusive.
-        if (lvl.label === "All Words") next.clear();
-        else next.delete("All Words");
+        // "All Words" pulls the whole account with no HSK filter, and "Slang"
+        // is a wholly separate pool — mixing either with a specific level
+        // would silently inflate/mix results (fetchMerged calls getAllWords()
+        // for "All Words"), so keep both exclusive of everything else.
+        if (lvl.label === "All Words" || lvl.isSlang) next.clear();
+        else {
+          next.delete("All Words");
+          next.delete("Slang");
+        }
         next.add(lvl.label);
       }
       return next;
@@ -135,19 +136,19 @@ export function ReviewFilterPicker({ isSlang = false }: Props) {
 
   if (cards !== null) {
     const isAllSession = sessionKey.endsWith("_all");
-    // Always scoped to isSlang, even outside an "_all" session — this backs
-    // the "practice all" fallback button, which must stay in the same
+    // Always scoped to isSlangSession, even outside an "_all" session — this
+    // backs the "practice all" fallback button, which must stay in the same
     // slang/non-slang pool the session was started in (see getAllWords()).
     const getAllWordsFn = isAllSession
       ? () =>
           fetchMerged((lvl) =>
             lvl.noHSK
-              ? getNoHSKWords(200, isSlang)
+              ? getNoHSKWords(200, isSlangSession)
               : lvl.min !== undefined
-              ? getWordsByHSKRange(lvl.min, lvl.max, 200, isSlang)
-              : getAllWords(200, isSlang)
+              ? getWordsByHSKRange(lvl.min, lvl.max, 200, isSlangSession)
+              : getAllWords(200, isSlangSession)
           )
-      : () => getAllWords(200, isSlang);
+      : () => getAllWords(200, isSlangSession);
     return (
       <ReviewSession
         initialCards={cards}
@@ -173,6 +174,8 @@ export function ReviewFilterPicker({ isSlang = false }: Props) {
           ? t.filterAll
           : l.label === "Non-HSK"
           ? t.filterNonHSK
+          : l.isSlang
+          ? t.slang
           : l.label
       )
       .join(" + ");
@@ -185,7 +188,7 @@ export function ReviewFilterPicker({ isSlang = false }: Props) {
         color: "border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700",
         fn: () =>
           fetchMerged((lvl) =>
-            getDueWordsByLastRating([2], isSlang, limitPerLevel, lvl.min, lvl.max, lvl.noHSK)
+            getDueWordsByLastRating([2], isSlangSession, limitPerLevel, lvl.min, lvl.max, lvl.noHSK)
           ),
       },
       {
@@ -195,7 +198,7 @@ export function ReviewFilterPicker({ isSlang = false }: Props) {
         color: "border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700",
         fn: () =>
           fetchMerged((lvl) =>
-            getDueWordsByLastRating([3], isSlang, limitPerLevel, lvl.min, lvl.max, lvl.noHSK)
+            getDueWordsByLastRating([3], isSlangSession, limitPerLevel, lvl.min, lvl.max, lvl.noHSK)
           ),
       },
       {
@@ -205,7 +208,7 @@ export function ReviewFilterPicker({ isSlang = false }: Props) {
         color: "border-violet-200 bg-violet-50 hover:bg-violet-100 text-violet-700",
         fn: () =>
           fetchMerged((lvl) =>
-            getDueWordsByLastRating([2, 3], isSlang, limitPerLevel, lvl.min, lvl.max, lvl.noHSK)
+            getDueWordsByLastRating([2, 3], isSlangSession, limitPerLevel, lvl.min, lvl.max, lvl.noHSK)
           ),
       },
       {
@@ -215,7 +218,7 @@ export function ReviewFilterPicker({ isSlang = false }: Props) {
         color: "border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700",
         fn: () =>
           fetchMerged((lvl) =>
-            getUnreviewedWords(limitPerLevel, lvl.min, lvl.max, lvl.noHSK, isSlang)
+            getUnreviewedWords(limitPerLevel, lvl.min, lvl.max, lvl.noHSK, isSlangSession)
           ),
       },
       {
@@ -226,17 +229,17 @@ export function ReviewFilterPicker({ isSlang = false }: Props) {
         fn: () =>
           fetchMerged((lvl) =>
             lvl.noHSK
-              ? getNoHSKWords(limitPerLevel, isSlang)
+              ? getNoHSKWords(limitPerLevel, isSlangSession)
               : lvl.min !== undefined
-              ? getWordsByHSKRange(lvl.min, lvl.max, limitPerLevel, isSlang)
-              : getAllWords(limitPerLevel, isSlang)
+              ? getWordsByHSKRange(lvl.min, lvl.max, limitPerLevel, isSlangSession)
+              : getAllWords(limitPerLevel, isSlangSession)
           ),
       },
     ];
 
     return (
       <div className="flex flex-col min-h-screen">
-        <NavHeader onBack={() => (isSlang ? router.back() : setShowSubFilter(false))} onHome={() => router.push("/")} />
+        <NavHeader onBack={() => setShowSubFilter(false)} onHome={() => router.push("/")} />
         <div className="flex-1 flex flex-col items-center justify-center px-6 pb-6 gap-6 max-w-sm mx-auto w-full">
           <h2 className="text-xl font-medium text-center">{subtitle}</h2>
           <div className="flex flex-col gap-3 w-full">
@@ -283,6 +286,8 @@ export function ReviewFilterPicker({ isSlang = false }: Props) {
                   ? t.filterAll
                   : lvl.label === "Non-HSK"
                   ? t.filterNonHSK
+                  : lvl.isSlang
+                  ? `🔥 ${t.slang}`
                   : lvl.label}
               </button>
             );

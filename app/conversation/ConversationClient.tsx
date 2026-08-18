@@ -31,6 +31,11 @@ interface Props {
 
 const MAX_LOCAL_MESSAGES = 100;
 
+// Matches p_max_age in supabase/migrations/017_stale_conversation_cleanup.sql —
+// a conversation the nightly cron has reaped server-side should also drop
+// out of the locally-cached list (see the reconciliation effect below).
+const STALE_CONVERSATION_MS = 14 * 24 * 60 * 60 * 1000;
+
 function autoTitle(text: string): string {
   return text.length > 28 ? text.slice(0, 28) + "…" : text;
 }
@@ -261,18 +266,40 @@ export function ConversationClient({ masteryMap }: Props) {
   // browser, or reinstalled home-screen PWA, all of which start with empty
   // local storage even though nothing was actually deleted (see
   // getConversationList). Runs once; deliberately separate from the sync
-  // effect above and never blocks or clears what's already on screen, only
-  // adds conversations local storage doesn't know about yet.
+  // effect above and never blocks what's already on screen — it only adds
+  // conversations local storage doesn't know about yet, and prunes ones the
+  // server no longer has (see below).
   useEffect(() => {
     let cancelled = false;
     getConversationList()
       .then((remote) => {
         if (cancelled) return; // page navigated away before this landed
+        const remoteIds = new Set(remote.map((r) => r.id));
+        const cutoff = Date.now() - STALE_CONVERSATION_MS;
         setConversations((prev) => {
           const localIds = new Set(prev.map((c) => c.id));
           const additions = remote.filter((r) => !localIds.has(r.id));
-          if (additions.length === 0) return prev;
-          const merged = [...prev, ...additions].sort((a, b) => b.updatedAt - a.updatedAt);
+
+          // Drop local entries the nightly cron has already reaped
+          // server-side — stale *and* missing remotely, so a conversation
+          // that simply hasn't synced yet (too new to have a server copy)
+          // is never touched. The active conversation is exempted even if
+          // it somehow qualifies, so it can't disappear out from under
+          // whoever's looking at it right now.
+          const keep = prev.filter(
+            (c) => c.id === activeConvIdRef.current || remoteIds.has(c.id) || c.updatedAt >= cutoff
+          );
+          const keptIds = new Set(keep.map((c) => c.id));
+          for (const c of prev) {
+            if (!keptIds.has(c.id)) {
+              localStorage.removeItem(`sm_conv_messages_${c.id}`);
+              localStorage.removeItem(`sm_conv_history_${c.id}`);
+              localStorage.removeItem(`sm_conv_forced_${c.id}`);
+            }
+          }
+
+          if (additions.length === 0 && keep.length === prev.length) return prev;
+          const merged = [...keep, ...additions].sort((a, b) => b.updatedAt - a.updatedAt);
           localStorage.setItem("sm_conversations", JSON.stringify(merged));
           return merged;
         });

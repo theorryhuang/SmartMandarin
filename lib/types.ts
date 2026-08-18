@@ -97,6 +97,39 @@ export interface GeneratedStory {
   raw_text: string;
 }
 
+// ─── Daily Learning ─────────────────────────────────────────────────────────
+// Separate from the FSRS review queue — see supabase/migrations/015_daily_learning.sql.
+
+export interface DailyLearningWord {
+  /** Row id of the daily_learning_words entry (not the word's own id) */
+  dailyWordId: string;
+  word: VocabularyMastery;
+  status: "pending" | "passed" | "failed";
+  /** True when this word was re-added after failing a previous quiz */
+  carriedOver: boolean;
+}
+
+export interface DailyLearningBatch {
+  batchId: string;
+  batchDate: string; // YYYY-MM-DD
+  targetCount: number;
+  words: DailyLearningWord[];
+}
+
+/** A Gemini-generated example sentence, cached per daily_learning_words row */
+export interface WordExample {
+  sentence: string;
+  pinyin: string;
+  translation: string;
+}
+
+export interface DailyState {
+  /** A past unresolved batch that must be quizzed before a new one can be built */
+  quizBatch: DailyLearningBatch | null;
+  /** Today's already-built batch, if one exists */
+  todayBatch: DailyLearningBatch | null;
+}
+
 // ─── Conversation / Transcript ────────────────────────────────────────────────
 
 export interface TranscriptToken {

@@ -30,6 +30,7 @@ export type Database = {
           review_count: number;
           is_slang: boolean;
           flagged_for_immediate_use: boolean;
+          daily_learned: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -47,6 +48,7 @@ export type Database = {
           review_count?: number;
           is_slang?: boolean;
           flagged_for_immediate_use?: boolean;
+          daily_learned?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -64,6 +66,7 @@ export type Database = {
           review_count?: number;
           is_slang?: boolean;
           flagged_for_immediate_use?: boolean;
+          daily_learned?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -332,6 +335,89 @@ export type Database = {
           }
         ];
       };
+      daily_learning_batches: {
+        Row: {
+          id: string;
+          user_id: string;
+          batch_date: string;
+          target_count: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          batch_date: string;
+          target_count: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          batch_date?: string;
+          target_count?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "daily_learning_batches_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      daily_learning_words: {
+        Row: {
+          id: string;
+          batch_id: string;
+          user_id: string;
+          word_id: string;
+          status: "pending" | "passed" | "failed";
+          carried_over: boolean;
+          quizzed_at: string | null;
+          example_sentences: Json | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          batch_id: string;
+          user_id: string;
+          word_id: string;
+          status?: "pending" | "passed" | "failed";
+          carried_over?: boolean;
+          quizzed_at?: string | null;
+          example_sentences?: Json | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          batch_id?: string;
+          user_id?: string;
+          word_id?: string;
+          status?: "pending" | "passed" | "failed";
+          carried_over?: boolean;
+          quizzed_at?: string | null;
+          example_sentences?: Json | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "daily_learning_words_batch_id_fkey";
+            columns: ["batch_id"];
+            isOneToOne: false;
+            referencedRelation: "daily_learning_batches";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "daily_learning_words_word_id_fkey";
+            columns: ["word_id"];
+            isOneToOne: false;
+            referencedRelation: "vocabulary_mastery";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -350,6 +436,10 @@ export type Database = {
       };
       increment_review_count: {
         Args: { word_id: string };
+        Returns: void;
+      };
+      delete_stale_conversations: {
+        Args: { p_max_age?: string };
         Returns: void;
       };
     };

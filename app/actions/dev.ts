@@ -23,3 +23,18 @@ export async function resetMyData() {
 
   redirect("/");
 }
+
+/**
+ * Manually runs the same cleanup the nightly pg_cron job
+ * (supabase/migrations/017_stale_conversation_cleanup.sql) does, for
+ * verifying it works without waiting for 03:00 UTC.
+ */
+export async function runStaleConversationCleanup(): Promise<void> {
+  if (process.env.NODE_ENV !== "development") {
+    throw new Error("Only available in development");
+  }
+  const supabase = await createClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase.rpc as any)("delete_stale_conversations");
+  if (error) throw new Error(error.message);
+}

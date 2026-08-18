@@ -5,6 +5,7 @@ import type { VocabularyMastery } from "@/lib/types";
 import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
 import { DevResetButton } from "@/app/_components/DevResetButton";
 import { HomeClient, MODE_IDS } from "@/app/_components/HomeClient";
+import { getDailyQuizPendingCount } from "@/app/actions/dailyLearning";
 
 export default async function Home() {
   const supabase = await createClient();
@@ -33,20 +34,22 @@ export default async function Home() {
     }
   }
 
+  // Regular + slang due cards, merged — review is one picker now (Slang is
+  // just another tile inside it, see ReviewFilterPicker), not a separate mode.
   let dueCount = 0;
-  let slangDueCount = 0;
   let totalWords = 0;
   let masteredCount = 0;
+  let dailyQuizDueCount = 0;
 
   if (userId) {
     const { data } = await supabase
       .from("vocabulary_mastery")
-      .select("stability, next_review, flagged_for_immediate_use, is_slang")
+      .select("stability, next_review, flagged_for_immediate_use")
       .eq("user_id", userId);
 
     const words = (data ?? []) as Pick<
       VocabularyMastery,
-      "stability" | "next_review" | "flagged_for_immediate_use" | "is_slang"
+      "stability" | "next_review" | "flagged_for_immediate_use"
     >[];
 
     const isDue = (w: typeof words[0]) =>
@@ -54,8 +57,8 @@ export default async function Home() {
 
     totalWords = words.length;
     masteredCount = words.filter((w) => w.stability >= HIGH_STABILITY_THRESHOLD).length;
-    dueCount = words.filter((w) => !w.is_slang && isDue(w)).length;
-    slangDueCount = words.filter((w) => w.is_slang && isDue(w)).length;
+    dueCount = words.filter(isDue).length;
+    dailyQuizDueCount = await getDailyQuizPendingCount();
   }
 
   const masteryPct = totalWords > 0 ? Math.round((masteredCount / totalWords) * 100) : 0;
@@ -81,7 +84,7 @@ export default async function Home() {
   return (
     <HomeClient
       dueCount={dueCount}
-      slangDueCount={slangDueCount}
+      dailyQuizDueCount={dailyQuizDueCount}
       totalWords={totalWords}
       masteredCount={masteredCount}
       masteryPct={masteryPct}

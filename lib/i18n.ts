@@ -125,6 +125,31 @@ const en = {
   selectHSKLevel: "Select a level",
   noCardsMatchFilter: "No cards match this filter.",
 
+  // ── Daily Learning ───────────────────────────────────────────────────────────
+  dailyLearning: "Daily Words",
+  dailyDesc: "Learn a set number of new words each day",
+  dailyQuizDue: (n: number) => `${n} word${n !== 1 ? "s" : ""} to quiz`,
+  dailyQuizTitle: "Quiz: yesterday's words",
+  dailyQuizDesc: (n: number) => `Pass ${n} word${n !== 1 ? "s" : ""} before building today's list`,
+  dailyQuizProgress: (current: number, total: number) => `Word ${current} / ${total}`,
+  dailyCarriedOver: "Retry",
+  dailyTodayTitle: "Today's words",
+  dailyTodaySubtitle: (n: number, target: number) =>
+    n < target
+      ? `${n} of ${target} words — that's all that's left to learn`
+      : `${n} word${n !== 1 ? "s" : ""} to learn — you'll be quizzed on these next time`,
+  dailyComeBackTomorrow: "Come back tomorrow to be quizzed on these before your next set.",
+  dailyHowMany: "How many words today?",
+  dailyHowManyDesc: "Words you fail tomorrow's quiz on count toward this total, so they don't get dropped.",
+  dailyStart: "Build today's list",
+  dailyBuilding: "Building…",
+  dailyAddMore: "Add more",
+  dailyShowExamples: "Show example sentences",
+  dailyHideExamples: "Hide example sentences",
+  dailyExamplesLoading: "Generating examples…",
+  dailyQuizPendingError: "Finish yesterday's quiz first.",
+  dailyNoWordsLeft: "No unlearned words left — nice work! 🎉",
+
   // ── Speaking ─────────────────────────────────────────────────────────────────
   holdToSpeak: "Hold to speak",
   recording: "Recording…",
@@ -227,6 +252,8 @@ const en = {
     "Voice conversation, story generation, and grading all run on Gemini. There's no shared key — add your own (it's free) to use these features. Your quota is yours alone, unaffected by other users.",
   geminiKeyGetFreeTitle: "Get a free key",
   geminiKeyGetFreeDesc: "Google AI Studio issues free-tier Gemini keys instantly, no billing setup required.",
+  geminiKeyScopingHint:
+    "Pick (or create) a single Google Cloud project when AI Studio asks — that's what your quota is tracked against, so it's worth knowing which one you picked. For extra safety, you can restrict the key in Cloud Console (APIs & Services → Credentials → your key → API restrictions) to just the \"Generative Language API\" — this app never calls anything else. Don't restrict it by IP address or HTTP referrer, though: this key is used server-side from Vercel, which has no fixed outbound IP, so either restriction will break it.",
   geminiKeyUsingOwn: (last4: string) => `Using your own key — ending in ${last4}`,
   geminiKeyRemoveTitle: "Remove key",
   geminiKeyNoneSaved: "No key saved — voice conversation, story generation, and grading are disabled until you add one.",
@@ -498,6 +525,29 @@ const zh: typeof en = {
   selectHSKLevel: "选择等级",
   noCardsMatchFilter: "没有卡片符合此筛选条件。",
 
+  // ── Daily Learning ───────────────────────────────────────────────────────────
+  dailyLearning: "每日单词",
+  dailyDesc: "每天学习固定数量的新单词",
+  dailyQuizDue: (n: number) => `${n} 个词待测验`,
+  dailyQuizTitle: "测验：昨天的单词",
+  dailyQuizDesc: (n: number) => `先通过 ${n} 个词的测验，才能生成今天的单词表`,
+  dailyQuizProgress: (current: number, total: number) => `第 ${current} / ${total} 词`,
+  dailyCarriedOver: "重试",
+  dailyTodayTitle: "今天的单词",
+  dailyTodaySubtitle: (n: number, target: number) =>
+    n < target ? `共 ${n} / ${target} 个词——这是剩下要学的全部了` : `共 ${n} 个词——下次会测验这些词`,
+  dailyComeBackTomorrow: "明天回来接受测验，然后再生成下一组单词。",
+  dailyHowMany: "今天学几个词？",
+  dailyHowManyDesc: "明天测验没通过的词也算在这个总数里，不会被丢掉。",
+  dailyStart: "生成今天的单词表",
+  dailyBuilding: "生成中…",
+  dailyAddMore: "再加一些",
+  dailyShowExamples: "显示例句",
+  dailyHideExamples: "隐藏例句",
+  dailyExamplesLoading: "正在生成例句…",
+  dailyQuizPendingError: "请先完成昨天的测验。",
+  dailyNoWordsLeft: "没有未学的单词了——太棒了！🎉",
+
   // ── Speaking ─────────────────────────────────────────────────────────────────
   holdToSpeak: "按住说话",
   recording: "录音中…",
@@ -600,6 +650,8 @@ const zh: typeof en = {
     "语音对话、故事生成和批改功能都运行在 Gemini 上。没有共享密钥——请添加你自己的密钥（免费）来使用这些功能。你的额度只属于你，不受其他用户影响。",
   geminiKeyGetFreeTitle: "获取免费密钥",
   geminiKeyGetFreeDesc: "Google AI Studio 可立即发放免费额度的 Gemini 密钥，无需设置账单。",
+  geminiKeyScopingHint:
+    "AI Studio 询问时，选择（或新建）一个 Google Cloud 项目——你的配额就是按这个项目计算的，记住选的是哪一个。为了更安全，你可以在 Cloud Console 中限制该密钥（APIs & Services → Credentials → 你的密钥 → API restrictions）只允许「Generative Language API」——此应用从不调用其他任何 API。但不要按 IP 地址或 HTTP referrer 限制此密钥：它是从 Vercel 服务端调用的，没有固定的出站 IP，这类限制会导致密钥失效。",
   geminiKeyUsingOwn: (last4: string) => `正在使用你自己的密钥——尾号 ${last4}`,
   geminiKeyRemoveTitle: "移除密钥",
   geminiKeyNoneSaved: "尚未保存密钥——语音对话、故事生成和批改功能已禁用，添加密钥后即可使用。",

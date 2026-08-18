@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Brain, MessageCircle, BookOpen, TrendingUp, ChevronRight, User, Mic, List, Flame, GripVertical } from "lucide-react";
+import { Brain, MessageCircle, BookOpen, TrendingUp, ChevronRight, User, Mic, List, GripVertical, Sparkles } from "lucide-react";
 import { useLanguage } from "./LanguageContext";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { useState, useEffect } from "react";
@@ -23,8 +23,10 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 interface Props {
+  /** Combined due count across regular + slang words — review is one merged
+   *  session picker now (Slang is just another tile in it), not a separate mode. */
   dueCount: number;
-  slangDueCount: number;
+  dailyQuizDueCount: number;
   totalWords: number;
   masteredCount: number;
   masteryPct: number;
@@ -48,7 +50,7 @@ interface ModeItem {
 
 const MODE_DEFAULTS: ModeItem[] = [
   { id: "review",       href: "/review",       labelKey: "review",         descKey: "review",       icon: Brain,         iconBg: "bg-violet-100", iconColor: "text-violet-600" },
-  { id: "slang",        href: "/review/slang", labelKey: "slangReview",    descKey: "slang",        icon: Flame,         iconBg: "bg-orange-100", iconColor: "text-orange-500" },
+  { id: "daily",        href: "/daily",        labelKey: "dailyLearning",  descKey: "daily",        icon: Sparkles,      iconBg: "bg-amber-100",  iconColor: "text-amber-600"  },
   { id: "speaking",     href: "/speaking",     labelKey: "speakingPractice",descKey: "speaking",    icon: Mic,           iconBg: "bg-rose-100",   iconColor: "text-rose-600"   },
   { id: "conversation", href: "/conversation", labelKey: "chatPractice",   descKey: "chat",         icon: MessageCircle, iconBg: "bg-sky-100",    iconColor: "text-sky-600"    },
   { id: "reader",       href: "/reader",       labelKey: "reader",         descKey: "reader",       icon: BookOpen,      iconBg: "bg-emerald-100",iconColor: "text-emerald-600"},
@@ -141,7 +143,7 @@ function SortableMode({
   );
 }
 
-export function HomeClient({ dueCount, slangDueCount, totalWords, masteredCount, masteryPct, devMode, DevResetButton, initialOrder }: Props) {
+export function HomeClient({ dueCount, dailyQuizDueCount, totalWords, masteredCount, masteryPct, devMode, DevResetButton, initialOrder }: Props) {
   const { t } = useLanguage();
   const [order, setOrder] = useState<string[]>(() => initialOrder ?? MODE_IDS);
 
@@ -186,7 +188,7 @@ export function HomeClient({ dueCount, slangDueCount, totalWords, masteredCount,
 
   function getDesc(mode: ModeItem) {
     if (mode.id === "review")   return dueCount > 0 ? t.cardsDue(dueCount) : t.allCaughtUp;
-    if (mode.id === "slang")    return slangDueCount > 0 ? t.cardsDue(slangDueCount) : t.allCaughtUp;
+    if (mode.id === "daily")    return dailyQuizDueCount > 0 ? t.dailyQuizDue(dailyQuizDueCount) : t.dailyDesc;
     if (mode.id === "speaking") return t.speakingDesc;
     if (mode.id === "conversation") return t.chatDesc;
     if (mode.id === "reader")   return t.readerDesc;
@@ -196,7 +198,7 @@ export function HomeClient({ dueCount, slangDueCount, totalWords, masteredCount,
 
   function getBadge(mode: ModeItem): number | null {
     if (mode.id === "review")  return dueCount > 0 ? dueCount : null;
-    if (mode.id === "slang")   return slangDueCount > 0 ? slangDueCount : null;
+    if (mode.id === "daily")   return dailyQuizDueCount > 0 ? dailyQuizDueCount : null;
     return null;
   }
 
@@ -221,9 +223,9 @@ export function HomeClient({ dueCount, slangDueCount, totalWords, masteredCount,
               className="relative w-10 h-10 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-center hover:border-violet-300 transition-colors shadow-sm"
             >
               <User size={18} className="text-[var(--color-text-secondary)]" />
-              {(dueCount + slangDueCount) > 0 && (
+              {dueCount > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-orange-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
-                  {dueCount + slangDueCount}
+                  {dueCount}
                 </span>
               )}
             </Link>
