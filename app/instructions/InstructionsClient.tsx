@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   KeyRound,
   Puzzle,
+  AudioLines,
   MonitorSmartphone,
   CheckCircle2,
   ArrowRight,
@@ -48,6 +49,16 @@ export function InstructionsClient({ status }: { status: OnboardingStatus }) {
           doneLabel={t.onboardingDone}
           href="/settings/extension"
           cta={t.onboardingExtensionCta}
+        />
+
+        <SetupRow
+          icon={AudioLines}
+          title={t.instructionsSetupElevenLabsTitle}
+          desc={t.instructionsSetupElevenLabsDesc}
+          done={status.hasElevenLabsKey}
+          doneLabel={t.onboardingDone}
+          href="/settings/elevenlabs-key"
+          cta={t.onboardingElevenLabsCta}
         />
 
         <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 flex flex-col gap-3">

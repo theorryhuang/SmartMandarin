@@ -218,6 +218,8 @@ const en = {
   profileNavExtensionDesc: "Popup dictionary on any page",
   profileNavGeminiKey: "Gemini API key",
   profileNavGeminiKeyDesc: "Required to use voice, stories, and grading",
+  profileNavElevenLabsKey: "ElevenLabs API key",
+  profileNavElevenLabsKeyDesc: "Required to use Speaking Practice",
 
   // ── Gemini key settings ─────────────────────────────────────────────────────────
   geminiKeyPageTitle: "Gemini API key",
@@ -243,6 +245,33 @@ const en = {
   geminiKeyErrorUnreachable: "Couldn't reach Gemini to verify the key — try again",
   geminiKeyErrorSaveFailed: "Something went wrong saving your key — try again.",
   noGeminiKeyError: "Add your Gemini API key in Profile → Gemini API key to use this feature.",
+
+  // ── ElevenLabs key settings ───────────────────────────────────────────────────
+  elevenLabsKeyPageTitle: "ElevenLabs API key",
+  elevenLabsKeyPageDesc:
+    "Speaking Practice uses ElevenLabs to transcribe what you say. There's no shared key — add your own (free tier available) to use this feature. Your quota is yours alone, unaffected by other users.",
+  elevenLabsKeyGetTitle: "Get a key",
+  elevenLabsKeyGetDesc: "ElevenLabs issues free-tier API keys from your account's API Keys page.",
+  elevenLabsKeyPermissionsHint:
+    "When creating the key, turn on \"Restrict Key\" and grant only Speech to Text access. This app never calls Text to Speech, Voices, or anything else, so there's no reason to hand out more than that — if the key ever leaked, the damage is capped at transcription.",
+  elevenLabsKeyUsingOwn: (last4: string) => `Using your own key — ending in ${last4}`,
+  elevenLabsKeyRemoveTitle: "Remove key",
+  elevenLabsKeyNoneSaved: "No key saved — Speaking Practice is disabled until you add one.",
+  elevenLabsKeyReplace: "Replace key",
+  elevenLabsKeyAddYours: "Add your key",
+  elevenLabsKeyPlaceholder: "sk_…",
+  elevenLabsKeySave: "Save key",
+  elevenLabsKeyVerifying: "Verifying…",
+
+  // ── ElevenLabs key errors (server-side, surfaced verbatim) ──────────────────────
+  elevenLabsKeyErrorEmpty: "Key is empty",
+  elevenLabsKeyErrorTooShort: "That doesn't look like a valid ElevenLabs API key",
+  elevenLabsKeyErrorNotSignedIn: "Not signed in",
+  elevenLabsKeyErrorRejected: "ElevenLabs rejected this key — double-check it's correct",
+  elevenLabsKeyErrorApi: (status: number) => `ElevenLabs API error (${status})`,
+  elevenLabsKeyErrorUnreachable: "Couldn't reach ElevenLabs to verify the key — try again",
+  elevenLabsKeyErrorSaveFailed: "Something went wrong saving your key — try again.",
+  noElevenLabsKeyError: "Add your ElevenLabs API key in Profile → ElevenLabs API key to use Speaking Practice.",
 
   // ── Extension settings ───────────────────────────────────────────────────────
   extPageTitle: "Browser extension",
@@ -289,6 +318,9 @@ const en = {
   onboardingExtensionDesc:
     "Select Chinese text on any webpage to see its definition and queue it for review. Desktop Chrome/Edge only — skip this on mobile.",
   onboardingExtensionCta: "Set up the extension →",
+  onboardingElevenLabsDesc:
+    "Powers Speaking Practice's transcription. Free, and it's your own key — no shared quota. Required before that feature will work.",
+  onboardingElevenLabsCta: "Get your free key →",
   onboardingContinue: "Continue to app",
   onboardingSkipHint: "Nothing here is required to continue — finish it anytime from Profile.",
   onboardingLearnMore: "Curious what each tab does? See the Instructions page →",
@@ -303,6 +335,9 @@ const en = {
   instructionsSetupExtensionTitle: "Browser extension",
   instructionsSetupExtensionDesc:
     "Select Chinese text on any webpage (desktop Chrome/Edge) to see its definition and queue it for review.",
+  instructionsSetupElevenLabsTitle: "ElevenLabs API key",
+  instructionsSetupElevenLabsDesc:
+    "Required for Speaking Practice's transcription. Free, bring-your-own-key — your quota is yours alone.",
   instructionsSetupInstallTitle: "Install as an app",
   instructionsSetupInstallDesc: "SmartMandarin is a PWA — install it for a standalone window/Dock or Home Screen icon.",
   instructionsInstallMac: "Mac: Safari → File → Add to Dock",
@@ -556,6 +591,8 @@ const zh: typeof en = {
   profileNavExtensionDesc: "在任意网页弹出词典",
   profileNavGeminiKey: "Gemini API 密钥",
   profileNavGeminiKeyDesc: "使用语音、故事和批改功能必需",
+  profileNavElevenLabsKey: "ElevenLabs API 密钥",
+  profileNavElevenLabsKeyDesc: "使用口语练习功能必需",
 
   // ── Gemini key settings ─────────────────────────────────────────────────────────
   geminiKeyPageTitle: "Gemini API 密钥",
@@ -581,6 +618,33 @@ const zh: typeof en = {
   geminiKeyErrorUnreachable: "无法连接 Gemini 验证密钥——请重试",
   geminiKeyErrorSaveFailed: "保存密钥时出错——请重试。",
   noGeminiKeyError: "请在「个人资料 → Gemini API 密钥」中添加你的 Gemini API 密钥以使用此功能。",
+
+  // ── ElevenLabs key settings ───────────────────────────────────────────────────
+  elevenLabsKeyPageTitle: "ElevenLabs API 密钥",
+  elevenLabsKeyPageDesc:
+    "口语练习使用 ElevenLabs 转录你说的话。没有共享密钥——请添加你自己的密钥（有免费额度）来使用此功能。你的额度只属于你，不受其他用户影响。",
+  elevenLabsKeyGetTitle: "获取密钥",
+  elevenLabsKeyGetDesc: "在你的 ElevenLabs 账户的 API 密钥页面即可发放免费额度密钥。",
+  elevenLabsKeyPermissionsHint:
+    "创建密钥时，打开「Restrict Key」（限制密钥）并只授予 Speech to Text（语音转文字）权限。此应用从不调用 Text to Speech、Voices 或其他任何功能，没有必要授予更多权限——即使密钥泄露，影响也仅限于转录功能。",
+  elevenLabsKeyUsingOwn: (last4: string) => `正在使用你自己的密钥——尾号 ${last4}`,
+  elevenLabsKeyRemoveTitle: "移除密钥",
+  elevenLabsKeyNoneSaved: "尚未保存密钥——添加密钥前口语练习功能已禁用。",
+  elevenLabsKeyReplace: "更换密钥",
+  elevenLabsKeyAddYours: "添加你的密钥",
+  elevenLabsKeyPlaceholder: "sk_…",
+  elevenLabsKeySave: "保存密钥",
+  elevenLabsKeyVerifying: "验证中…",
+
+  // ── ElevenLabs key errors (server-side, surfaced verbatim) ──────────────────────
+  elevenLabsKeyErrorEmpty: "密钥为空",
+  elevenLabsKeyErrorTooShort: "这看起来不是有效的 ElevenLabs API 密钥",
+  elevenLabsKeyErrorNotSignedIn: "尚未登录",
+  elevenLabsKeyErrorRejected: "ElevenLabs 拒绝了此密钥——请检查是否正确",
+  elevenLabsKeyErrorApi: (status: number) => `ElevenLabs API 错误（${status}）`,
+  elevenLabsKeyErrorUnreachable: "无法连接 ElevenLabs 验证密钥——请重试",
+  elevenLabsKeyErrorSaveFailed: "保存密钥时出错——请重试。",
+  noElevenLabsKeyError: "请在「个人资料 → ElevenLabs API 密钥」中添加你的 ElevenLabs API 密钥以使用口语练习功能。",
 
   // ── Extension settings ───────────────────────────────────────────────────────
   extPageTitle: "浏览器扩展",
@@ -623,6 +687,8 @@ const zh: typeof en = {
   onboardingGeminiCta: "获取免费密钥 →",
   onboardingExtensionDesc: "在任意网页选中中文即可查看释义并加入复习队列。仅限桌面版 Chrome/Edge——手机上可跳过。",
   onboardingExtensionCta: "设置扩展程序 →",
+  onboardingElevenLabsDesc: "为口语练习的转录提供支持。免费，而且是你自己的密钥——没有共享额度。此功能需要先添加密钥才能使用。",
+  onboardingElevenLabsCta: "获取免费密钥 →",
   onboardingContinue: "继续使用应用",
   onboardingSkipHint: "以上都不是必须完成才能继续的——之后随时可以在个人资料里完成。",
   onboardingLearnMore: "想了解每个标签页是做什么的？查看使用说明 →",
@@ -635,6 +701,8 @@ const zh: typeof en = {
   instructionsSetupGeminiDesc: "口语练习、对话、阅读和 AI 词典兜底都需要它。免费，自带密钥——你的配额只属于你自己。",
   instructionsSetupExtensionTitle: "浏览器扩展",
   instructionsSetupExtensionDesc: "在任意网页（桌面版 Chrome/Edge）选中中文即可查看释义并加入复习队列。",
+  instructionsSetupElevenLabsTitle: "ElevenLabs API 密钥",
+  instructionsSetupElevenLabsDesc: "口语练习的转录功能需要它。免费，自带密钥——你的配额只属于你自己。",
   instructionsSetupInstallTitle: "安装为应用",
   instructionsSetupInstallDesc: "SmartMandarin 是一个 PWA——安装后可获得独立窗口/Dock 图标或主屏幕图标。",
   instructionsInstallMac: "Mac：Safari → 文件 → 添加到程序坞",

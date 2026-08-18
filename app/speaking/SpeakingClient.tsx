@@ -8,7 +8,7 @@ import { useTurnPlayback } from "@/hooks/useTurnPlayback";
 import { TranscriptView } from "@/components/TranscriptView";
 import { getConversationContext } from "@/app/actions/vocabulary";
 import { useWordPopup, WordPopupCard } from "@/components/WordPopup";
-import { saveSpeakingTurns, loadRecentSpeakingTurns, getSpeakingConversationList } from "@/app/actions/speaking";
+import { saveSpeakingTurns, loadRecentSpeakingTurns, getSpeakingConversationList, deleteSpeakingConversationTurns } from "@/app/actions/speaking";
 import type { ConversationTurn, MasteryMap, TranscriptToken } from "@/lib/types";
 import { useLanguage } from "@/app/_components/LanguageContext";
 import { HomeButton } from "@/app/_components/HomeButton";
@@ -364,6 +364,13 @@ export function SpeakingClient({ masteryMap }: Props) {
 
   const deleteConversation = useCallback((convId: string, e: React.MouseEvent) => {
     e.stopPropagation();
+
+    // Fire-and-forget: the local list below updates immediately regardless,
+    // and this is what makes the deletion actually stick — without it the
+    // conversation's speaking_turns rows survive server-side and
+    // getSpeakingConversationList() resurrects it the next time it rebuilds
+    // the list from the DB (fresh device, reinstalled PWA, or just a reload).
+    deleteSpeakingConversationTurns(convId).catch((err) => console.error("[SmartMandarin] failed to delete conversation:", err));
 
     localStorage.removeItem(`sm_speaking_conv_turns_${convId}`);
     localStorage.removeItem(`sm_speaking_revealed_${convId}`);

@@ -7,16 +7,18 @@
  * Note: ElevenLabs does not reliably decode webm/opus, so the client converts to WAV first.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { resolveElevenLabsKey } from "@/lib/elevenlabs/resolveKey";
 
 // Default Vercel function timeout (10s on Hobby) can be shorter than
 // cold-start + ElevenLabs round trip — bump the budget where the plan allows it.
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.ELEVENLABS_API_KEY;
-  if (!apiKey) {
-    console.error("[transcribe] ELEVENLABS_API_KEY not set in this environment");
-    return NextResponse.json({ error: "ELEVENLABS_API_KEY not set" }, { status: 500 });
+  let apiKey: string;
+  try {
+    ({ apiKey } = await resolveElevenLabsKey());
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "No ElevenLabs key available" }, { status: 500 });
   }
 
   const formData = await req.formData();

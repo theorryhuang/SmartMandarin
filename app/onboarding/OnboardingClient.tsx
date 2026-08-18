@@ -3,7 +3,7 @@
 import { useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { KeyRound, Puzzle, CheckCircle2, ArrowRight, Rocket, type LucideIcon } from "lucide-react";
+import { KeyRound, Puzzle, AudioLines, CheckCircle2, ArrowRight, Rocket, type LucideIcon } from "lucide-react";
 import { useLanguage } from "@/app/_components/LanguageContext";
 import { markOnboardingComplete, type OnboardingStatus } from "@/app/actions/onboarding";
 
@@ -52,6 +52,18 @@ export function OnboardingClient({ initialStatus }: { initialStatus: OnboardingS
         href="/settings/extension"
         cta={t.onboardingExtensionCta}
         badgeLabel={t.onboardingOptional}
+      />
+
+      <OnboardingStep
+        icon={AudioLines}
+        title={t.profileNavElevenLabsKey}
+        desc={t.onboardingElevenLabsDesc}
+        done={initialStatus.hasElevenLabsKey}
+        doneLabel={t.onboardingDone}
+        href="/settings/elevenlabs-key"
+        cta={t.onboardingElevenLabsCta}
+        badgeLabel={t.onboardingRequired}
+        required
       />
 
       <div className="flex flex-col items-center gap-2 pt-2">

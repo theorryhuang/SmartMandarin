@@ -5,7 +5,7 @@ import { ArrowUp, ChevronLeft, LayoutList, Mic, MicOff, Phone, PhoneOff, Plus, T
 import { HomeButton } from "@/app/_components/HomeButton";
 import { useRouter } from "next/navigation";
 import { getConversationContext, getSavedHanziSet } from "@/app/actions/vocabulary";
-import { saveMessages, loadOlderMessages, getConversationList } from "@/app/actions/chat";
+import { saveMessages, loadOlderMessages, getConversationList, deleteConversationMessages } from "@/app/actions/chat";
 import type { MasteryMap } from "@/lib/types";
 import { useLanguage } from "@/app/_components/LanguageContext";
 import { useWordPopup, WordPopupCard } from "@/components/WordPopup";
@@ -386,6 +386,13 @@ export function ConversationClient({ masteryMap }: Props) {
 
   const deleteConversation = useCallback((convId: string, e: React.MouseEvent) => {
     e.stopPropagation();
+
+    // Fire-and-forget: the local list below updates immediately regardless,
+    // and this is what makes the deletion actually stick — without it the
+    // conversation's chat_messages rows survive server-side and
+    // getConversationList() resurrects it the next time it rebuilds the
+    // list from the DB (fresh device, reinstalled PWA, or just a reload).
+    deleteConversationMessages(convId).catch((err) => console.error("[SmartMandarin] failed to delete conversation:", err));
 
     localStorage.removeItem(`sm_conv_messages_${convId}`);
     localStorage.removeItem(`sm_conv_history_${convId}`);

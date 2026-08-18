@@ -242,6 +242,8 @@ export type Database = {
           user_id: string;
           gemini_api_key_encrypted: string | null;
           gemini_api_key_last4: string | null;
+          elevenlabs_api_key_encrypted: string | null;
+          elevenlabs_api_key_last4: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -249,6 +251,8 @@ export type Database = {
           user_id: string;
           gemini_api_key_encrypted?: string | null;
           gemini_api_key_last4?: string | null;
+          elevenlabs_api_key_encrypted?: string | null;
+          elevenlabs_api_key_last4?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -256,6 +260,8 @@ export type Database = {
           user_id?: string;
           gemini_api_key_encrypted?: string | null;
           gemini_api_key_last4?: string | null;
+          elevenlabs_api_key_encrypted?: string | null;
+          elevenlabs_api_key_last4?: string | null;
           created_at?: string;
           updated_at?: string;
         };

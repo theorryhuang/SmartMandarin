@@ -1,0 +1,37 @@
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { getServerT } from "@/lib/i18n-server";
+import { BackButton } from "@/app/_components/BackButton";
+import { HomeButton } from "@/app/_components/HomeButton";
+import { getElevenLabsKeyStatus } from "@/app/actions/settings";
+import { ElevenLabsKeySettingsClient } from "./ElevenLabsKeySettingsClient";
+
+export const metadata = { title: "ElevenLabs API key · SmartMandarin" };
+
+export default async function ElevenLabsKeySettingsPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/auth");
+
+  const [status, t] = await Promise.all([getElevenLabsKeyStatus(), getServerT()]);
+
+  return (
+    <main className="min-h-screen bg-[var(--color-background)] flex flex-col items-center p-6">
+      <div className="absolute left-6" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
+        <BackButton href="/profile" />
+      </div>
+      <div className="absolute right-6" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
+        <HomeButton />
+      </div>
+
+      <div className="w-full max-w-md flex flex-col gap-6" style={{ paddingTop: "calc(max(24px, env(safe-area-inset-top)) + 40px)" }}>
+        <div>
+          <h1 className="text-2xl font-semibold">{t.elevenLabsKeyPageTitle}</h1>
+          <p className="text-sm text-[var(--color-text-muted)] mt-1">{t.elevenLabsKeyPageDesc}</p>
+        </div>
+
+        <ElevenLabsKeySettingsClient initialStatus={status} />
+      </div>
+    </main>
+  );
+}

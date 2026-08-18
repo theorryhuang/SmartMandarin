@@ -2,24 +2,26 @@
 
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { getGeminiKeyStatus } from "./settings";
+import { getGeminiKeyStatus, getElevenLabsKeyStatus } from "./settings";
 
 export interface OnboardingStatus {
   hasGeminiKey: boolean;
   hasExtensionToken: boolean;
+  hasElevenLabsKey: boolean;
 }
 
 export async function getOnboardingStatus(): Promise<OnboardingStatus> {
   const supabase = await createClient();
   const userId = (await supabase.auth.getUser()).data.user?.id;
-  if (!userId) return { hasGeminiKey: false, hasExtensionToken: false };
+  if (!userId) return { hasGeminiKey: false, hasExtensionToken: false, hasElevenLabsKey: false };
 
-  const [{ hasKey }, { count }] = await Promise.all([
+  const [{ hasKey }, { count }, { hasKey: hasElevenLabsKey }] = await Promise.all([
     getGeminiKeyStatus(),
     supabase.from("extension_tokens").select("id", { count: "exact", head: true }).eq("user_id", userId),
+    getElevenLabsKeyStatus(),
   ]);
 
-  return { hasGeminiKey: hasKey, hasExtensionToken: (count ?? 0) > 0 };
+  return { hasGeminiKey: hasKey, hasExtensionToken: (count ?? 0) > 0, hasElevenLabsKey };
 }
 
 /**

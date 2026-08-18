@@ -62,6 +62,29 @@ export async function loadRecentSpeakingTurns(limit = 60, conversationId?: strin
     }));
 }
 
+/**
+ * Deletes every speaking_turns row for one conversation. Without this,
+ * SpeakingClient's deleteConversation only ever cleared localStorage — the
+ * rows this conversation's turns were upserted into (see saveSpeakingTurns,
+ * called after every turn) stayed put, so the conversation reappeared the
+ * next time getSpeakingConversationList() rebuilt the list from the DB (a
+ * fresh device, a reinstalled PWA, or just a reload racing the backfill
+ * effect) even though it looked deleted at the time.
+ */
+export async function deleteSpeakingConversationTurns(conversationId: string): Promise<void> {
+  const supabase = await createClient();
+  const user = (await supabase.auth.getUser()).data.user;
+  if (!user) return;
+
+  const { error } = await supabase
+    .from("speaking_turns")
+    .delete()
+    .eq("user_id", user.id)
+    .eq("conversation_id", conversationId);
+
+  if (error) throw new Error(error.message);
+}
+
 export interface SpeakingConversationSummary {
   id: string;
   title: string;

@@ -89,6 +89,29 @@ export async function getConversationList(): Promise<ConversationSummary[]> {
 }
 
 /**
+ * Deletes every chat_messages row for one conversation. Without this,
+ * ConversationClient's deleteConversation only ever cleared localStorage —
+ * the rows this conversation's messages were upserted into (see
+ * saveMessages, called on every send) stayed put, so the conversation
+ * reappeared the next time getConversationList() rebuilt the list from the
+ * DB (a fresh device, a reinstalled PWA, or just a reload racing the
+ * backfill effect) even though it looked deleted at the time.
+ */
+export async function deleteConversationMessages(conversationId: string): Promise<void> {
+  const supabase = await createClient();
+  const user = (await supabase.auth.getUser()).data.user;
+  if (!user) return;
+
+  const { error } = await supabase
+    .from("chat_messages")
+    .delete()
+    .eq("user_id", user.id)
+    .eq("conversation_id", conversationId);
+
+  if (error) throw new Error(error.message);
+}
+
+/**
  * Load messages older than `beforeClientId`, newest-first up to `limit`.
  * Returns them in chronological order (oldest first).
  */

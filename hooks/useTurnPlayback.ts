@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 /**
  * Imperative controller for replaying a single transcript turn via the
@@ -30,6 +30,24 @@ export function useTurnPlayback() {
   // cancel() would fire that utterance's onerror and be mistaken for the
   // turn actually finishing.
   const currentUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  // True only during the async gap between play() being called and speak()
+  // actually firing (see startChunksFrom) — voices load asynchronously in
+  // Chrome, so the very first play() of a page session can't call speak()
+  // synchronously and has to wait on `onvoiceschanged` or a fallback
+  // timeout. The caller's UI flips to "playing" the instant play() is
+  // called, though (that's synchronous), so a pause() landing in this gap
+  // used to hit an idle queue — a no-op — and then the deferred speak()
+  // fired anyway once voices loaded, ignoring the pause entirely. This flag
+  // makes that deferred speak() check whether a pause happened first.
+  const pausedBeforeStartRef = useRef(false);
+
+  // Voices load asynchronously on first use in Chrome — priming the list on
+  // mount means that gap has almost always already closed by the time a
+  // user actually finishes their first turn and hits play, so the
+  // synchronous path below is what actually runs in practice.
+  useEffect(() => {
+    window.speechSynthesis?.getVoices();
+  }, []);
 
   const splitIntoSentences = (text: string): string[] =>
     text
@@ -43,6 +61,12 @@ export function useTurnPlayback() {
       onDone();
       return;
     }
+
+    // A pause() landed while this call was still deferred waiting on voices
+    // (see startChunksFrom/pause) — don't start speaking out from under a
+    // pause the user already asked for. Stays silent until resume() calls
+    // startChunksFrom again.
+    if (pausedBeforeStartRef.current) return;
 
     const hanziOnly = chunksRef.current[chunkIndexRef.current].replace(/\s*\([^)]+\)/g, "");
     const utterance = new SpeechSynthesisUtterance(hanziOnly);
@@ -85,12 +109,23 @@ export function useTurnPlayback() {
   const play = useCallback((text: string, rate: number, onEnd: () => void) => {
     window.speechSynthesis?.cancel();
     currentUtteranceRef.current = null;
+    pausedBeforeStartRef.current = false;
     chunksRef.current = splitIntoSentences(text);
     chunkIndexRef.current = 0;
     startChunksFrom(rate, onEnd);
   }, [startChunksFrom]);
 
   const pause = useCallback(() => {
+    if (!currentUtteranceRef.current) {
+      // Nothing has actually started speaking yet — still waiting on
+      // voices to load (see startChunksFrom). speechSynthesis.pause() on an
+      // idle queue is a no-op, and without this flag the deferred speak()
+      // would fire right past this pause once voices came in, making the
+      // click look like it did nothing (or, worse, look like a restart once
+      // the user gives up and clicks again).
+      pausedBeforeStartRef.current = true;
+      return;
+    }
     window.speechSynthesis?.pause();
   }, []);
 
@@ -98,6 +133,14 @@ export function useTurnPlayback() {
    *  position, no gap). Only restarts — from the current sentence, not the
    *  whole turn — when `rate` is actually different. */
   const resume = useCallback((rate: number, onEnd: () => void) => {
+    if (pausedBeforeStartRef.current) {
+      // Paused before anything was ever audible — chunkIndexRef is still 0,
+      // so this "restarts" in name only; nothing was heard before it to
+      // restart from.
+      pausedBeforeStartRef.current = false;
+      startChunksFrom(rate, onEnd);
+      return;
+    }
     if (rate === currentRateRef.current) {
       window.speechSynthesis?.resume();
       return;
@@ -109,6 +152,7 @@ export function useTurnPlayback() {
 
   const stop = useCallback(() => {
     currentUtteranceRef.current = null;
+    pausedBeforeStartRef.current = false;
     window.speechSynthesis?.cancel();
   }, []);
 

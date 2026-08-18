@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Puzzle, KeyRound, CircleHelp } from "lucide-react";
+import { Puzzle, KeyRound, AudioLines, CircleHelp } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getServerT } from "@/lib/i18n-server";
 import { BackButton } from "@/app/_components/BackButton";
@@ -75,6 +75,18 @@ export default async function ProfilePage() {
           <div className="flex-1 text-left">
             <div className="text-sm font-medium text-[var(--color-text-primary)]">{t.profileNavGeminiKey}</div>
             <div className="text-xs text-[var(--color-text-muted)]">{t.profileNavGeminiKeyDesc}</div>
+          </div>
+        </Link>
+
+        {/* ElevenLabs API key */}
+        <Link
+          href="/settings/elevenlabs-key"
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-violet-300 transition-colors"
+        >
+          <AudioLines size={18} className="text-violet-600 shrink-0" />
+          <div className="flex-1 text-left">
+            <div className="text-sm font-medium text-[var(--color-text-primary)]">{t.profileNavElevenLabsKey}</div>
+            <div className="text-xs text-[var(--color-text-muted)]">{t.profileNavElevenLabsKeyDesc}</div>
           </div>
         </Link>
 

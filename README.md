@@ -19,7 +19,7 @@ Home screen modes are reorderable (drag handle, persisted to `localStorage`) so 
 
 A brand-new account (zero saved words, never assessed — the same signal the Level Assessment redirect already used) is sent through a short chain before landing on the home screen:
 
-1. **`/onboarding`** — a skippable checklist: add a Gemini API key (required for Speaking Practice, Conversation, Reader, and the AI dictionary fallback) and set up the browser extension (optional, desktop Chrome/Edge). Nothing here blocks continuing — "Continue to app" works whether every step was done or none of them; each one can also be finished later from Profile.
+1. **`/onboarding`** — a skippable checklist: add a Gemini API key (required for Speaking Practice grading, Conversation, Reader, and the AI dictionary fallback), add an ElevenLabs key (required for Speaking Practice's transcription — no shared fallback, see below), and set up the browser extension (optional, desktop Chrome/Edge). "Required" here means required for *that feature*, not to use the app at all — "Continue to app" always works, whether every step was done or none of them; each one can also be finished later from Profile.
 2. **`/assessment`** — the existing placement quiz, unchanged.
 3. Home.
 
@@ -73,6 +73,7 @@ app/
   instructions/        Standing setup checklist + what-each-tab-does reference (Profile link)
   settings/extension/  Manage browser-extension access tokens
   settings/gemini-key/ Manage your BYOK Gemini key
+  settings/elevenlabs-key/ Manage your BYOK ElevenLabs key (optional — shared key works too)
   profile/             Account settings, sign out
   manifest.ts          PWA manifest (icons, capture_links, theme)
 lib/
@@ -105,12 +106,14 @@ npm run dev
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key (browser client) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only Supabase client (extension API routes, seeding scripts) |
-| `ELEVENLABS_API_KEY` | Speech-to-text for Speaking Practice |
-| `SETTINGS_ENCRYPTION_KEY` | Encrypts users' BYOK Gemini keys at rest (`openssl rand -base64 32`) |
+| `ELEVENLABS_API_KEY` | Optional — lets the app owner skip the settings-page BYOK flow for Speaking Practice transcription, same as `GEMINI_API_KEY_OWNER` below. Not a shared key for other users. |
+| `SETTINGS_ENCRYPTION_KEY` | Encrypts users' BYOK Gemini/ElevenLabs keys at rest (`openssl rand -base64 32`) |
 | `GEMINI_API_KEY_OWNER` / `OWNER_USER_ID` | Optional — lets the app owner skip the settings-page BYOK flow |
 | `NEXT_PUBLIC_APP_URL` | Base URL used in generated links (browser extension "open full page", etc.) |
 
 Story generation, conversation, and grading run on Gemini, but there's no app-wide Gemini key — every user brings their own (free, via [aistudio.google.com/apikey](https://aistudio.google.com/apikey)) from Profile → Gemini API key. See `lib/gemini/resolveKey.ts`.
+
+Speaking Practice's transcription works the same way — no shared key for regular users, by design, so nobody's usage eats into a quota that isn't theirs. Every user brings their own ElevenLabs key (free tier available) from Profile → ElevenLabs API key. `ELEVENLABS_API_KEY` only ever benefits the app owner's own account (`OWNER_USER_ID`), exactly like `GEMINI_API_KEY_OWNER` — see `lib/elevenlabs/resolveKey.ts`.
 
 ### Database
 

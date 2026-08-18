@@ -43,7 +43,16 @@ export async function middleware(request: NextRequest) {
     // Bearer-token authed (browser extension) — no session cookie to check
     // here, they do their own auth in-route. Redirecting these to /auth
     // instead of running the handler is what broke the extension.
-    pathname.startsWith("/api/extension");
+    pathname.startsWith("/api/extension") ||
+    // The PWA manifest and the icons it references. <link rel="manifest">
+    // and icon fetches never send cookies, even from an already-signed-in
+    // tab — without this they hit here as if logged out, get 307'd to
+    // /auth, and the browser tries to parse that redirect as JSON
+    // ("Manifest: ... Syntax error" in the console) or as an image.
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/icon.png" ||
+    pathname === "/apple-icon.png" ||
+    pathname.startsWith("/icons/");
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
