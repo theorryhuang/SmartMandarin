@@ -181,7 +181,8 @@ export async function persistVocabToggle(
   action: "add" | "remove",
   word: string,
   sense: { pinyin: string; meaning: string; hsk_level?: number | null },
-  existingId?: string
+  existingId?: string,
+  isSlang?: boolean
 ): Promise<boolean> {
   const body = JSON.stringify({
     action,
@@ -190,6 +191,7 @@ export async function persistVocabToggle(
     pinyin: sense.pinyin,
     meaning: sense.meaning,
     hsk_level: sense.hsk_level ?? null,
+    is_slang: isSlang ?? false,
   });
 
   if (typeof navigator !== "undefined" && navigator.sendBeacon) {
@@ -487,7 +489,7 @@ export function useWordPopup({ masteryMap, slangMode, onQueueChange, onAlreadySa
       // flagged_for_immediate_use (that only controls forced re-injection
       // into the next AI turn and would leave the word — and its "saved"
       // state on the next load — untouched).
-      const ok = await persistVocabToggle(nowSaved ? "add" : "remove", p.word, sense, existingRow?.id);
+      const ok = await persistVocabToggle(nowSaved ? "add" : "remove", p.word, sense, existingRow?.id, p.source === "slang");
       if (!ok) {
         // The write didn't actually land — undo the optimistic flip instead
         // of leaving the UI claiming a state the database doesn't have.

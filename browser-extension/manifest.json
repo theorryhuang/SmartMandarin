@@ -3,6 +3,7 @@
   "name": "SmartMandarin Popup Dictionary",
   "description": "Highlight Chinese text on any page to see pinyin, meaning, and queue it for review — same popup dictionary as the SmartMandarin app.",
   "version": "0.1.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5RdGZ/4SHyuN3U1CKIF5FxIKtifSE4PVBdNNq5A40ruDCgq0AWWshZmN3JhEODGxKnrNXkc83WYcfIB7Tuu1RnGeJilrepaGS6k+gxNuTtM/oNr68MujjJM5WcUSBn0c0a4qeKxcvYp2NC1oiAr4m6Em8tcBmWUCjlXIPnd3MgbSyFPSENkididz2a0NX0hQjsPBHL5iQA83NV3hZXCP4UxiqxdT9m68vLvxRe17t6rmYNrrsaWjFJxFRnsJTS3ETYyP/kTFXaQyC/K2+l0wXLlS2srIoDnMzp0nQiYVbICAELY/ROTstWQoYRgNT4eCVoii7caA4MRM+acPRXqmxwIDAQAB",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -10,7 +11,6 @@
     "128": "icons/icon128.png"
   },
   "permissions": ["storage"],
-  "optional_host_permissions": ["http://*/*", "https://*/*"],
   "background": {
     "service_worker": "background.js"
   },

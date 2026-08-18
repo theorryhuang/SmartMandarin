@@ -1,9 +1,10 @@
 // Service worker — the only place that talks to the SmartMandarin API.
 // content.js (untrusted third-party page context) never sees the token or
 // does cross-origin fetches itself; it just messages this worker and gets
-// plain data back. Requires host_permissions for the server's origin
-// (granted via chrome.permissions.request in options.js) so these fetches
-// bypass CORS entirely rather than depending on the server's CORS headers.
+// plain data back. These fetches rely on the server's own CORS headers
+// (EXTENSION_CORS_HEADERS in lib/extensionAuth.ts — Access-Control-Allow-
+// Origin: *, since auth here is a bearer token, not cookies, so a wide
+// origin has no session-riding risk) — no host_permissions grant needed.
 
 async function getStored(keys) {
   return chrome.storage.local.get(keys);
@@ -105,7 +106,48 @@ async function testConnection(serverUrl, token) {
   }
 }
 
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+/**
+ * Handles the SmartMandarin settings page's "Connect Extension" button,
+ * which mints a token server-side and hands it here so the human never
+ * sees/copies one. Reached via content.js relaying a window.postMessage from
+ * the page (see content.js) rather than the page calling
+ * chrome.runtime.sendMessage(extensionId, …) directly — that requires
+ * declaring `externally_connectable`, whose `matches` patterns Chrome
+ * rejects if they'd match every origin, and this is self-hostable so no
+ * fixed domain can be baked in at build time. Going through content.js
+ * (already injected on every page via <all_urls>) sidesteps that entirely.
+ *
+ * `sender` here comes from the browser, not from the message body — a page
+ * can't spoof sender.tab.url — so the origin check below means a page can
+ * only push a connect payload for *its own* origin, not one impersonating
+ * another site.
+ *
+ * Finishes the connection outright — no options page, no extra click.
+ * Earlier this only staged the token and opened options.html for the user
+ * to press Connect there, because that click used to be required to grant
+ * host_permissions via chrome.permissions.request. That grant turned out to
+ * be unnecessary: the server already sends CORS headers permitting this
+ * (see apiFetch's comment above), so a plain fetch from here works with no
+ * privileged, gesture-gated API involved at all.
+ */
+async function connectFromSite({ serverUrl, token }, sender) {
+  if (!serverUrl || !token) return { ok: false, reason: "invalid-payload" };
+  let originOk = false;
+  try {
+    originOk = !!sender?.tab?.url && new URL(serverUrl).origin === new URL(sender.tab.url).origin;
+  } catch {
+    originOk = false;
+  }
+  if (!originOk) return { ok: false, reason: "origin-mismatch" };
+
+  const result = await testConnection(serverUrl, token);
+  if (!result.ok) return { ok: false, reason: "connect-failed", message: result.message };
+
+  await chrome.storage.local.set({ serverUrl, token, savedWords: result.savedWords || {} });
+  return { ok: true };
+}
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // Logged synchronously, before anything async — if this line never shows
   // up in the service worker's console for a highlight that's stuck
   // loading, the message from content.js isn't reaching this listener at
@@ -128,6 +170,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           break;
         case "testConnection":
           sendResponse(await testConnection(msg.serverUrl, msg.token));
+          break;
+        case "connectFromSite":
+          sendResponse(await connectFromSite(msg, sender));
           break;
         default:
           sendResponse({ ok: false, reason: "unknown-message" });

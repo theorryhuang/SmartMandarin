@@ -441,6 +441,61 @@
   // tracking the original selection. Only a click outside it (pointerdown
   // listener above) or Escape closes it now.
 
+  // Relay for the settings page's "Connect Extension" button (see
+  // ExtensionSettingsClient.tsx). The page can't message background.js
+  // directly by extension id — that needs `externally_connectable`, which
+  // Chrome won't let match every origin, and this server is self-hostable so
+  // no fixed domain can be baked into manifest.json at build time. This
+  // content script is already injected on every page (<all_urls>), so it
+  // relays instead: window.postMessage in, chrome.runtime.sendMessage to the
+  // extension's own background (which does the actual connect and replies
+  // once it's actually done — no separate click needed in the extension's
+  // own UI), window.postMessage the result back out.
+  // event.source/event.origin are the browser's own account of who sent the
+  // message — a page can fake the payload but not who it claims to be.
+  window.addEventListener("message", (event) => {
+    const data = event.data;
+    // Checked before the source/origin guard (not after) so a mismatch there
+    // still gets logged instead of silently vanishing — that mismatch is
+    // exactly the kind of thing worth seeing in the console while debugging.
+    if (!data || data.source !== "smartmandarin-site" || data.type !== "connectExtension") return;
+    console.log("[SmartMandarin] content.js saw a connect relay request:", {
+      eventOrigin: event.origin,
+      pageOrigin: location.origin,
+      sameWindow: event.source === window,
+    });
+    if (event.source !== window || event.origin !== location.origin) {
+      console.warn("[SmartMandarin] connect relay rejected — event.source/origin mismatch");
+      return;
+    }
+    try {
+      chrome.runtime.sendMessage(
+        { type: "connectFromSite", serverUrl: data.serverUrl, token: data.token },
+        (res) => {
+          console.log("[SmartMandarin] background.js responded to connectFromSite:", res, chrome.runtime.lastError);
+          window.postMessage(
+            {
+              source: "smartmandarin-extension",
+              type: "connectExtensionAck",
+              requestId: data.requestId,
+              ok: !!res?.ok,
+              message: res?.message,
+            },
+            location.origin
+          );
+        }
+      );
+    } catch (e) {
+      // Same stale-context case as the lookup path below — extension was
+      // reloaded/updated since this tab loaded.
+      console.warn("[SmartMandarin] connect relay sendMessage threw:", e);
+      window.postMessage(
+        { source: "smartmandarin-extension", type: "connectExtensionAck", requestId: data.requestId, ok: false },
+        location.origin
+      );
+    }
+  });
+
   function loadConfig() {
     chrome.runtime.sendMessage({ type: "getConfig" }, (res) => {
       if (res) config = res;

@@ -20,7 +20,7 @@ import { createClient } from "@/lib/supabase/server";
  * page that started it is gone by the time the response would arrive.
  */
 export async function POST(req: NextRequest) {
-  const { action, id, hanzi, pinyin, meaning, hsk_level } = await req.json().catch(() => ({}));
+  const { action, id, hanzi, pinyin, meaning, hsk_level, is_slang } = await req.json().catch(() => ({}));
   if (!hanzi || (action !== "add" && action !== "remove")) {
     return NextResponse.json({ error: "hanzi and action (add|remove) required" }, { status: 400 });
   }
@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
         pinyin: pinyin ?? "",
         meaning: meaning ?? "",
         hsk_level: hsk_level ?? null,
+        is_slang: is_slang ?? false,
         flagged_for_immediate_use: true,
       },
       { onConflict: "user_id,hanzi,pinyin,meaning", ignoreDuplicates: false }
