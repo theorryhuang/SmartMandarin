@@ -151,6 +151,7 @@ const en = {
   dailyNoWordsLeft: "No unlearned words left — nice work! 🎉",
   dailyShowMore: "more",
   dailyShowLess: "less",
+  dailyReviewToday: "Review today's words",
 
   // ── Speaking ─────────────────────────────────────────────────────────────────
   holdToSpeak: "Hold to speak",
@@ -551,6 +552,7 @@ const zh: typeof en = {
   dailyNoWordsLeft: "没有未学的单词了——太棒了！🎉",
   dailyShowMore: "展开",
   dailyShowLess: "收起",
+  dailyReviewToday: "复习今天的单词",
 
   // ── Speaking ─────────────────────────────────────────────────────────────────
   holdToSpeak: "按住说话",

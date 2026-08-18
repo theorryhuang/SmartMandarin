@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, Home, Sparkles, BookOpenText, Plus } from "lucide-react";
+import { ChevronLeft, Home, Sparkles, BookOpenText, Plus, Brain } from "lucide-react";
 import { getDailyState, startDailyBatch, addToDailyBatch, getWordExamples } from "@/app/actions/dailyLearning";
-import type { DailyState, DailyLearningWord, WordExample } from "@/lib/types";
+import type { DailyState, DailyLearningWord, VocabularyMastery, WordExample } from "@/lib/types";
 import { DailyQuizCard } from "@/components/DailyQuizCard";
+import { ReviewSession } from "@/app/review/ReviewSession";
 import { useLanguage } from "@/app/_components/LanguageContext";
 
 function NavHeader() {
@@ -178,6 +179,7 @@ function AddMoreControl({ onAdd, loading }: { onAdd: (n: number) => void; loadin
 
 export function DailyClient() {
   const { t } = useLanguage();
+  const router = useRouter();
   const [state, setState] = useState<DailyState | null>(null);
   const [quizIndex, setQuizIndex] = useState(0);
   const [count, setCount] = useState("10");
@@ -185,6 +187,7 @@ export function DailyClient() {
   const [addingMore, startAddingMore] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
+  const [reviewingToday, setReviewingToday] = useState(false);
 
   function refresh() {
     startLoading(async () => {
@@ -243,6 +246,25 @@ export function DailyClient() {
     );
   }
 
+  // ── Reviewing today's words on demand — reuses the same flashcard/sentence
+  //    ReviewSession as /review, scoped to just today's batch. This is
+  //    separate from tomorrow's pass/fail quiz (DailyQuizCard): rating a
+  //    card here updates its FSRS schedule like any other review, but
+  //    doesn't mark it passed/failed for the daily program — only the quiz
+  //    does that. ──
+  if (reviewingToday && state.todayBatch) {
+    const todayWords: VocabularyMastery[] = state.todayBatch.words.map((w) => w.word);
+    return (
+      <ReviewSession
+        initialCards={todayWords}
+        sessionKey={`sm_daily_review_${state.todayBatch.batchDate}`}
+        getAllWordsFn={async () => todayWords}
+        onExit={() => setReviewingToday(false)}
+        onHome={() => router.push("/")}
+      />
+    );
+  }
+
   // ── Phase 1: quiz the previous unresolved day's words ──────────────────────
   const quizWords = state.quizBatch?.words ?? [];
   if (quizWords.length > 0 && quizIndex < quizWords.length) {
@@ -292,6 +314,13 @@ export function DailyClient() {
               <WordTile key={w.dailyWordId} entry={w} />
             ))}
           </div>
+          <button
+            onClick={() => setReviewingToday(true)}
+            className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white px-4 py-3 text-sm font-medium transition-colors"
+          >
+            <Brain size={16} />
+            {t.dailyReviewToday}
+          </button>
           <AddMoreControl onAdd={handleAddMore} loading={addingMore} />
           {addError === "NO_WORDS" ? (
             <p className="text-xs text-emerald-600 text-center">{t.dailyNoWordsLeft}</p>
