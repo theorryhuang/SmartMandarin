@@ -10,13 +10,26 @@ import type { FSRSRating, VocabularyMastery, DailyLearningBatch, DailyLearningWo
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 /**
- * "Today", as a plain date. Computed server-side (UTC) rather than passed
- * from the client — this is a single-user app, and keeping the day boundary
- * on one clock avoids any client/server date mismatch instead of chasing
- * per-user timezone correctness.
+ * "Today", as a plain date — the day boundary the whole daily-learning
+ * program hangs off of (which batch is "yesterday's" to quiz, which is
+ * "today's" to build/show).
+ *
+ * Takes the caller's local date (client components pass
+ * `new Date().toLocaleDateString("en-CA")`) rather than computing it
+ * server-side, because a fixed server clock — UTC or otherwise — resets
+ * everyone's day at the same instant regardless of timezone: a UTC
+ * boundary rolls over at 7-8pm the evening before for US Eastern, ~5:30am
+ * for India, etc., which doesn't match anyone's actual "today". Falls back
+ * to server UTC only when no client date is supplied (e.g. the home-page
+ * badge count, which is server-rendered before any client date is known —
+ * that's an approximate hint, not a decision point, and self-corrects the
+ * moment the user opens /daily with their real local date).
  */
-function todayStr(): string {
+function todayStr(clientDate?: string): string {
+  if (clientDate && DATE_RE.test(clientDate)) return clientDate;
   return new Date().toISOString().slice(0, 10);
 }
 
@@ -163,14 +176,14 @@ async function pruneAlreadyMasteredPendingWords(supabase: SupabaseClient, userId
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
-export async function getDailyState(): Promise<DailyState> {
+export async function getDailyState(clientDate?: string): Promise<DailyState> {
   const supabase = await createClient();
   const userId = await getUserId(supabase);
   if (!userId) return { quizBatch: null, todayBatch: null };
 
   await pruneAlreadyMasteredPendingWords(supabase, userId);
 
-  const today = todayStr();
+  const today = todayStr(clientDate);
 
   // Oldest unresolved batch strictly before today (there should only ever be
   // at most one, since we never let a new batch get built while one is
@@ -263,13 +276,13 @@ export async function submitDailyQuizAnswer(
  * `count` is the total words for the day, not the count of *new* words —
  * carried-over words count against it.
  */
-export async function startDailyBatch(count: number): Promise<DailyLearningBatch | null> {
+export async function startDailyBatch(count: number, clientDate?: string): Promise<DailyLearningBatch | null> {
   const supabase = await createClient();
   const userId = await getUserId(supabase);
   if (!userId) throw new Error("Not signed in");
   if (!Number.isFinite(count) || count < 1) throw new Error("Invalid word count");
 
-  const today = todayStr();
+  const today = todayStr(clientDate);
 
   // Already built today — idempotent, just return it.
   const { data: existing, error: existingErr } = await supabase
@@ -357,13 +370,13 @@ export async function startDailyBatch(count: number): Promise<DailyLearningBatch
  * easiest-first ordering as the initial build. No-op (returns the batch
  * unchanged) if there's nothing left to add.
  */
-export async function addToDailyBatch(count: number): Promise<DailyLearningBatch> {
+export async function addToDailyBatch(count: number, clientDate?: string): Promise<DailyLearningBatch> {
   const supabase = await createClient();
   const userId = await getUserId(supabase);
   if (!userId) throw new Error("Not signed in");
   if (!Number.isFinite(count) || count < 1) throw new Error("Invalid word count");
 
-  const today = todayStr();
+  const today = todayStr(clientDate);
   const { data: batchRow, error: batchErr } = await supabase
     .from("daily_learning_batches")
     .select("id, batch_date, target_count")
@@ -512,6 +525,10 @@ export async function getDailyQuizPendingCount(): Promise<number> {
   const userId = await getUserId(supabase);
   if (!userId) return 0;
 
+  // Server-rendered on the home page, before any client-local date is
+  // known — uses the UTC fallback in todayStr(). Only an approximate
+  // badge/hint; the actual quiz/build flow on /daily always gets the
+  // caller's real local date and is where correctness matters.
   const today = todayStr();
   const { data: pastBatches } = await supabase
     .from("daily_learning_batches")

@@ -177,6 +177,17 @@ function AddMoreControl({ onAdd, loading }: { onAdd: (n: number) => void; loadin
   );
 }
 
+/**
+ * The day boundary this whole feature hangs off of, taken from the browser
+ * so it lines up with the user's actual calendar day instead of a server
+ * clock resetting everyone at the same UTC instant — see todayStr() in
+ * app/actions/dailyLearning.ts. "en-CA" is just a locale that happens to
+ * format as YYYY-MM-DD; it has nothing to do with the user's real locale.
+ */
+function localToday(): string {
+  return new Date().toLocaleDateString("en-CA");
+}
+
 export function DailyClient() {
   const { t } = useLanguage();
   const router = useRouter();
@@ -191,7 +202,7 @@ export function DailyClient() {
 
   function refresh() {
     startLoading(async () => {
-      const s = await getDailyState();
+      const s = await getDailyState(localToday());
       setState(s);
       setQuizIndex(0);
     });
@@ -208,7 +219,7 @@ export function DailyClient() {
     setError(null);
     startLoading(async () => {
       try {
-        const batch = await startDailyBatch(n);
+        const batch = await startDailyBatch(n, localToday());
         if (batch === null) {
           setError("NO_WORDS");
         } else {
@@ -225,7 +236,7 @@ export function DailyClient() {
     const before = state?.todayBatch?.words.length ?? 0;
     startAddingMore(async () => {
       try {
-        const batch = await addToDailyBatch(n);
+        const batch = await addToDailyBatch(n, localToday());
         if (batch.words.length === before) {
           setAddError("NO_WORDS");
         } else {
