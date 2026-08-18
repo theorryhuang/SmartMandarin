@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { resolveGeminiKey } from "@/lib/gemini/resolveKey";
 import { fetchGeminiInteractions } from "@/lib/gemini/interactions";
 
@@ -26,9 +27,11 @@ export async function POST(req: NextRequest) {
       const errText = await res.text();
 
       const msg = JSON.parse(errText)?.error?.message ?? errText;
-      const message = msg.includes("quota") || msg.includes("RESOURCE_EXHAUSTED")
-        ? "Gemini rate limit hit. Wait a moment and try again."
-        : msg.slice(0, 200);
+      const isQuota = msg.includes("quota") || msg.includes("RESOURCE_EXHAUSTED");
+      // Quota/rate-limit hits are the user's own BYOK key running dry, not a
+      // bug on our end — skip reporting those to avoid alert noise.
+      if (!isQuota) Sentry.captureMessage(`[generate-story] Gemini API error ${res.status}: ${msg.slice(0, 500)}`, "error");
+      const message = isQuota ? "Gemini rate limit hit. Wait a moment and try again." : msg.slice(0, 200);
       return NextResponse.json({ error: message }, { status: 500 });
     }
 
@@ -38,7 +41,7 @@ export async function POST(req: NextRequest) {
     const story = JSON.parse(text);
     return NextResponse.json(story);
   } catch (e) {
-
+    Sentry.captureException(e);
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { resolveGeminiKey } from "@/lib/gemini/resolveKey";
 import { fetchGeminiInteractions } from "@/lib/gemini/interactions";
 
@@ -74,6 +75,7 @@ Respond with ONLY valid JSON (no markdown, no extra text):
       try {
         detail = JSON.parse(body)?.error?.message ?? body;
       } catch {}
+      Sentry.captureMessage(`[grade-sentence] Gemini API error ${res.status}: ${String(detail).slice(0, 500)}`, "error");
       return NextResponse.json({ error: `Gemini API error (${res.status}): ${detail}` }, { status: 500 });
     }
 
@@ -98,9 +100,11 @@ Respond with ONLY valid JSON (no markdown, no extra text):
   } catch (e) {
     if (e instanceof Error && e.name === "AbortError") {
       console.error(`[grade-sentence] AbortError — no response from Gemini within 20s (started ${Date.now() - startedAt}ms ago)`);
+      Sentry.captureMessage("[grade-sentence] Gemini timed out after 20s", "warning");
       return NextResponse.json({ error: "Gemini timed out after 20s" }, { status: 504 });
     }
     console.error("[grade-sentence]", e);
+    Sentry.captureException(e);
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }

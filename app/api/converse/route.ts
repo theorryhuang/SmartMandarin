@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { resolveGeminiKey } from "@/lib/gemini/resolveKey";
 import { fetchGeminiInteractions } from "@/lib/gemini/interactions";
 
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
 
   if (!res.ok) {
     const errText = await res.text();
-
+    Sentry.captureMessage(`[converse] Gemini API error ${res.status}: ${errText.slice(0, 500)}`, "error");
     return NextResponse.json({ error: errText.slice(0, 200) }, { status: 500 });
   }
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { resolveGeminiKey } from "@/lib/gemini/resolveKey";
 import { fetchGeminiInteractions } from "@/lib/gemini/interactions";
 
@@ -37,7 +38,7 @@ Respond with ONLY valid JSON (no markdown, no extra text):
     });
 
     if (!res.ok) {
-
+      Sentry.captureMessage(`[grade-answer] Gemini API error ${res.status}`, "error");
       return NextResponse.json({ error: "Gemini API error" }, { status: 500 });
     }
 
@@ -48,7 +49,7 @@ Respond with ONLY valid JSON (no markdown, no extra text):
     const parsed = JSON.parse(raw);
     return NextResponse.json({ correct: Boolean(parsed.correct), feedback: parsed.feedback ?? "" });
   } catch (e) {
-
+    Sentry.captureException(e);
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }
