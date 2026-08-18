@@ -4,8 +4,6 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/app/_components/LanguageContext";
 
-type PhasePhone = "idle" | "sending" | "otp" | "verifying" | "done";
-
 export function AuthClient({ errorParam }: { errorParam?: string }) {
   const supabase = createClient();
   const { t } = useLanguage();
@@ -29,59 +27,6 @@ export function AuthClient({ errorParam }: { errorParam?: string }) {
       setGoogleLoading(false);
     }
     // On success, the browser is redirected — no further action needed here.
-  }
-
-  // ── Phone OTP ────────────────────────────────────────────────────────────────
-
-  const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
-  const [phonePhase, setPhonePhase] = useState<PhasePhone>("idle");
-  const [phoneError, setPhoneError] = useState("");
-
-  async function sendOtp(e: React.FormEvent) {
-    e.preventDefault();
-    setPhoneError("");
-    setPhonePhase("sending");
-
-    const { error } = await supabase.auth.signInWithOtp({
-      phone,
-      options: { channel: "sms" },
-    });
-
-    if (error) {
-      setPhoneError(error.message);
-      setPhonePhase("idle");
-    } else {
-      setPhonePhase("otp");
-    }
-  }
-
-  async function verifyOtp(e: React.FormEvent) {
-    e.preventDefault();
-    setPhoneError("");
-    setPhonePhase("verifying");
-
-    const { error } = await supabase.auth.verifyOtp({
-      phone,
-      token: otp,
-      type: "sms",
-    });
-
-    if (error) {
-      setPhoneError(error.message);
-      setPhonePhase("otp");
-    } else {
-      setPhonePhase("done");
-      // Supabase sets the session cookie; the middleware will then let the
-      // user through on the next navigation.
-      window.location.href = "/";
-    }
-  }
-
-  function resetPhone() {
-    setPhonePhase("idle");
-    setOtp("");
-    setPhoneError("");
   }
 
   // ─── Render ──────────────────────────────────────────────────────────────────
@@ -123,86 +68,6 @@ export function AuthClient({ errorParam }: { errorParam?: string }) {
           </button>
           {googleError && (
             <p className="text-xs text-red-400 text-center">{googleError}</p>
-          )}
-        </div>
-
-        {/* Divider */}
-        <div className="flex items-center gap-3">
-          <div className="flex-1 h-px bg-[var(--color-border)]" />
-          <span className="text-xs text-[var(--color-text-muted)]">{t.or}</span>
-          <div className="flex-1 h-px bg-[var(--color-border)]" />
-        </div>
-
-        {/* ── Phone OTP ── */}
-        <div className="flex flex-col gap-3">
-          {phonePhase === "idle" || phonePhase === "sending" ? (
-            <form onSubmit={sendOtp} className="flex flex-col gap-3">
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-[var(--color-text-muted)]" htmlFor="phone">
-                  {t.phoneNumber}
-                </label>
-                <input
-                  id="phone"
-                  type="tel"
-                  placeholder={t.phonePlaceholder}
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  required
-                  className="w-full px-4 py-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] text-sm placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-violet-600 transition-colors"
-                />
-                <p className="text-[10px] text-[var(--color-text-muted)] pl-1">
-                  {t.phoneHint}
-                </p>
-              </div>
-              <button
-                type="submit"
-                disabled={phonePhase === "sending" || !phone.trim()}
-                className="w-full py-3 rounded-2xl bg-violet-700 hover:bg-violet-600 text-white text-sm font-medium transition-all disabled:opacity-50"
-              >
-                {phonePhase === "sending" ? t.sendingCode : t.sendCode}
-              </button>
-            </form>
-          ) : phonePhase === "otp" || phonePhase === "verifying" ? (
-            <form onSubmit={verifyOtp} className="flex flex-col gap-3">
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-[var(--color-text-muted)]" htmlFor="otp">
-                  {t.verificationCode}
-                </label>
-                <p className="text-xs text-[var(--color-text-secondary)] mb-1">
-                  {t.sentTo(phone)}
-                </p>
-                <input
-                  id="otp"
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="000000"
-                  maxLength={6}
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                  required
-                  autoFocus
-                  className="w-full px-4 py-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] text-sm tracking-widest placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-violet-600 transition-colors"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={phonePhase === "verifying" || otp.length < 6}
-                className="w-full py-3 rounded-2xl bg-violet-700 hover:bg-violet-600 text-white text-sm font-medium transition-all disabled:opacity-50"
-              >
-                {phonePhase === "verifying" ? t.verifying : t.verifyCode}
-              </button>
-              <button
-                type="button"
-                onClick={resetPhone}
-                className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] text-center transition-colors"
-              >
-                {t.useDifferentNumber}
-              </button>
-            </form>
-          ) : null /* done — redirecting */}
-
-          {phoneError && (
-            <p className="text-xs text-red-400 text-center">{phoneError}</p>
           )}
         </div>
 

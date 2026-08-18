@@ -36,24 +36,13 @@ const en = {
   signInToSave: "Sign in to save your progress",
   continueWithGoogle: "Continue with Google",
   redirecting: "Redirecting…",
-  or: "or",
-  phoneNumber: "Phone number",
-  phonePlaceholder: "+1 555 000 0000",
-  phoneHint: "Include country code, e.g. +1 for US",
-  sendCode: "Send verification code",
-  sendingCode: "Sending code…",
-  verificationCode: "Verification code",
-  sentTo: (phone: string) => `Sent to ${phone}`,
-  verifyCode: "Verify code",
-  verifying: "Verifying…",
-  useDifferentNumber: "Use a different number",
   authFailed: "Sign-in failed. Please try again.",
 
   // ── Assessment ───────────────────────────────────────────────────────────────
   quickLevelCheck: "Quick level check",
   assessmentDesc:
     "We'll show you Mandarin characters. Try to recall the meaning, then tap the card to reveal pinyin and English. Mark Know it or Don't know honestly.",
-  takesAbout: "Takes about 1–2 minutes.",
+  takesAbout: "Should take no more than 5–10 minutes.",
   startAssessment: "Start assessment",
   beginnerSkip: "I'm a complete beginner — skip",
   tapToReveal: "tap to reveal",
@@ -334,6 +323,7 @@ const en = {
   extConnecting: "Connecting…",
   extConnectSuccess: "Connected! Highlight Chinese text on any page to try it.",
   extConnectInstallFirst: "Install the extension first, then this button will connect it.",
+  extConnectReloadHint: "Extension not detected on this page yet. If you just installed it, reload this page and try again.",
   extConnectUnreachable: "Couldn't reach the extension. Make sure it's installed and try again.",
   extConnectFailed: "Something went wrong creating a token — try again.",
   extAdvancedManual: "Advanced: manual token setup",
@@ -364,6 +354,7 @@ const en = {
   onboardingContinue: "Continue to app",
   onboardingSkipHint: "Nothing here is required to continue — finish it anytime from Profile.",
   onboardingLearnMore: "Curious what each tab does? See the Instructions page →",
+  backToSetup: "Back to setup",
 
   // ── Instructions page ─────────────────────────────────────────────────────────
   instructionsPageTitle: "Instructions",
@@ -389,6 +380,8 @@ const en = {
     "FSRS-4.5 spaced repetition on your vocabulary queue — cards resurface right as you're about to forget them.",
   instructionsTabSlangTitle: "Slang Review",
   instructionsTabSlangDesc: "A separate review track for informal/internet Mandarin, kept apart from your main HSK vocabulary.",
+  instructionsTabDailyTitle: "Daily Words",
+  instructionsTabDailyDesc: "A fresh batch of new words each day with example sentences, then a quick quiz to lock them in.",
   instructionsTabSpeakingTitle: "Speaking Practice",
   instructionsTabSpeakingDesc: "Hold to talk — record yourself speaking Mandarin and get graded by Gemini.",
   instructionsTabConversationTitle: "Conversation",
@@ -400,7 +393,7 @@ const en = {
   instructionsTabVocabTitle: "My Vocabulary",
   instructionsTabVocabDesc: "Browse, search, and manage every word you've saved.",
   instructionsTabAssessmentTitle: "Level Assessment",
-  instructionsTabAssessmentDesc: "A placement quiz that seeds your starting HSK level so review doesn't start cold. Retake it anytime.",
+  instructionsTabAssessmentDesc: "A placement quiz that seeds your starting HSK level so review doesn't start cold. Runs once, right after you sign up.",
 
   // ── Account deletion ─────────────────────────────────────────────────────────
   dangerZone: "Danger Zone",
@@ -449,24 +442,13 @@ const zh: typeof en = {
   signInToSave: "登录以保存你的进度",
   continueWithGoogle: "使用 Google 继续",
   redirecting: "跳转中…",
-  or: "或",
-  phoneNumber: "手机号码",
-  phonePlaceholder: "+86 138 0000 0000",
-  phoneHint: "请包含国家代码，如中国 +86",
-  sendCode: "发送验证码",
-  sendingCode: "发送中…",
-  verificationCode: "验证码",
-  sentTo: (phone: string) => `已发送至 ${phone}`,
-  verifyCode: "验证",
-  verifying: "验证中…",
-  useDifferentNumber: "使用其他号码",
   authFailed: "登录失败，请重试。",
 
   // ── Assessment ───────────────────────────────────────────────────────────────
   quickLevelCheck: "快速水平测试",
   assessmentDesc:
     "我们将展示汉字。请尝试回忆含义，然后点击卡片查看拼音和英文。诚实标记认识或不认识。",
-  takesAbout: "大约需要 1–2 分钟。",
+  takesAbout: "最多需要 5–10 分钟。",
   startAssessment: "开始测试",
   beginnerSkip: "我是完全初学者 — 跳过",
   tapToReveal: "点击翻开",
@@ -744,6 +726,7 @@ const zh: typeof en = {
   extConnecting: "连接中…",
   extConnectSuccess: "已连接！在任意网页划选中文即可试用。",
   extConnectInstallFirst: "请先安装扩展程序，然后此按钮即可用于连接。",
+  extConnectReloadHint: "此页面尚未检测到扩展程序。如果你刚安装完，请刷新此页面后重试。",
   extConnectUnreachable: "无法连接到扩展程序。请确认已安装后重试。",
   extConnectFailed: "创建令牌时出错——请重试。",
   extAdvancedManual: "高级：手动令牌设置",
@@ -770,6 +753,7 @@ const zh: typeof en = {
   onboardingContinue: "继续使用应用",
   onboardingSkipHint: "以上都不是必须完成才能继续的——之后随时可以在个人资料里完成。",
   onboardingLearnMore: "想了解每个标签页是做什么的？查看使用说明 →",
+  backToSetup: "返回设置向导",
 
   // ── Instructions page ─────────────────────────────────────────────────────────
   instructionsPageTitle: "使用说明",
@@ -791,6 +775,8 @@ const zh: typeof en = {
   instructionsTabReviewDesc: "对你的词汇队列进行 FSRS-4.5 间隔重复——卡片会在你快要遗忘时重新出现。",
   instructionsTabSlangTitle: "俚语复习",
   instructionsTabSlangDesc: "一个独立的复习轨道，专门用于非正式/网络中文，和你的主 HSK 词汇分开。",
+  instructionsTabDailyTitle: "每日单词",
+  instructionsTabDailyDesc: "每天学习一批新单词，附带例句，之后有一个小测验帮你巩固记忆。",
   instructionsTabSpeakingTitle: "口语练习",
   instructionsTabSpeakingDesc: "按住说话——录下你说的中文，由 Gemini 评分。",
   instructionsTabConversationTitle: "对话",
@@ -800,7 +786,7 @@ const zh: typeof en = {
   instructionsTabVocabTitle: "我的词汇",
   instructionsTabVocabDesc: "浏览、搜索并管理你保存过的所有单词。",
   instructionsTabAssessmentTitle: "水平测试",
-  instructionsTabAssessmentDesc: "一个定位测验，用来设定你的起始 HSK 等级，让复习不必从零开始。可随时重新测试。",
+  instructionsTabAssessmentDesc: "一个定位测验，用来设定你的起始 HSK 等级，让复习不必从零开始。注册后只运行一次。",
 
   // ── Account deletion ─────────────────────────────────────────────────────────
   dangerZone: "危险区域",

@@ -19,76 +19,160 @@ interface AssessmentLevel {
   words: WordEntry[];
 }
 
+// Word counts per level are proportional to how many words that HSK level
+// actually contains (data/hsk.txt: 300/200/500/1000/1600/1800 for L1-L6) —
+// round(total / 50), so a bigger level gets more questions and a more
+// reliable placement signal (e.g. HSK1's 300 words → 6 questions, HSK2's
+// smaller 200 → 4, same 1.5x ratio as the level sizes themselves).
 const LEVELS: AssessmentLevel[] = [
   {
     level: 1,
     words: [
-      { hanzi: "你好", pinyin: "nǐ hǎo", meaning: "hello" },
-      { hanzi: "谢谢", pinyin: "xièxiè", meaning: "thank you" },
-      { hanzi: "我", pinyin: "wǒ", meaning: "I / me" },
-      { hanzi: "吃", pinyin: "chī", meaning: "to eat" },
-      { hanzi: "家", pinyin: "jiā", meaning: "home / family" },
-      { hanzi: "水", pinyin: "shuǐ", meaning: "water" },
+      { hanzi: "爱", pinyin: "ài", meaning: "to love; to be fond of; to like" },
+      { hanzi: "饭店", pinyin: "fàn diàn", meaning: "restaurant" },
+      { hanzi: "看见", pinyin: "kàn jiàn", meaning: "to see; to catch sight of" },
+      { hanzi: "牛奶", pinyin: "niú nǎi", meaning: "cow's milk" },
+      { hanzi: "它", pinyin: "tā", meaning: "it" },
+      { hanzi: "雪", pinyin: "xuě", meaning: "snow" },
     ],
   },
   {
     level: 2,
     words: [
-      { hanzi: "因为", pinyin: "yīnwèi", meaning: "because" },
-      { hanzi: "事情", pinyin: "shìqing", meaning: "matter / thing" },
-      { hanzi: "已经", pinyin: "yǐjīng", meaning: "already" },
-      { hanzi: "介绍", pinyin: "jièshào", meaning: "to introduce" },
-      { hanzi: "准备", pinyin: "zhǔnbèi", meaning: "to prepare" },
-      { hanzi: "身体", pinyin: "shēntǐ", meaning: "body / health" },
+      { hanzi: "啊", pinyin: "à", meaning: "interjection or grunt of agreement" },
+      { hanzi: "过去", pinyin: "guò qù", meaning: "past; former; previous" },
+      { hanzi: "门口", pinyin: "mén kǒu", meaning: "doorway" },
+      { hanzi: "往", pinyin: "wǎng", meaning: "to go" },
     ],
   },
   {
     level: 3,
     words: [
-      { hanzi: "世界", pinyin: "shìjiè", meaning: "world" },
-      { hanzi: "环境", pinyin: "huánjìng", meaning: "environment" },
-      { hanzi: "影响", pinyin: "yǐngxiǎng", meaning: "to influence / effect" },
-      { hanzi: "认为", pinyin: "rènwéi", meaning: "to think / believe" },
-      { hanzi: "除了", pinyin: "chúle", meaning: "except for / besides" },
-      { hanzi: "突然", pinyin: "tūrán", meaning: "suddenly" },
+      { hanzi: "阿姨", pinyin: "ā yí", meaning: "maternal aunt" },
+      { hanzi: "查", pinyin: "chá", meaning: "to research" },
+      { hanzi: "冬天", pinyin: "dōng tiān", meaning: "winter" },
+      { hanzi: "刮", pinyin: "guā", meaning: "to scrape" },
+      { hanzi: "见面", pinyin: "jiàn miàn", meaning: "to meet; to see each other" },
+      { hanzi: "练习", pinyin: "liàn xí", meaning: "to practice" },
+      { hanzi: "起", pinyin: "qǐ", meaning: "to rise" },
+      { hanzi: "特别", pinyin: "tè bié", meaning: "unusual; special" },
+      { hanzi: "鞋", pinyin: "xié", meaning: "shoe" },
+      { hanzi: "语言", pinyin: "yǔ yán", meaning: "language" },
     ],
   },
   {
     level: 4,
     words: [
-      { hanzi: "尽管", pinyin: "jǐnguǎn", meaning: "despite / even though" },
-      { hanzi: "专业", pinyin: "zhuānyè", meaning: "major / specialty" },
-      { hanzi: "效果", pinyin: "xiàoguǒ", meaning: "effect / result" },
-      { hanzi: "否则", pinyin: "fǒuzé", meaning: "otherwise" },
-      { hanzi: "严重", pinyin: "yánzhòng", meaning: "serious / severe" },
-      { hanzi: "丰富", pinyin: "fēngfù", meaning: "rich / abundant" },
+      { hanzi: "爱情", pinyin: "ài qíng", meaning: "romance; love" },
+      { hanzi: "不得不", pinyin: "bù dé bù", meaning: "have no choice or option but to" },
+      { hanzi: "此外", pinyin: "cǐ wài", meaning: "besides; in addition; moreover; furthermore" },
+      { hanzi: "低温", pinyin: "dī wēn", meaning: "low temperature" },
+      { hanzi: "分数", pinyin: "fēn shù", meaning: "grade" },
+      { hanzi: "功夫", pinyin: "gōng fu", meaning: "skill" },
+      { hanzi: "护士", pinyin: "hù shi", meaning: "nurse" },
+      { hanzi: "减轻", pinyin: "jiǎn qīng", meaning: "to lighten" },
+      { hanzi: "警察", pinyin: "jǐng chá", meaning: "police; police officer" },
+      { hanzi: "来得及", pinyin: "lái de jí", meaning: "to have enough time; can do it in time; can still make it" },
+      { hanzi: "美好", pinyin: "měi hǎo", meaning: "beautiful" },
+      { hanzi: "批评", pinyin: "pī píng", meaning: "to criticize; criticism" },
+      { hanzi: "全都", pinyin: "quán dōu", meaning: "all" },
+      { hanzi: "剩", pinyin: "shèng", meaning: "to remain" },
+      { hanzi: "说明书", pinyin: "shuō míng shū", meaning: "manual" },
+      { hanzi: "痛", pinyin: "tòng", meaning: "ache" },
+      { hanzi: "线下", pinyin: "xiàn xià", meaning: "offline" },
+      { hanzi: "演唱", pinyin: "yǎn chàng", meaning: "to sing" },
+      { hanzi: "原来", pinyin: "yuán lái", meaning: "original; former" },
+      { hanzi: "职业", pinyin: "zhí yè", meaning: "occupation; profession; vocation" },
     ],
   },
   {
     level: 5,
     words: [
-      { hanzi: "彻底", pinyin: "chèdǐ", meaning: "thorough / completely" },
-      { hanzi: "专家", pinyin: "zhuānjiā", meaning: "expert" },
-      { hanzi: "个性", pinyin: "gèxìng", meaning: "personality" },
-      { hanzi: "严肃", pinyin: "yánsù", meaning: "serious / solemn" },
-      { hanzi: "丢失", pinyin: "diūshī", meaning: "to lose / misplace" },
-      { hanzi: "业务", pinyin: "yèwù", meaning: "business / professional work" },
+      { hanzi: "哎", pinyin: "āi", meaning: "hey!" },
+      { hanzi: "毕竟", pinyin: "bì jìng", meaning: "after all" },
+      { hanzi: "差别", pinyin: "chā bié", meaning: "difference; distinction; disparity" },
+      { hanzi: "成员", pinyin: "chéng yuán", meaning: "member" },
+      { hanzi: "从前", pinyin: "cóng qián", meaning: "previously" },
+      { hanzi: "当作", pinyin: "dàng zuò", meaning: "to treat as" },
+      { hanzi: "短处", pinyin: "duǎn chù", meaning: "shortcoming" },
+      { hanzi: "分类", pinyin: "fēn lèi", meaning: "to classify" },
+      { hanzi: "个性", pinyin: "gè xìng", meaning: "individuality" },
+      { hanzi: "国庆", pinyin: "Guó qìng", meaning: "National Day" },
+      { hanzi: "化学", pinyin: "huà xué", meaning: "chemistry" },
+      { hanzi: "嘉宾", pinyin: "jiā bīn", meaning: "esteemed guest" },
+      { hanzi: "结构", pinyin: "jié gòu", meaning: "structure" },
+      { hanzi: "开幕", pinyin: "kāi mù", meaning: "to open" },
+      { hanzi: "理论", pinyin: "lǐ lùn", meaning: "theory" },
+      { hanzi: "忙碌", pinyin: "máng lù", meaning: "busy; bustling" },
+      { hanzi: "念", pinyin: "niàn", meaning: "to read" },
+      { hanzi: "期间", pinyin: "qī jiān", meaning: "period of time" },
+      { hanzi: "全面", pinyin: "quán miàn", meaning: "all-around" },
+      { hanzi: "山区", pinyin: "shān qū", meaning: "mountain area" },
+      { hanzi: "胜", pinyin: "shèng", meaning: "victory" },
+      { hanzi: "手套", pinyin: "shǒu tào", meaning: "glove" },
+      { hanzi: "他人", pinyin: "tā rén", meaning: "another person; sb else; other people" },
+      { hanzi: "图画", pinyin: "tú huà", meaning: "drawing" },
+      { hanzi: "稳定", pinyin: "wěn dìng", meaning: "steady" },
+      { hanzi: "相似", pinyin: "xiāng sì", meaning: "similar; alike" },
+      { hanzi: "休闲", pinyin: "xiū xián", meaning: "leisure" },
+      { hanzi: "移", pinyin: "yí", meaning: "to move" },
+      { hanzi: "优质", pinyin: "yōu zhì", meaning: "excellent quality" },
+      { hanzi: "早晚", pinyin: "zǎo wǎn", meaning: "morning and evening" },
+      { hanzi: "直", pinyin: "zhí", meaning: "straight" },
+      { hanzi: "住宿", pinyin: "zhù sù", meaning: "to stay at" },
     ],
   },
   {
     level: 6,
     words: [
-      { hanzi: "一帆风顺", pinyin: "yīfānfēngshùn", meaning: "smooth sailing (idiom)" },
-      { hanzi: "一模一样", pinyin: "yīmúyīyàng", meaning: "exactly identical" },
-      { hanzi: "一辈子", pinyin: "yībèizi", meaning: "a lifetime" },
-      { hanzi: "不耐烦", pinyin: "bùnàifán", meaning: "impatient" },
-      { hanzi: "一流", pinyin: "yīliú", meaning: "top-notch / first-rate" },
-      { hanzi: "上进", pinyin: "shàngjìn", meaning: "to strive to improve" },
+      { hanzi: "岸", pinyin: "àn", meaning: "bank; shore; beach; coast" },
+      { hanzi: "比重", pinyin: "bǐ zhòng", meaning: "proportion" },
+      { hanzi: "材质", pinyin: "cái zhì", meaning: "texture of timber" },
+      { hanzi: "撤销", pinyin: "chè xiāo", meaning: "to repeal" },
+      { hanzi: "处处", pinyin: "chù chù", meaning: "everywhere" },
+      { hanzi: "大幅", pinyin: "dà fú", meaning: "large-format" },
+      { hanzi: "点燃", pinyin: "diǎn rán", meaning: "to ignite" },
+      { hanzi: "二氧化碳", pinyin: "èr yǎng huà tàn", meaning: "carbon dioxide CO2" },
+      { hanzi: "夫人", pinyin: "fū ren", meaning: "lady" },
+      { hanzi: "跟随", pinyin: "gēn suí", meaning: "to follow" },
+      { hanzi: "广阔", pinyin: "guǎng kuò", meaning: "wide" },
+      { hanzi: "恨", pinyin: "hèn", meaning: "to hate" },
+      { hanzi: "活力", pinyin: "huó lì", meaning: "energy" },
+      { hanzi: "坚决", pinyin: "jiān jué", meaning: "firm; resolute; determined" },
+      { hanzi: "解说", pinyin: "jiě shuō", meaning: "to explain; to give a running commentary" },
+      { hanzi: "聚集", pinyin: "jù jí", meaning: "to assemble; to gather" },
+      { hanzi: "枯燥", pinyin: "kū zào", meaning: "dry and dull; uninteresting; tedious" },
+      { hanzi: "两极", pinyin: "liǎng jí", meaning: "the two poles" },
+      { hanzi: "弥补", pinyin: "mí bǔ", meaning: "to complement" },
+      { hanzi: "内科", pinyin: "nèi kē", meaning: "internal medicine; general medicine" },
+      { hanzi: "平方米", pinyin: "píng fāng mǐ", meaning: "square meter" },
+      { hanzi: "亲密", pinyin: "qīn mì", meaning: "intimate" },
+      { hanzi: "人事", pinyin: "rén shì", meaning: "personnel" },
+      { hanzi: "上市", pinyin: "shàng shì", meaning: "to hit the market" },
+      { hanzi: "释放", pinyin: "shì fàng", meaning: "to release" },
+      { hanzi: "虽", pinyin: "suī", meaning: "although" },
+      { hanzi: "跳水", pinyin: "tiào shuǐ", meaning: "to dive" },
+      { hanzi: "娃娃", pinyin: "wá wa", meaning: "baby" },
+      { hanzi: "误", pinyin: "wù", meaning: "mistake" },
+      { hanzi: "消灭", pinyin: "xiāo miè", meaning: "to put an end to" },
+      { hanzi: "淹", pinyin: "yān", meaning: "to flood" },
+      { hanzi: "一律", pinyin: "yī lǜ", meaning: "same; identical" },
+      { hanzi: "由来", pinyin: "yóu lái", meaning: "origin" },
+      { hanzi: "遭遇", pinyin: "zāo yù", meaning: "to meet with; to encounter" },
+      { hanzi: "职位", pinyin: "zhí wèi", meaning: "position; post; job" },
+      { hanzi: "主张", pinyin: "zhǔ zhāng", meaning: "to advocate" },
     ],
   },
 ];
 
-const PASS_THRESHOLD = 3;
+// A level is "passed" once a learner knows at least 75% of its words —
+// scales with each level's (variable) word count rather than a fixed count.
+// Deliberately stricter than a bare majority: this level's words seed both
+// the derived starting HSK level *and* which words get queued for review, so
+// a coin-flip pass would place someone a level above where they're solid.
+function passThreshold(level: AssessmentLevel): number {
+  return Math.ceil(level.words.length * 0.75);
+}
 
 type Phase = "intro" | "quiz" | "saving" | "done";
 
@@ -126,10 +210,17 @@ export function AssessmentClient() {
     setResults(newResults);
     setRevealed(false);
 
-    const isLastWordInLevel = wordIndex === currentLevel.words.length - 1;
+    const threshold = passThreshold(currentLevel);
+    const wordsRemainingInLevel = currentLevel.words.length - (wordIndex + 1);
+    const passedLevel = newLevelKnew >= threshold;
+    // Once the majority is already reached, or there aren't enough words
+    // left in this level to ever reach it even with a perfect run, the rest
+    // of the level's words can't change the outcome — stop right there
+    // instead of grinding through questions that no longer matter.
+    const failedLevel = newLevelKnew + wordsRemainingInLevel < threshold;
+    const levelDecided = passedLevel || failedLevel || wordsRemainingInLevel === 0;
 
-    if (isLastWordInLevel) {
-      const passedLevel = newLevelKnew >= PASS_THRESHOLD;
+    if (levelDecided) {
       const isLastLevel = levelIndex === LEVELS.length - 1;
 
       if (!passedLevel || isLastLevel) {
@@ -171,9 +262,8 @@ export function AssessmentClient() {
 
   function deriveLevelFrom(fromResults: Result[]): number {
     for (let i = LEVELS.length - 1; i >= 0; i--) {
-      const lvl = LEVELS[i].level;
-      const knew = fromResults.filter((r) => r.hsk_level === lvl && r.knew).length;
-      if (knew >= PASS_THRESHOLD) return lvl;
+      const knew = fromResults.filter((r) => r.hsk_level === LEVELS[i].level && r.knew).length;
+      if (knew >= passThreshold(LEVELS[i])) return LEVELS[i].level;
     }
     return 1;
   }

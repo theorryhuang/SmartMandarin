@@ -9,17 +9,24 @@ import { GeminiKeySettingsClient } from "./GeminiKeySettingsClient";
 
 export const metadata = { title: "Gemini API key · SmartMandarin" };
 
-export default async function GeminiKeySettingsPage() {
+interface Props {
+  searchParams: Promise<{ from?: string }>;
+}
+
+export default async function GeminiKeySettingsPage({ searchParams }: Props) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth");
 
-  const [status, t] = await Promise.all([getGeminiKeyStatus(), getServerT()]);
+  const [status, t, { from }] = await Promise.all([getGeminiKeyStatus(), getServerT(), searchParams]);
+  // Arriving from onboarding's "get your key" link should return there, not
+  // to Profile — otherwise the back button strands the user mid-setup.
+  const fromOnboarding = from === "onboarding";
 
   return (
     <main className="min-h-screen bg-[var(--color-background)] flex flex-col items-center p-6">
       <div className="absolute left-6" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
-        <BackButton href="/profile" />
+        <BackButton href={fromOnboarding ? "/onboarding" : "/profile"} label={fromOnboarding ? t.backToSetup : undefined} />
       </div>
       <div className="absolute right-6 flex items-center gap-3" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
         <LanguageSwitcher />

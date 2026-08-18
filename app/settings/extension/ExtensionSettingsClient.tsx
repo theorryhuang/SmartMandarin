@@ -137,6 +137,18 @@ export function ExtensionSettingsClient() {
    */
   async function handleConnect() {
     if (!serverUrl) return;
+    // hasExtension means content.js has already marked *this* page — if it
+    // hasn't, sendToExtension's 10s wait is a foregone conclusion: content
+    // scripts only inject on an actual page load, so a tab opened before the
+    // extension was installed/reloaded (the common case coming from
+    // onboarding — download, install in a *different* tab, come back to
+    // this one) never got it and never will until this tab itself reloads.
+    // Skip the pointless wait and say so directly instead of the generic
+    // "couldn't reach the extension" message that follows a real timeout.
+    if (!hasExtension) {
+      setConnectStatus({ ok: false, message: t.extConnectReloadHint });
+      return;
+    }
     setConnecting(true);
     setConnectStatus(null);
     try {

@@ -37,7 +37,7 @@ export function OnboardingClient({ initialStatus }: { initialStatus: OnboardingS
         desc={t.onboardingGeminiDesc}
         done={initialStatus.hasGeminiKey}
         doneLabel={t.onboardingDone}
-        href="/settings/gemini-key"
+        href="/settings/gemini-key?from=onboarding"
         cta={t.onboardingGeminiCta}
         badgeLabel={t.onboardingRequired}
         required
@@ -49,7 +49,7 @@ export function OnboardingClient({ initialStatus }: { initialStatus: OnboardingS
         desc={t.onboardingExtensionDesc}
         done={initialStatus.hasExtensionToken}
         doneLabel={t.onboardingDone}
-        href="/settings/extension"
+        href="/settings/extension?from=onboarding"
         cta={t.onboardingExtensionCta}
         badgeLabel={t.onboardingOptional}
       />
@@ -60,7 +60,7 @@ export function OnboardingClient({ initialStatus }: { initialStatus: OnboardingS
         desc={t.onboardingElevenLabsDesc}
         done={initialStatus.hasElevenLabsKey}
         doneLabel={t.onboardingDone}
-        href="/settings/elevenlabs-key"
+        href="/settings/elevenlabs-key?from=onboarding"
         cta={t.onboardingElevenLabsCta}
         badgeLabel={t.onboardingRequired}
         required
