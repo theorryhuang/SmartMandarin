@@ -39,6 +39,17 @@ export interface DefineWordResult {
   source?: "saved" | "cedict" | "slang";
   senses?: WordSense[];
   already_saved?: boolean;
+  /**
+   * Every currently-saved row for this exact hanzi, straight from the DB at
+   * lookup time — regardless of which branch below ends up answering the
+   * request. Exists so a caller with no live masteryMap of its own (the
+   * browser extension: see browser-extension/content.js's isSaved) can still
+   * show accurate +/- state without a second, separately-cached fetch. Only
+   * populated when `userId` is given; omitted (not just empty) when it
+   * isn't, so callers can tell "not logged in" apart from "logged in, saved
+   * nothing".
+   */
+  saved_senses?: { id: string; pinyin: string; meaning: string; hsk_level: number | null }[];
   parts?: WordPart[];
   error?: string;
 }
@@ -160,17 +171,27 @@ export async function defineWord({
   hanzi: string;
   slangMode?: boolean;
 }): Promise<DefineWordResult> {
+  // Fetched once up front and attached to *every* return path below (via the
+  // `result` variable, not repeated per-branch) — not just the single-row
+  // shortcut's own case. A caller with no live masteryMap of its own (the
+  // extension) previously had no way to know a word was saved unless it hit
+  // that exact shortcut; anything else (multiple saved senses, or a fresh
+  // CEDICT/slang/decomposed result) silently omitted saved state entirely.
+  let savedRows: { id: string; pinyin: string; meaning: string; hsk_level: number | null }[] = [];
   if (userId) {
-    // A hanzi can now have multiple saved senses (行 xíng vs háng) — only
-    // short-circuit here when there's exactly one, unambiguous saved row.
-    // Multi-sense words fall through to the normal CEDICT path below; the
-    // client merges in every saved sense from its own masteryMap anyway.
     const { data: existingRows } = await supabase
       .from("vocabulary_mastery")
-      .select("pinyin, meaning, hsk_level")
+      .select("id, pinyin, meaning, hsk_level")
       .eq("user_id", userId)
       .eq("hanzi", hanzi);
-    const existing = existingRows?.length === 1 ? existingRows[0] : null;
+    savedRows = existingRows ?? [];
+
+    // A hanzi can have multiple saved senses (行 xíng vs háng) — only
+    // short-circuit here when there's exactly one, unambiguous saved row.
+    // Multi-sense words fall through to the normal CEDICT path below; the
+    // app's own client merges in every saved sense from its own masteryMap
+    // anyway, and saved_senses below covers the extension.
+    const existing = savedRows.length === 1 ? savedRows[0] : null;
     if (existing?.meaning) {
       return {
         pinyin: existing.pinyin ?? "",
@@ -178,10 +199,20 @@ export async function defineWord({
         hsk_level: existing.hsk_level ?? null,
         source: "saved",
         already_saved: true,
+        saved_senses: savedRows,
       };
     }
   }
 
+  const result = await resolveDefinition(supabase, hanzi, slangMode);
+  return userId ? { ...result, saved_senses: savedRows } : result;
+}
+
+async function resolveDefinition(
+  supabase: SupabaseClient<Database>,
+  hanzi: string,
+  slangMode?: boolean
+): Promise<DefineWordResult> {
   if (slangMode) {
     const slangResult = await slangBankLookup(supabase, hanzi);
     if (slangResult) return slangResult;

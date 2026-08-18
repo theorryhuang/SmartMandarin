@@ -187,13 +187,24 @@
     window.open(`${config.serverUrl.replace(/\/+$/, "")}/vocab/word/${encodeURIComponent(word)}`, "_blank", "noopener");
   }
 
-  function isSaved(word, pinyin, meaning) {
+  // `freshSenses`, when given, is result.saved_senses from *this* lookup's
+  // API response — a live DB read at lookup time for exactly this hanzi, so
+  // it's trusted outright (a miss there means genuinely not saved, not
+  // "unknown"). Without it, falls back to config.savedWords, the bulk
+  // snapshot cached at connect/refresh time — good enough for decomposed
+  // parts (each their own hanzi, not covered by freshSenses) but easily
+  // stale for the queried word itself: it only updates on an explicit
+  // "Refresh saved words" click or a toggle made *through the extension*,
+  // so a word added from the app's own word/search page kept showing "+"
+  // here forever even though it was already saved.
+  function isSaved(word, pinyin, meaning, freshSenses) {
+    if (freshSenses) return freshSenses.find((r) => r.pinyin === pinyin && r.meaning === meaning) || null;
     const rows = config.savedWords[word] || [];
     return rows.find((r) => r.pinyin === pinyin && r.meaning === meaning) || null;
   }
 
-  function toggleQueue(row, btn) {
-    const saved = isSaved(row.word, row.pinyin, row.meaning);
+  function toggleQueue(row, btn, freshSenses) {
+    const saved = isSaved(row.word, row.pinyin, row.meaning, freshSenses);
     const action = saved ? "remove" : "add";
     btn.disabled = true;
     chrome.runtime.sendMessage(
@@ -211,7 +222,9 @@
       (res) => {
         btn.disabled = false;
         if (!res?.ok) return;
-        // Keep local config.savedWords in sync so re-opening reflects it immediately.
+        // Keep local config.savedWords in sync so decomposed-part rows
+        // (which always rely on this bulk cache — see isSaved) reflect it
+        // immediately without a manual refresh.
         const rows = config.savedWords[row.word] || [];
         if (action === "add") {
           rows.push({ id: "", pinyin: row.pinyin, meaning: row.meaning, hsk_level: row.hsk_level ?? null });
@@ -220,6 +233,10 @@
           if (idx !== -1) rows.splice(idx, 1);
         }
         config.savedWords[row.word] = rows;
+        // Drops the cached lookup result for this hanzi too, so if it's
+        // highlighted again this session, it re-fetches instead of reusing
+        // the now-stale saved_senses from before this toggle.
+        cache.delete(row.word);
         btn.textContent = action === "add" ? "–" : "+";
         btn.className = `queue-btn ${action === "add" ? "remove" : "add"}`;
         btn.title = action === "add" ? "Remove from review" : "Queue for review";
@@ -228,7 +245,7 @@
   }
 
   // rows: [{ word, pinyin, meaning, hsk_level, isPart }]
-  function renderRows(rows) {
+  function renderRows(rows, freshSenses) {
     const wrap = document.createElement("div");
     wrap.className = "rows";
     for (const row of rows) {
@@ -267,14 +284,18 @@
       rowEl.appendChild(textEl);
 
       if (config.connected && (row.pinyin || row.meaning)) {
-        const saved = isSaved(row.word, row.pinyin, row.meaning);
+        // A decomposed part is its own separate hanzi — freshSenses only
+        // covers the word actually looked up, so parts fall back to the
+        // bulk cache (isSaved does this whenever passed undefined).
+        const rowFreshSenses = row.isPart ? undefined : freshSenses;
+        const saved = isSaved(row.word, row.pinyin, row.meaning, rowFreshSenses);
         const btn = document.createElement("button");
         btn.className = `queue-btn ${saved ? "remove" : "add"}`;
         btn.textContent = saved ? "–" : "+";
         btn.title = saved ? "Remove from review" : "Queue for review";
         btn.addEventListener("click", (e) => {
           e.stopPropagation();
-          toggleQueue(row, btn);
+          toggleQueue(row, btn, rowFreshSenses);
         });
         rowEl.appendChild(btn);
       }
@@ -308,13 +329,18 @@
           ? p.senses.map((s) => ({ word: p.word, pinyin: s.pinyin, meaning: s.meaning, hsk_level: s.hsk_level, isPart: true }))
           : [{ word: p.word, pinyin: p.pinyin, meaning: p.meaning, hsk_level: p.hsk_level, isPart: true }]
       );
-      cardEl.appendChild(renderRows(rows));
+      cardEl.appendChild(renderRows(rows, result.saved_senses));
     } else if (result.senses && result.senses.length > 0) {
       cardEl.appendChild(
-        renderRows(result.senses.map((s) => ({ word, pinyin: s.pinyin, meaning: s.meaning, hsk_level: s.hsk_level })))
+        renderRows(
+          result.senses.map((s) => ({ word, pinyin: s.pinyin, meaning: s.meaning, hsk_level: s.hsk_level })),
+          result.saved_senses
+        )
       );
     } else if (result.pinyin || result.meaning) {
-      cardEl.appendChild(renderRows([{ word, pinyin: result.pinyin, meaning: result.meaning, hsk_level: result.hsk_level }]));
+      cardEl.appendChild(
+        renderRows([{ word, pinyin: result.pinyin, meaning: result.meaning, hsk_level: result.hsk_level }], result.saved_senses)
+      );
     } else {
       const e = document.createElement("div");
       e.className = "empty";
