@@ -125,8 +125,15 @@ export interface DailyLearningBatch {
   words: DailyLearningWord[];
 }
 
-/** A Gemini-generated example sentence, cached per daily_learning_words row */
+/**
+ * A Gemini-generated example sentence, cached per daily_learning_words row.
+ * One per distinct use case of the word — a simple word might have just
+ * one, a polysemous one (尽管 as "despite" vs. "go ahead and…") several —
+ * rather than a fixed count regardless of how many senses actually exist.
+ */
 export interface WordExample {
+  /** Short label for which sense/usage this sentence demonstrates */
+  useCase: string;
   sentence: string;
   pinyin: string;
   translation: string;

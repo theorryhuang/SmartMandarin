@@ -10,12 +10,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "No Gemini key available" }, { status: 500 });
   }
 
-  const { hanzi, pinyin, meaning, sentence } = await req.json().catch(() => ({}));
+  const { hanzi, pinyin, meaning, sentence, useCase } = await req.json().catch(() => ({}));
   if (!hanzi || !sentence || !String(sentence).trim()) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
 
-  const prompt = `You are a Mandarin teacher grading a student's practice sentence. The student is specifically practicing the word "${hanzi}"${pinyin ? ` (${pinyin})` : ""}${meaning ? `, meaning "${meaning}"` : ""} — the whole point of the exercise is for them to learn to use THIS word correctly.
+  // useCase narrows grading to one specific sense of a polysemous word
+  // (see getWordExamples() in app/actions/dailyLearning.ts) — a word like
+  // 尽管 has a "despite/although" sense and a separate imperative "go ahead
+  // and…" sense, and a sentence correct in one sense but not the one being
+  // tested should fail this check, not pass on a technicality.
+  const senseClause = useCase
+    ? ` The student is specifically being tested on this use case/sense of the word: "${useCase}" — the sentence must demonstrate *that* sense, not just any correct use of "${hanzi}"; a grammatically fine sentence that uses a different sense of the word should fail uses_word.`
+    : "";
+
+  const prompt = `You are a Mandarin teacher grading a student's practice sentence. The student is specifically practicing the word "${hanzi}"${pinyin ? ` (${pinyin})` : ""}${meaning ? `, meaning "${meaning}"` : ""} — the whole point of the exercise is for them to learn to use THIS word correctly.${senseClause}
 
 The student wrote this sentence: "${sentence}"
 
@@ -24,7 +33,7 @@ Evaluate it:
 - uses_word: does it actually use "${hanzi}" with its correct meaning/usage (not just present as characters, but semantically correct)? If a different, similar word would actually be the better/correct choice here, that means the student misused "${hanzi}" — set this false and explain the mix-up in feedback (e.g. confusing it with that other word).
 - natural: would a native speaker phrase it this way?
 
-For "corrected", rewrite the student's sentence so it is natural AND still uses "${hanzi}" — keep their original idea/topic, just fix the grammar or word choice around it so "${hanzi}" itself is used correctly. Never substitute "${hanzi}" for a different word, even if that other word would fit better; the corrected sentence's job is to demonstrate "${hanzi}" used correctly, not to produce the most natural sentence possible. Set "corrected" to null only if the student's sentence already does this well.
+For "corrected", rewrite the student's sentence so it is natural AND still uses "${hanzi}"${useCase ? ` in the "${useCase}" sense` : ""} — keep their original idea/topic, just fix the grammar or word choice around it so "${hanzi}" itself is used correctly. Never substitute "${hanzi}" for a different word, even if that other word would fit better; the corrected sentence's job is to demonstrate "${hanzi}" used correctly, not to produce the most natural sentence possible. Set "corrected" to null only if the student's sentence already does this well.
 
 Critical: "corrected" and "feedback" must agree. If "feedback" names a specific problem (wrong word, awkward phrasing, wrong structure), "corrected" MUST actually fix that exact problem — not just tidy up unrelated punctuation/spacing while leaving the named issue untouched. If natural is false or valid is false, "corrected" must differ from the original in the way "feedback" describes; it cannot be null or a no-op change in that case.
 

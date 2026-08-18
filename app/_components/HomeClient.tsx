@@ -264,31 +264,27 @@ export function HomeClient({ dueCount, dailyQuizDueCount, streak, hasAnyWords, c
             which is what was leaving so much unused width on desktop. */}
         <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
           <div className="lg:sticky lg:top-8">
-            {/* Invisible, same markup as the "✨ 学习模式" header on the right
-                — not a real label, just a same-height spacer so this
-                column's first card starts level with the right column's
-                first card instead of sitting a header's-height higher. */}
-            <div aria-hidden className="hidden lg:flex invisible items-center gap-1.5 mb-3 px-1">
-              <span className="text-base">✨</span>
-              <h2 className="font-semibold text-sm">&nbsp;</h2>
+            {/* Same header treatment as "✨ Learning Modes" on the right —
+                real content, not a spacer, so both columns' first cards
+                line up because they're structurally the same shape, not
+                because of a hidden filler element. */}
+            <div className="flex items-center gap-1.5 mb-3 px-1">
+              <span className="text-base">📈</span>
+              <h2 className="font-semibold text-sm text-[var(--color-text-primary)]">{t.yourProgress}</h2>
             </div>
 
-            {/* ── Progress: current level + streak calendar, nothing else ── */}
-            <div className="bg-[var(--color-surface)] rounded-2xl p-3 shadow-sm border border-[var(--color-border)] mb-4 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                  <TrendingUp size={16} className="text-blue-500" />
-                </div>
-                <div>
-                  <h2 className="font-semibold text-sm text-[var(--color-text-primary)]">{t.yourProgress}</h2>
-                  <p className="text-[11px] text-[var(--color-text-muted)]">{t.trackJourney}</p>
-                </div>
+            {/* ── Progress: current level, nothing else — the section title
+                above already says "Your Progress", so the card itself
+                doesn't restate it. ── */}
+            <div className="bg-[var(--color-surface)] rounded-2xl p-3 shadow-sm border border-[var(--color-border)] mb-4 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                <TrendingUp size={16} className="text-blue-500" />
               </div>
-              <div className="text-right flex-shrink-0">
-                <div className="text-xl font-bold text-[var(--color-text-primary)]">
+              <div className="flex-1">
+                <div className="text-2xl font-bold text-[var(--color-text-primary)]">
                   {currentHSK != null ? `HSK ${(currentHSK + currentLevelMasteryPct / 100).toFixed(1)}` : "–"}
                 </div>
-                <div className="text-[10px] text-[var(--color-text-muted)]">{t.currentHSK}</div>
+                <div className="text-[11px] text-[var(--color-text-muted)]">{t.currentHSK}</div>
               </div>
             </div>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { submitDailyQuizAnswer } from "@/app/actions/dailyLearning";
+import { submitDailyQuizAnswer, getWordExamples } from "@/app/actions/dailyLearning";
 import type { DailyLearningWord, FSRSRating } from "@/lib/types";
 import { useLanguage } from "@/app/_components/LanguageContext";
 
@@ -12,6 +12,12 @@ import { useLanguage } from "@/app/_components/LanguageContext";
  * SentenceCard: that one drives the FSRS review queue directly and offers
  * back/restart/reshuffle; this quiz is a one-way pass over a fixed list
  * reporting a verdict per word, not a browsable review session.
+ *
+ * Polysemous words (see getWordExamples()'s use-case list) are tested one
+ * sense at a time — a simple word with one sense just gets the plain
+ * "write a sentence" prompt as before; a word like 尽管 that has a
+ * concessive sense and a separate imperative sense gets quizzed on each in
+ * turn before a single overall rating is given for the word.
  */
 
 interface GradeResult {
@@ -31,6 +37,8 @@ interface Props {
 export function DailyQuizCard({ entry, currentIndex, totalCards, onDone }: Props) {
   const { t } = useLanguage();
   const { word } = entry;
+  const [useCases, setUseCases] = useState<string[] | null>(null);
+  const [useCaseIndex, setUseCaseIndex] = useState(0);
   const [sentence, setSentence] = useState("");
   const [grading, setGrading] = useState(false);
   const [result, setResult] = useState<GradeResult | null>(null);
@@ -39,11 +47,26 @@ export function DailyQuizCard({ entry, currentIndex, totalCards, onDone }: Props
   const [flipped, setFlipped] = useState(false);
 
   useEffect(() => {
+    setUseCases(null);
+    setUseCaseIndex(0);
     setSentence("");
     setResult(null);
     setGradeError(null);
     setFlipped(false);
+
+    getWordExamples(entry.dailyWordId)
+      .then((examples) => {
+        const labels = examples.map((ex) => ex.useCase).filter(Boolean);
+        setUseCases(labels.length > 0 ? labels : [""]);
+      })
+      // A hiccup generating/fetching use cases shouldn't block the quiz —
+      // fall back to a single generic attempt, same as before this feature.
+      .catch(() => setUseCases([""]));
   }, [entry.dailyWordId]);
+
+  const isMultiSense = (useCases?.length ?? 0) > 1;
+  const currentUseCase = useCases?.[useCaseIndex] ?? "";
+  const isLastUseCase = useCases !== null && useCaseIndex === useCases.length - 1;
 
   function checkSentence() {
     if (!sentence.trim() || grading) return;
@@ -52,7 +75,13 @@ export function DailyQuizCard({ entry, currentIndex, totalCards, onDone }: Props
     fetch("/api/grade-sentence", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ hanzi: word.hanzi, pinyin: word.pinyin, meaning: word.meaning, sentence }),
+      body: JSON.stringify({
+        hanzi: word.hanzi,
+        pinyin: word.pinyin,
+        meaning: word.meaning,
+        sentence,
+        useCase: isMultiSense ? currentUseCase : undefined,
+      }),
     })
       .then(async (r) => {
         const data = await r.json();
@@ -70,6 +99,13 @@ export function DailyQuizCard({ entry, currentIndex, totalCards, onDone }: Props
       })
       .catch(() => setGradeError(t.sentenceCheckFailed))
       .finally(() => setGrading(false));
+  }
+
+  function nextUseCase() {
+    setUseCaseIndex((i) => i + 1);
+    setSentence("");
+    setResult(null);
+    setGradeError(null);
   }
 
   function rate(rating: FSRSRating) {
@@ -93,6 +129,9 @@ export function DailyQuizCard({ entry, currentIndex, totalCards, onDone }: Props
       <div className="w-full">
         <div className="flex justify-between mb-1.5 text-xs text-[var(--color-text-muted)]">
           <span>{t.dailyQuizProgress(currentIndex + 1, totalCards)}</span>
+          {isMultiSense && (
+            <span>{t.dailyQuizUseCaseProgress(useCaseIndex + 1, useCases!.length)}</span>
+          )}
         </div>
         <div className="h-1.5 rounded-full bg-[var(--color-border)]">
           <div
@@ -140,32 +179,36 @@ export function DailyQuizCard({ entry, currentIndex, totalCards, onDone }: Props
         </button>
       )}
 
-      <div className="w-full flex flex-col gap-2">
-        <label className="text-sm text-[var(--color-text-secondary)]">
-          {t.sentencePrompt(word.hanzi)}
-        </label>
-        <textarea
-          value={sentence}
-          onChange={(e) => {
-            setSentence(e.target.value);
-            setResult(null);
-          }}
-          placeholder={t.sentencePlaceholder}
-          disabled={grading}
-          rows={3}
-          className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-lg resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-60"
-        />
-        {!result && (
-          <button
-            onClick={checkSentence}
-            disabled={!sentence.trim() || grading}
-            className="w-full rounded-xl bg-amber-600 hover:bg-amber-700 text-white px-4 py-3 text-sm font-medium transition-colors disabled:opacity-40"
-          >
-            {grading ? t.checkingSentence : t.checkSentence}
-          </button>
-        )}
-        {gradeError && <p className="text-xs text-red-500">{gradeError}</p>}
-      </div>
+      {useCases === null ? (
+        <p className="text-xs text-[var(--color-text-muted)] italic animate-pulse">{t.dailyQuizLoadingUseCases}</p>
+      ) : (
+        <div className="w-full flex flex-col gap-2">
+          <label className="text-sm text-[var(--color-text-secondary)]">
+            {isMultiSense ? t.sentencePromptUseCase(word.hanzi, currentUseCase) : t.sentencePrompt(word.hanzi)}
+          </label>
+          <textarea
+            value={sentence}
+            onChange={(e) => {
+              setSentence(e.target.value);
+              setResult(null);
+            }}
+            placeholder={t.sentencePlaceholder}
+            disabled={grading}
+            rows={3}
+            className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-lg resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-60"
+          />
+          {!result && (
+            <button
+              onClick={checkSentence}
+              disabled={!sentence.trim() || grading}
+              className="w-full rounded-xl bg-amber-600 hover:bg-amber-700 text-white px-4 py-3 text-sm font-medium transition-colors disabled:opacity-40"
+            >
+              {grading ? t.checkingSentence : t.checkSentence}
+            </button>
+          )}
+          {gradeError && <p className="text-xs text-red-500">{gradeError}</p>}
+        </div>
+      )}
 
       {result && (
         <div
@@ -189,7 +232,16 @@ export function DailyQuizCard({ entry, currentIndex, totalCards, onDone }: Props
         </div>
       )}
 
-      {result ? (
+      {result && !isLastUseCase && (
+        <button
+          onClick={nextUseCase}
+          className="w-full rounded-xl bg-amber-600 hover:bg-amber-700 text-white px-4 py-3 text-sm font-medium transition-colors"
+        >
+          {t.dailyQuizNextUseCase}
+        </button>
+      )}
+
+      {result && isLastUseCase ? (
         <div className="w-full grid grid-cols-4 gap-2">
           {RATINGS.map(({ rating, label, color }) => (
             <button

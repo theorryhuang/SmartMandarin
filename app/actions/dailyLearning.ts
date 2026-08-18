@@ -413,50 +413,18 @@ export async function addToDailyBatch(count: number, clientDate?: string): Promi
   return { batchId: batchRow.id, batchDate: batchRow.batch_date, targetCount: newTargetCount, words };
 }
 
-// ─── Example sentences (cached per daily word, not saved to vocab) ────────────
+// ─── Example sentences / use cases (cached per daily word, not saved to vocab) ─
+
+const MAX_USE_CASES = 5;
 
 /**
- * Returns example sentences for a word in a daily batch, generating them
- * with Gemini on first request and caching the result on the
- * daily_learning_words row so re-opening it later the same day is instant
- * and doesn't re-spend a Gemini call. Deliberately not written back to
- * vocabulary_mastery — this is scratch reference material for today's
- * learning session, not part of the saved vocab list.
+ * One Gemini call, JSON-parsed. Shared by the two request shapes below
+ * (identify-use-cases, and re-request-one-use-case) so the fetch/abort/
+ * parse boilerplate isn't duplicated between them.
  */
-export async function getWordExamples(dailyWordId: string): Promise<WordExample[]> {
-  const supabase = await createClient();
-  const userId = await getUserId(supabase);
-  if (!userId) throw new Error("Not signed in");
-
-  const { data: row, error } = await supabase
-    .from("daily_learning_words")
-    .select("example_sentences, vocabulary_mastery(hanzi, pinyin, meaning)")
-    .eq("id", dailyWordId)
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!row) throw new Error("NOT_FOUND");
-
-  if (row.example_sentences) {
-    return row.example_sentences as unknown as WordExample[];
-  }
-
-  const word = row.vocabulary_mastery as unknown as { hanzi: string; pinyin: string; meaning: string };
-  const { apiKey } = await resolveGeminiKey();
-
-  const prompt = `Generate 4 short, natural Mandarin example sentences that each use the word "${word.hanzi}"${
-    word.pinyin ? ` (${word.pinyin})` : ""
-  }${
-    word.meaning ? `, meaning "${word.meaning}"` : ""
-  } — vary the context/collocation across the 4 so they're not near-duplicates of each other. Keep each sentence simple enough for a learner (roughly HSK 1-4 vocabulary aside from the target word itself).
-
-Respond with ONLY valid JSON (no markdown, no extra text): an array of exactly 4 objects:
-[
-  { "sentence": "...", "pinyin": "...", "translation": "..." }
-]`;
-
-  // 30s, not grade-sentence's 20s — 4 sentences + pinyin + translation each
-  // is a bigger ask than that route's single pass/fail verdict.
+async function callGeminiJSON(apiKey: string, prompt: string): Promise<unknown> {
+  // 30s, not grade-sentence's 20s — several sentences + pinyin +
+  // translation each is a bigger ask than that route's single verdict.
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30_000);
   let res: Response;
@@ -487,12 +455,105 @@ Respond with ONLY valid JSON (no markdown, no extra text): an array of exactly 4
   const modelStep = data.steps?.find((s: { type: string }) => s.type === "model_output");
   const raw = modelStep?.content?.filter((c: { type: string }) => c.type === "text").map((c: { text: string }) => c.text).join("").trim() ?? "";
 
-  let examples: WordExample[];
   try {
-    examples = JSON.parse(raw);
+    return JSON.parse(raw);
   } catch {
     throw new Error("Model did not return valid JSON");
   }
+}
+
+/**
+ * Returns one example sentence per distinct use case of a word in a daily
+ * batch — not a fixed count. Most words have exactly one sense and get one
+ * sentence; a genuinely polysemous word like 尽管 (concessive "despite" vs.
+ * imperative "go ahead and…") gets one per sense, so the next day's quiz
+ * (see DailyQuizCard) can test each of them instead of only ever probing
+ * whichever single sense the model happened to pick.
+ *
+ * Generated with Gemini on first request and cached on the
+ * daily_learning_words row so re-opening it later doesn't re-spend a call.
+ * Deliberately not written back to vocabulary_mastery — this is scratch
+ * reference material for the daily-learning flow, not part of the saved
+ * vocab list.
+ */
+export async function getWordExamples(dailyWordId: string): Promise<WordExample[]> {
+  const supabase = await createClient();
+  const userId = await getUserId(supabase);
+  if (!userId) throw new Error("Not signed in");
+
+  const { data: row, error } = await supabase
+    .from("daily_learning_words")
+    .select("example_sentences, vocabulary_mastery(hanzi, pinyin, meaning)")
+    .eq("id", dailyWordId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!row) throw new Error("NOT_FOUND");
+
+  if (row.example_sentences) {
+    return row.example_sentences as unknown as WordExample[];
+  }
+
+  const word = row.vocabulary_mastery as unknown as { hanzi: string; pinyin: string; meaning: string };
+  const { apiKey } = await resolveGeminiKey();
+
+  // Gemini generating a sentence that quietly swaps in a synonym (e.g. 虽然
+  // instead of the requested 尽管) is a real, observed failure mode — every
+  // sentence below gets a plain substring check before being trusted, with
+  // a per-use-case retry for anything that fails it.
+  const wordDesc = `"${word.hanzi}"${word.pinyin ? ` (${word.pinyin})` : ""}${word.meaning ? `, meaning "${word.meaning}"` : ""}`;
+  const HANZI_RULE = `Critical: the sentence must contain the exact characters "${word.hanzi}" verbatim. Never substitute a synonym or near-synonym (e.g. do not swap 尽管 for 虽然, or 立刻 for 马上) even if it reads more naturally — a sentence missing those exact characters is wrong.`;
+
+  async function requestUseCases(): Promise<WordExample[]> {
+    const prompt = `Identify the distinct common use cases (senses/usages) of the Mandarin word ${wordDesc} — most words genuinely have just one; only split out more (up to ${MAX_USE_CASES}) for words that are actually polysemous in everyday use (e.g. 尽管 as a concessive "despite/although" vs. its separate imperative "go ahead and — without hesitation" sense). Don't invent minor stylistic variants of the same sense as if they were distinct.
+
+For each use case, give a short label (a few words, e.g. "despite / although (concessive)") and one short, natural example sentence using it. Keep sentences simple enough for a learner (roughly HSK 1-4 vocabulary aside from the target word itself), and vary context across use cases so they're not near-duplicates.
+
+${HANZI_RULE}
+
+Respond with ONLY valid JSON (no markdown, no extra text): an array of one object per use case:
+[
+  { "useCase": "...", "sentence": "...", "pinyin": "...", "translation": "..." }
+]`;
+    const parsed = await callGeminiJSON(apiKey, prompt);
+    return Array.isArray(parsed) ? (parsed as WordExample[]).slice(0, MAX_USE_CASES) : [];
+  }
+
+  async function requestForUseCase(useCase: string): Promise<WordExample | null> {
+    const prompt = `Give one short, natural Mandarin example sentence using ${wordDesc}, specifically demonstrating this use case/sense: "${useCase}". Keep it simple enough for a learner (roughly HSK 1-4 vocabulary aside from the target word itself).
+
+${HANZI_RULE}
+
+Respond with ONLY valid JSON (no markdown, no extra text): a single object:
+{ "sentence": "...", "pinyin": "...", "translation": "..." }`;
+    const parsed = await callGeminiJSON(apiKey, prompt);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const ex = parsed as Omit<WordExample, "useCase">;
+    return ex.sentence ? { useCase, ...ex } : null;
+  }
+
+  const initial = await requestUseCases();
+  const valid: WordExample[] = [];
+  const needsRetry: string[] = [];
+  for (const ex of initial) {
+    if (ex.useCase && ex.sentence?.includes(word.hanzi)) {
+      valid.push(ex);
+    } else if (ex.useCase) {
+      needsRetry.push(ex.useCase);
+    }
+  }
+  // One retry pass per use case that failed the hanzi check the first
+  // time — bounded (never more calls than the model's own use-case count),
+  // rather than an open-ended loop.
+  for (const useCase of needsRetry) {
+    const retried = await requestForUseCase(useCase);
+    if (retried?.sentence.includes(word.hanzi)) valid.push(retried);
+  }
+
+  if (valid.length === 0) {
+    throw new Error("Model couldn't produce a sentence actually using this word — try again.");
+  }
+  const examples = valid;
 
   await supabase
     .from("daily_learning_words")

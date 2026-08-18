@@ -139,6 +139,12 @@ function WordTile({ entry }: { entry: DailyLearningWord }) {
           {examplesError && <p className="text-xs text-red-500 py-1">{examplesError}</p>}
           {examples?.map((ex, i) => (
             <div key={i} className="text-sm pt-1.5 first:pt-2">
+              {/* Only worth labeling when there's more than one sense to
+                  tell apart — a single-sense word's one example doesn't
+                  need a "which use case is this" caption. */}
+              {examples.length > 1 && ex.useCase && (
+                <div className="text-[10px] font-medium text-amber-700 uppercase tracking-wide mb-0.5">{ex.useCase}</div>
+              )}
               <div className="text-[var(--color-text-primary)]">{ex.sentence}</div>
               <div className="text-xs text-[var(--color-text-muted)] mt-0.5">{ex.pinyin}</div>
               <div className="text-xs text-[var(--color-text-secondary)]">{ex.translation}</div>
