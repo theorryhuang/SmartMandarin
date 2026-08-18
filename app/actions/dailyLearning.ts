@@ -484,6 +484,27 @@ Respond with ONLY valid JSON (no markdown, no extra text): an array of exactly 4
   return examples;
 }
 
+// ─── Manual re-queue ────────────────────────────────────────────────────────────
+
+/**
+ * Manually clears daily_learned on a word so it can be picked up by the
+ * daily program again — the escape hatch for "I passed this a while ago
+ * but I've genuinely forgotten it since" without waiting to fail it in
+ * /review first (see the auto-reset on rating===1 in submitReview).
+ */
+export async function resetDailyLearned(wordId: string): Promise<void> {
+  const supabase = await createClient();
+  const userId = await getUserId(supabase);
+  if (!userId) throw new Error("Not signed in");
+
+  const { error } = await supabase
+    .from("vocabulary_mastery")
+    .update({ daily_learned: false })
+    .eq("id", wordId)
+    .eq("user_id", userId);
+  if (error) throw new Error(error.message);
+}
+
 // ─── Home page badge ────────────────────────────────────────────────────────────
 
 export async function getDailyQuizPendingCount(): Promise<number> {

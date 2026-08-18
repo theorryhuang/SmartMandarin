@@ -35,6 +35,14 @@ export interface VocabularyMastery {
    * understand. Causes the word to be injected into the very next AI turn.
    */
   flagged_for_immediate_use: boolean;
+  /**
+   * True once this word has passed the daily-learning quiz (see
+   * app/actions/dailyLearning.ts) — excludes it from future daily batches.
+   * Reset to false automatically on a forgotten ("Again") FSRS review, or
+   * manually from the word's detail page, so a word you've since forgotten
+   * can resurface in the daily program instead of staying excluded forever.
+   */
+  daily_learned: boolean;
   created_at: string;
   updated_at: string;
 }

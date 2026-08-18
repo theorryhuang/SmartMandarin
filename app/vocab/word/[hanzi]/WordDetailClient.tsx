@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, Plus, Check, Trash2, Search } from "lucide-react";
+import { ChevronLeft, Plus, Check, Trash2, Search, RotateCcw } from "lucide-react";
 import type { DictResult } from "@/lib/cedict";
 import type { VocabularyMastery } from "@/lib/types";
 import { hskColor } from "@/lib/hskColor";
 import { deleteWord, logMistake } from "@/app/actions/vocabulary";
+import { resetDailyLearned } from "@/app/actions/dailyLearning";
 import { useLanguage } from "@/app/_components/LanguageContext";
 import { HomeButton } from "@/app/_components/HomeButton";
 
@@ -62,6 +63,7 @@ export function WordDetailClient({
     () => new Map(savedWords.map((w) => [senseKey(w), w]))
   );
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [busyDailyKey, setBusyDailyKey] = useState<string | null>(null);
   // Ephemeral, per-sense "just added" state for breakdown parts — these are
   // different words than `hanzi` itself, so there's no pre-fetched saved-state
   // for them (same lightweight pattern as the search page's addedSet).
@@ -105,6 +107,7 @@ export function WordDetailClient({
           review_count: 0,
           is_slang: false,
           flagged_for_immediate_use: true,
+          daily_learned: false,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         });
@@ -128,6 +131,24 @@ export function WordDetailClient({
       setAddedBreakdown((prev) => new Set(prev).add(key));
     } finally {
       setBusyBreakdownKey(null);
+    }
+  }
+
+  async function handleResetDaily(entry: Entry) {
+    const key = senseKey(entry);
+    const row = saved.get(key);
+    if (!row?.id) return;
+    setBusyDailyKey(key);
+    try {
+      await resetDailyLearned(row.id);
+      setSaved((prev) => {
+        const next = new Map(prev);
+        const current = next.get(key);
+        if (current) next.set(key, { ...current, daily_learned: false });
+        return next;
+      });
+    } finally {
+      setBusyDailyKey(null);
     }
   }
 
@@ -286,6 +307,17 @@ export function WordDetailClient({
                         <span>{t.nextReviewLabel}: {formatDate(row.next_review)}</span>
                       )}
                     </div>
+                  )}
+
+                  {row?.daily_learned && (
+                    <button
+                      onClick={() => handleResetDaily(entry)}
+                      disabled={busyDailyKey === key}
+                      className="mt-2 flex items-center gap-1.5 text-xs text-amber-700 hover:underline disabled:opacity-50"
+                    >
+                      <RotateCcw size={12} />
+                      {t.wordResetDailyLearned}
+                    </button>
                   )}
                 </div>
               );

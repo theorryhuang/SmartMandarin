@@ -85,6 +85,12 @@ export async function submitReview(
       next_review: result.next_review.toISOString(),
       flagged_for_immediate_use: false, // clear urgent flag after review
       review_count: card.stability === 0 ? 1 : undefined, // handled by DB increment below
+      // Forgetting a word ("Again") wipes daily-learned status too, so it
+      // can resurface in daily batches (see app/actions/dailyLearning.ts)
+      // instead of staying permanently excluded from a pass that no longer
+      // reflects reality. Left untouched on 2-4 — only genuine forgetting
+      // should reopen it, not just a so-so recall.
+      daily_learned: rating === 1 ? false : undefined,
     })
     .eq("id", wordId);
   if (updateErr) throw new Error(updateErr.message);
