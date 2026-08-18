@@ -32,19 +32,17 @@ export async function getSavedHanziSet(): Promise<string[]> {
 
 export async function getDueWords(limit = 20): Promise<VocabularyMastery[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("get_due_words", {
-    p_user_id: (await supabase.auth.getUser()).data.user?.id ?? "",
-    p_limit: limit,
-  });
+  // No p_user_id — the RPC derives the caller from auth.uid() internally
+  // (see supabase/migrations/019_fix_security_definer_idor.sql). Passing an
+  // id here would have let a caller ask for *anyone's* due words.
+  const { data, error } = await supabase.rpc("get_due_words", { p_limit: limit });
   if (error) throw new Error(error.message);
   return (data ?? []) as VocabularyMastery[];
 }
 
 export async function getHSKLevelStats() {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("get_hsk_level_stats", {
-    p_user_id: (await supabase.auth.getUser()).data.user?.id ?? "",
-  });
+  const { data, error } = await supabase.rpc("get_hsk_level_stats");
   if (error) throw new Error(error.message);
   return data ?? [];
 }
@@ -176,9 +174,7 @@ export async function getConversationContext(): Promise<{
 
   // Derive current HSK level from per-level stats.
   // "Current level" = highest level where the user has ≥5 words tracked.
-  const { data: stats } = await supabase.rpc("get_hsk_level_stats", {
-    p_user_id: userId,
-  });
+  const { data: stats } = await supabase.rpc("get_hsk_level_stats");
 
   let hskLevel = 1;
   if (stats && stats.length > 0) {

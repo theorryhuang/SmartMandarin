@@ -422,11 +422,13 @@ export type Database = {
     Views: Record<string, never>;
     Functions: {
       get_due_words: {
-        Args: { p_user_id: string; p_limit: number };
+        // No p_user_id — derived from auth.uid() inside the function itself
+        // (see supabase/migrations/019_fix_security_definer_idor.sql).
+        Args: { p_limit?: number };
         Returns: Database["public"]["Tables"]["vocabulary_mastery"]["Row"][];
       };
       get_hsk_level_stats: {
-        Args: { p_user_id: string };
+        Args: Record<string, never>;
         Returns: {
           level: number;
           total: number;
