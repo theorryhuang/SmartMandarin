@@ -149,6 +149,8 @@ const en = {
   dailyExamplesLoading: "Generating examples…",
   dailyQuizPendingError: "Finish yesterday's quiz first.",
   dailyNoWordsLeft: "No unlearned words left — nice work! 🎉",
+  dailyShowMore: "more",
+  dailyShowLess: "less",
 
   // ── Speaking ─────────────────────────────────────────────────────────────────
   holdToSpeak: "Hold to speak",
@@ -547,6 +549,8 @@ const zh: typeof en = {
   dailyExamplesLoading: "正在生成例句…",
   dailyQuizPendingError: "请先完成昨天的测验。",
   dailyNoWordsLeft: "没有未学的单词了——太棒了！🎉",
+  dailyShowMore: "展开",
+  dailyShowLess: "收起",
 
   // ── Speaking ─────────────────────────────────────────────────────────────────
   holdToSpeak: "按住说话",

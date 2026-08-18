@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, Home, Sparkles, BookOpenText, Plus } from "lucide-react";
 import { getDailyState, startDailyBatch, addToDailyBatch, getWordExamples } from "@/app/actions/dailyLearning";
@@ -40,6 +40,19 @@ function WordTile({ entry }: { entry: DailyLearningWord }) {
   const [examples, setExamples] = useState<WordExample[] | null>(null);
   const [examplesError, setExamplesError] = useState<string | null>(null);
   const [loadingExamples, startLoadingExamples] = useTransition();
+  const [meaningExpanded, setMeaningExpanded] = useState(false);
+  const [meaningOverflows, setMeaningOverflows] = useState(false);
+  const meaningRef = useRef<HTMLDivElement>(null);
+
+  // Only offer the expand toggle when the single-line truncation is
+  // actually clipping something — measured while still collapsed, so
+  // `.truncate`'s overflow:hidden is in effect and scrollWidth reflects the
+  // full untruncated text.
+  useEffect(() => {
+    if (!flipped || meaningExpanded) return;
+    const el = meaningRef.current;
+    if (el) setMeaningOverflows(el.scrollWidth > el.clientWidth);
+  }, [flipped, meaningExpanded, word.meaning]);
 
   function toggleExamples() {
     const next = !examplesOpen;
@@ -73,7 +86,23 @@ function WordTile({ entry }: { entry: DailyLearningWord }) {
           {flipped ? (
             <div className="min-w-0">
               <div className="text-sm text-[var(--color-text-secondary)]">{word.pinyin}</div>
-              <div className="text-xs text-[var(--color-text-muted)] truncate">{word.meaning}</div>
+              <div
+                ref={meaningRef}
+                className={`text-xs text-[var(--color-text-muted)] ${meaningExpanded ? "" : "truncate"}`}
+              >
+                {word.meaning}
+              </div>
+              {meaningOverflows && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMeaningExpanded((v) => !v);
+                  }}
+                  className="text-[10px] text-amber-700 hover:underline mt-0.5"
+                >
+                  {meaningExpanded ? t.dailyShowLess : t.dailyShowMore}
+                </button>
+              )}
             </div>
           ) : (
             <span className="text-xs text-[var(--color-text-muted)]">{t.tapToFlip}</span>
