@@ -8,6 +8,7 @@ import type { DailyState, DailyLearningWord, VocabularyMastery, WordExample } fr
 import { DailyQuizCard } from "@/components/DailyQuizCard";
 import { ReviewSession } from "@/app/review/ReviewSession";
 import { useLanguage } from "@/app/_components/LanguageContext";
+import { LanguageSwitcher } from "@/app/_components/LanguageSwitcher";
 
 function NavHeader() {
   const router = useRouter();
@@ -22,12 +23,15 @@ function NavHeader() {
           <ChevronLeft size={18} />
           {t.back}
         </button>
-        <button
-          onClick={() => router.push("/")}
-          className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
-        >
-          <Home size={18} />
-        </button>
+        <div className="flex items-center gap-3">
+          <LanguageSwitcher />
+          <button
+            onClick={() => router.push("/")}
+            className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+          >
+            <Home size={18} />
+          </button>
+        </div>
       </div>
     </div>
   );

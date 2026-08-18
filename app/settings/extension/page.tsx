@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getServerT } from "@/lib/i18n-server";
 import { BackButton } from "@/app/_components/BackButton";
 import { HomeButton } from "@/app/_components/HomeButton";
+import { LanguageSwitcher } from "@/app/_components/LanguageSwitcher";
 import { ExtensionSettingsClient } from "./ExtensionSettingsClient";
 
 export const metadata = { title: "Browser extension · SmartMandarin" };
@@ -18,7 +19,8 @@ export default async function ExtensionSettingsPage() {
       <div className="absolute left-6" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
         <BackButton href="/profile" />
       </div>
-      <div className="absolute right-6" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
+      <div className="absolute right-6 flex items-center gap-3" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
+        <LanguageSwitcher />
         <HomeButton />
       </div>
 

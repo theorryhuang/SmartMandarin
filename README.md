@@ -4,9 +4,10 @@ A continuous-acquisition Mandarin learning app: spaced-repetition vocabulary rev
 
 ## Features
 
-- **Review** — FSRS-4.5 spaced repetition on your vocabulary queue, with a separate **Slang Review** track for informal/internet Mandarin
+- **Daily** — a curated daily batch of words to learn, quizzed the next day (with carry-over for anything missed), tracked on a home-screen streak calendar
+- **Review** — FSRS-4.5 spaced repetition on your vocabulary queue, filterable by HSK level, with an "Easy"/"Hard"/unreviewed sub-filter; forgotten words can be re-added straight from the word detail page
 - **Speaking Practice** — hold-to-talk voice practice, graded by Gemini
-- **Conversation** — live voice chat with Gemini (Multimodal Live API over WebRTC), tap any word in the transcript to see its definition and log it as a mistake; slang-mode toggle
+- **Conversation** — live voice chat with Gemini (Multimodal Live API over WebRTC), tap any word in the transcript to see its definition and log it as a mistake
 - **Reader** — Gemini-generated stories with per-character highlighting (known vs. queued vocabulary), click any character to queue it for review
 - **My Vocabulary** — browse, search, and manage every word you've saved
 - **Level Assessment** — a placement quiz to seed your starting HSK level
@@ -14,6 +15,8 @@ A continuous-acquisition Mandarin learning app: spaced-repetition vocabulary rev
 - English/中文 UI toggle
 
 Home screen modes are reorderable (drag handle, persisted to `localStorage`) so you can put whichever practice mode you use most at the top.
+
+> **Slang mode/review** (a separate informal-Mandarin track, plus a slang toggle in Conversation/Reader) is currently parked — disabled in the UI (commented out, not deleted) for a possible later version. The underlying data/schema (`data/slang.json`, `supabase/migrations/005_slang_bank.sql`, `slangBankLookup` in `lib/defineWord.ts`) is untouched.
 
 ### New-user onboarding
 
@@ -51,7 +54,7 @@ No App Store, no Apple Developer account required for any of the above.
 - **Database/Auth**: Supabase (Postgres + Auth + Row-Level Security)
 - **Voice**: Gemini Multimodal Live API (WebRTC) for conversation practice, ElevenLabs Scribe for speech-to-text
 - **Text generation/grading**: Gemini Flash (`gemini-3.1-flash-lite`) for story generation, answer/sentence grading, and AI dictionary fallback
-- **Dictionary data**: CC-CEDICT (bundled + Supabase-seeded), HSK vocabulary lists, a hand-curated slang bank
+- **Dictionary data**: CC-CEDICT (bundled + Supabase-seeded), HSK vocabulary lists, a hand-curated slang bank (data seeded but feature currently parked, see Features)
 - **Drag & drop**: `@dnd-kit`
 
 ## Project structure
@@ -60,10 +63,11 @@ No App Store, no Apple Developer account required for any of the above.
 app/
   _components/        Shared client components (home screen, nav, language context)
   actions/             Server actions — getDueWords, submitReview, logMistake, addWord(s),
-                        onboarding status/completion
+                        daily batch/streak (dailyLearning.ts), onboarding status/completion
   api/                 Route handlers: converse, transcribe, grade-answer, grade-sentence,
                         generate-story, define-word, gemini-token, search-words, extension/*
-  review/              FSRS review session + slang review
+  daily/               Daily word batch + next-day quiz, streak calendar
+  review/              FSRS review session (HSK-filtered, hard/easy sub-filters)
   conversation/        Voice chat UI + transcript
   reader/              Story generator + interactive reading view
   speaking/            Hold-to-talk practice
@@ -122,7 +126,7 @@ Apply `supabase/migrations/*.sql` in order (Supabase CLI or the SQL editor). See
 ```bash
 npm run build-cedict-db        # builds local CEDICT sqlite db from data/cedict.txt
 node scripts/seed-cedict-supabase.mjs
-node scripts/import-slang.mjs
+node scripts/import-slang.mjs  # optional — feeds the slang bank, currently unused (see Features)
 ```
 
 ### Other scripts
@@ -132,4 +136,4 @@ node scripts/import-slang.mjs
 
 ## Status
 
-Actively developed. Auth, FSRS review, conversation practice, the story reader, the browser extension, and the PWA install path are all built and working. Not yet built: a LangGraph-based stateful tutoring layer, automated CI, and native (Capacitor/Swift) app builds — the current install story is PWA-only, which covers Mac/iOS/desktop-Chrome installability but not App Store distribution or iOS Universal Links (both gated behind a paid Apple Developer account, deliberately deferred).
+Actively developed. Auth, FSRS review, daily word batches + streak tracking, conversation practice, the story reader, the browser extension, and the PWA install path are all built and working. Slang mode/review is built but currently disabled in the UI (parked for a later version, see Features). Not yet built: a LangGraph-based stateful tutoring layer, automated CI, and native (Capacitor/Swift) app builds — the current install story is PWA-only, which covers Mac/iOS/desktop-Chrome installability but not App Store distribution or iOS Universal Links (both gated behind a paid Apple Developer account, deliberately deferred).

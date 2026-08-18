@@ -13,6 +13,7 @@ import {
 } from "@/app/actions/vocabulary";
 import type { VocabularyMastery } from "@/lib/types";
 import { useLanguage } from "@/app/_components/LanguageContext";
+import { LanguageSwitcher } from "@/app/_components/LanguageSwitcher";
 
 interface HSKLevel {
   label: string;
@@ -33,7 +34,7 @@ const HSK_LEVELS: HSKLevel[] = [
   { label: "HSK 6", min: 6, max: 7 },
   { label: "HSK 7+", min: 7, max: undefined },
   { label: "Non-HSK", min: undefined, max: undefined, noHSK: true },
-  { label: "Slang", isSlang: true },
+  // { label: "Slang", isSlang: true }, // slang feature parked for now
   { label: "All Words", min: undefined, max: undefined },
 ];
 
@@ -67,12 +68,15 @@ function NavHeader({
           <ChevronLeft size={18} />
           {t.back}
         </button>
-        <button
-          onClick={onHome}
-          className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
-        >
-          <Home size={18} />
-        </button>
+        <div className="flex items-center gap-3">
+          <LanguageSwitcher />
+          <button
+            onClick={onHome}
+            className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+          >
+            <Home size={18} />
+          </button>
+        </div>
       </div>
     </div>
   );

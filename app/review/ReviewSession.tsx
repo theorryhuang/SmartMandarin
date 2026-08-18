@@ -7,6 +7,7 @@ import { SentenceCard } from "@/components/SentenceCard";
 import { getAllWords } from "@/app/actions/vocabulary";
 import type { VocabularyMastery } from "@/lib/types";
 import { useLanguage } from "@/app/_components/LanguageContext";
+import { LanguageSwitcher } from "@/app/_components/LanguageSwitcher";
 
 const DEFAULT_SESSION_KEY = "sm_review_session";
 const MODE_KEY = "sm_review_mode";
@@ -110,6 +111,7 @@ function NavHeader({
         </button>
         <div className="flex items-center gap-3">
           {modeToggle}
+          <LanguageSwitcher />
           <button
             onClick={onHome}
             className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"

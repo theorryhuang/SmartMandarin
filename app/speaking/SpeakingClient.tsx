@@ -12,6 +12,7 @@ import { saveSpeakingTurns, loadRecentSpeakingTurns, getSpeakingConversationList
 import type { ConversationTurn, MasteryMap, TranscriptToken } from "@/lib/types";
 import { useLanguage } from "@/app/_components/LanguageContext";
 import { HomeButton } from "@/app/_components/HomeButton";
+import { LanguageSwitcher } from "@/app/_components/LanguageSwitcher";
 
 interface Props {
   masteryMap: MasteryMap;
@@ -76,10 +77,11 @@ export function SpeakingClient({ masteryMap }: Props) {
   const [turns, setTurns] = useState<ConversationTurn[]>([]);
   const [revealedTurns, setRevealedTurns] = useState<Set<number>>(new Set());
 
-  const [slangMode, setSlangMode] = useState(false);
-  useEffect(() => {
-    setSlangMode(localStorage.getItem("sm_slang_mode") === "1");
-  }, []);
+  // Slang mode disabled for now (feature parked, not deleted).
+  const [slangMode] = useState(false);
+  // useEffect(() => {
+  //   setSlangMode(localStorage.getItem("sm_slang_mode") === "1");
+  // }, []);
   const [speechRate, setSpeechRate] = useState(1);
   const [playingTurnIndex, setPlayingTurnIndex] = useState<number | null>(null);
   const [isSpeechPaused, setIsSpeechPaused] = useState(false);
@@ -494,6 +496,7 @@ export function SpeakingClient({ masteryMap }: Props) {
         >
           <LayoutList size={18} className="text-[var(--color-text-muted)]" />
         </button>
+        {/* Slang mode toggle disabled for now — parked for a later version.
         <button
           onClick={() => setSlangMode((s) => {
             const next = !s;
@@ -508,6 +511,8 @@ export function SpeakingClient({ masteryMap }: Props) {
         >
           {slangMode ? t.slangActive : t.slang}
         </button>
+        */}
+        <LanguageSwitcher />
         <HomeButton className="flex-shrink-0" />
       </div>
 

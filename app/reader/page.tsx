@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ReaderClient } from "./ReaderClient";
 import { BackButton } from "@/app/_components/BackButton";
 import { HomeButton } from "@/app/_components/HomeButton";
+import { LanguageSwitcher } from "@/app/_components/LanguageSwitcher";
 import type { VocabularyMastery, MasteryMap } from "@/lib/types";
 
 export default async function ReaderPage() {
@@ -33,7 +34,8 @@ export default async function ReaderPage() {
         <div className="absolute left-6" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
           <BackButton href="/" />
         </div>
-        <div className="absolute right-6" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
+        <div className="absolute right-6 flex items-center gap-3" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
+          <LanguageSwitcher />
           <HomeButton />
         </div>
         <div className="pt-10">

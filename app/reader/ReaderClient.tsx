@@ -12,7 +12,8 @@ interface Props {
 
 export function ReaderClient({ masteryMap, hskLevel }: Props) {
   const { t } = useLanguage();
-  const [slangMode, setSlangMode] = useState(false);
+  // Slang mode disabled for now (feature parked, not deleted — see slang.json etc.)
+  const [slangMode] = useState(false);
 
   return (
     <div className="flex flex-col gap-4">
@@ -32,6 +33,7 @@ export function ReaderClient({ masteryMap, hskLevel }: Props) {
           </span>
         </div>
 
+        {/* Slang mode toggle disabled for now — parked for a later version.
         <button
           onClick={() => setSlangMode((s) => !s)}
           className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
@@ -42,6 +44,7 @@ export function ReaderClient({ masteryMap, hskLevel }: Props) {
         >
           {slangMode ? t.slangActiveReader : t.slang}
         </button>
+        */}
       </div>
 
       <StoryReader

@@ -166,6 +166,11 @@ const en = {
   error: "Error",
   tapWordToFlag: (level: number) => `HSK ${level} · Tap any word to flag it for review`,
   willUse: "will use:",
+  play: "Play",
+  pause: "Pause",
+  showTranscript: "Show transcript",
+  hideTranscript: "Hide transcript",
+  holdButtonToStart: "Hold the button to start speaking",
 
   // ── Conversation ─────────────────────────────────────────────────────────────
   typeToStart: "Type anything to start chatting in Mandarin",
@@ -572,6 +577,11 @@ const zh: typeof en = {
   error: "错误",
   tapWordToFlag: (level: number) => `HSK ${level} · 点击单词标记复习`,
   willUse: "将使用：",
+  play: "播放",
+  pause: "暂停",
+  showTranscript: "显示文字",
+  hideTranscript: "隐藏文字",
+  holdButtonToStart: "按住按钮开始说话",
 
   // ── Conversation ─────────────────────────────────────────────────────────────
   typeToStart: "输入任何内容开始用普通话聊天",

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getServerT } from "@/lib/i18n-server";
 import { BackButton } from "@/app/_components/BackButton";
 import { HomeButton } from "@/app/_components/HomeButton";
+import { LanguageSwitcher } from "@/app/_components/LanguageSwitcher";
 import { SignOutButton } from "./SignOutButton";
 import { DeleteAccountSection } from "./DeleteAccountSection";
 
@@ -29,7 +30,8 @@ export default async function ProfilePage() {
       <div className="absolute left-6" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
         <BackButton href="/" />
       </div>
-      <div className="absolute right-6" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
+      <div className="absolute right-6 flex items-center gap-3" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
+        <LanguageSwitcher />
         <HomeButton />
       </div>
 

@@ -3,6 +3,7 @@
 import { Play, Pause } from "lucide-react";
 import type { ConversationTurn, MasteryMap } from "@/lib/types";
 import { TappableText } from "@/components/TappableText";
+import { useLanguage } from "@/app/_components/LanguageContext";
 
 interface Props {
   turns: ConversationTurn[];
@@ -40,10 +41,12 @@ export function TranscriptView({
   playingTurnIndex,
   isSpeechPaused,
 }: Props) {
+  const { t } = useLanguage();
+
   if (turns.length === 0) {
     return (
       <div className="flex items-center justify-center h-32 text-sm text-[var(--color-text-muted)]">
-        Hold the button to start speaking
+        {t.holdButtonToStart}
       </div>
     );
   }
@@ -101,6 +104,7 @@ function TurnRow({
   onReplay: () => void;
   isPlaying: boolean;
 }) {
+  const { t } = useLanguage();
   const isAI = turn.role === "assistant";
 
   return (
@@ -134,7 +138,7 @@ function TurnRow({
             ) : (
               <Play size={13} className={isAI ? "fill-violet-600" : "fill-violet-200"} />
             )}
-            <span>{isPlaying ? "Pause" : "Play"}</span>
+            <span>{isPlaying ? t.pause : t.play}</span>
           </button>
           <button
             onClick={revealed ? onHide : onReveal}
@@ -144,7 +148,7 @@ function TurnRow({
                 : "text-violet-200 hover:text-white"
             }`}
           >
-            {revealed ? "Hide transcript" : "Show transcript"}
+            {revealed ? t.hideTranscript : t.showTranscript}
           </button>
         </div>
 

@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import { deleteWord, logMistake } from "@/app/actions/vocabulary";
 import { useLanguage } from "@/app/_components/LanguageContext";
 import { HomeButton } from "@/app/_components/HomeButton";
+import { LanguageSwitcher } from "@/app/_components/LanguageSwitcher";
 import { hskColor } from "@/lib/hskColor";
 import { senseKey } from "@/lib/senseKey";
 
@@ -197,7 +198,8 @@ export function VocabClient() {
           <span className="text-sm">{t.back}</span>
         </button>
       </div>
-      <div className="absolute right-6" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
+      <div className="absolute right-6 flex items-center gap-3" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
+        <LanguageSwitcher />
         <HomeButton />
       </div>
 

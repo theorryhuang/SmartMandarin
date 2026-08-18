@@ -193,11 +193,13 @@ export function SentenceCard({ card, onNext, onBack, canGoBack, onRestart, onRes
               <span className="text-sm text-[var(--color-text-muted)] italic animate-pulse">{t.loading}</span>
             )}
             {meaning && <span className="text-sm text-[var(--color-text-primary)] text-center">{meaning}</span>}
+            {/* Slang badge disabled for now — parked for a later version.
             {card.is_slang && (
               <span className="px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 text-xs border border-violet-200">
                 {t.slangBadge}
               </span>
             )}
+            */}
           </div>
         </div>
       </div>

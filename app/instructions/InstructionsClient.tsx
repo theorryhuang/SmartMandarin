@@ -86,7 +86,9 @@ export function InstructionsClient({ status }: { status: OnboardingStatus }) {
         </h2>
 
         <TabRow icon={Brain} iconBg="bg-violet-100" iconColor="text-violet-600" title={t.instructionsTabReviewTitle} desc={t.instructionsTabReviewDesc} />
+        {/* Slang Review tab parked for now.
         <TabRow icon={Flame} iconBg="bg-orange-100" iconColor="text-orange-500" title={t.instructionsTabSlangTitle} desc={t.instructionsTabSlangDesc} />
+        */}
         <TabRow icon={Mic} iconBg="bg-rose-100" iconColor="text-rose-600" title={t.instructionsTabSpeakingTitle} desc={t.instructionsTabSpeakingDesc} />
         <TabRow icon={MessageCircle} iconBg="bg-sky-100" iconColor="text-sky-600" title={t.instructionsTabConversationTitle} desc={t.instructionsTabConversationDesc} />
         <TabRow icon={BookOpen} iconBg="bg-emerald-100" iconColor="text-emerald-600" title={t.instructionsTabReaderTitle} desc={t.instructionsTabReaderDesc} />

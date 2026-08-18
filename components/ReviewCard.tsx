@@ -154,11 +154,13 @@ export function ReviewCard({ card, onNext, onBack, canGoBack, onRestart, onReshu
             {meaning && (
               <span className="text-base text-[var(--color-text-primary)] text-center">{meaning}</span>
             )}
+            {/* Slang badge disabled for now — parked for a later version.
             {card.is_slang && (
               <span className="px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 text-xs border border-violet-200">
                 {t.slangBadge}
               </span>
             )}
+            */}
           </div>
         </div>
       </div>

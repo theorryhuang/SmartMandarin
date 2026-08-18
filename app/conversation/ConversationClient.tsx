@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { ArrowUp, ChevronLeft, LayoutList, Mic, MicOff, Phone, PhoneOff, Plus, Trash2 } from "lucide-react";
 import { HomeButton } from "@/app/_components/HomeButton";
+import { LanguageSwitcher } from "@/app/_components/LanguageSwitcher";
 import { useRouter } from "next/navigation";
 import { getConversationContext, getSavedHanziSet } from "@/app/actions/vocabulary";
 import { saveMessages, loadOlderMessages, getConversationList, deleteConversationMessages } from "@/app/actions/chat";
@@ -132,10 +133,12 @@ export function ConversationClient({ masteryMap }: Props) {
     };
   }, []);
 
-  const [slangMode, setSlangMode] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("sm_slang_mode") === "1";
-  });
+  // Slang mode disabled for now (feature parked, not deleted).
+  const [slangMode] = useState(false);
+  // const [slangMode, setSlangMode] = useState(() => {
+  //   if (typeof window === "undefined") return false;
+  //   return localStorage.getItem("sm_slang_mode") === "1";
+  // });
 
   const [hskLevel, setHskLevel] = useState<number | null>(null);
   const [unknownWords, setUnknownWords] = useState<
@@ -689,6 +692,7 @@ export function ConversationClient({ masteryMap }: Props) {
           <LayoutList size={18} className="text-[var(--color-text-muted)]" />
         </button>
 
+        {/* Slang mode toggle disabled for now — parked for a later version.
         <button
           onClick={() => setSlangMode((s) => {
             const next = !s;
@@ -703,6 +707,7 @@ export function ConversationClient({ masteryMap }: Props) {
         >
           {slangMode ? t.slangActive : t.slang}
         </button>
+        */}
         <button
           onClick={() => (liveActive ? liveConv.disconnect() : liveConv.connect())}
           disabled={hskLevel === null}
@@ -715,6 +720,7 @@ export function ConversationClient({ masteryMap }: Props) {
         >
           {liveActive ? <PhoneOff size={16} /> : <Phone size={16} />}
         </button>
+        <LanguageSwitcher />
         <HomeButton className="flex-shrink-0" />
       </div>
 
