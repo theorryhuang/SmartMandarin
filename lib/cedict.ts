@@ -103,10 +103,17 @@ export async function cedictLookupAll(hanzi: string): Promise<DictResult[]> {
 }
 
 export async function hskLookup(hanzi: string): Promise<number | null> {
+  // 68 hanzi have more than one row here (e.g. 好 is both 1.0 and 5.0 —
+  // different senses classified differently across HSK list versions this
+  // table was merged from). Without an explicit order, .limit(1) handed
+  // back whichever row Postgres felt like on a given query plan — not
+  // reliably reproducible. Ordering ascending makes it deterministic and
+  // picks the more fundamental/common classification for an ambiguous word.
   const { data } = await supabase
     .from("hsk_vocabulary")
     .select("level")
     .eq("hanzi", hanzi)
+    .order("level", { ascending: true })
     .limit(1)
     .maybeSingle();
 

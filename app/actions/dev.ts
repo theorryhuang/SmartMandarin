@@ -19,6 +19,7 @@ export async function resetMyData() {
 
   const cookieStore = await cookies();
   cookieStore.delete("sm_assessed");
+  cookieStore.delete("sm_onboarded");
 
-  redirect("/assessment");
+  redirect("/");
 }

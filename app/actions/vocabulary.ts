@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { calculateNextReview, HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
+import { calculateNextReview } from "@/lib/fsrs";
 import type { FSRSRating, VocabularyMastery } from "@/lib/types";
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
@@ -228,9 +228,13 @@ export interface AssessmentWord {
 }
 
 /**
- * Persists placement-test results:
- * - Known words → upserted with high stability so they won't crowd the review queue.
- * - Unknown words → upserted with stability 0 so they surface for review soon.
+ * Persists placement-test results: only the "don't know" words get added to
+ * the vocabulary queue, with stability 0 so they surface for review right
+ * away. Words the user already knew are used to derive their starting HSK
+ * level (see AssessmentClient's derivedHskLevel) but are deliberately never
+ * saved — they'd otherwise sit in the queue at high stability forever,
+ * cluttering My Vocabulary with words the user told the quiz they didn't
+ * need to learn.
  *
  * Also sets the sm_assessed cookie so the home page won't redirect again.
  */
@@ -238,22 +242,22 @@ export async function saveAssessmentResults(words: AssessmentWord[]): Promise<vo
   const supabase = await createClient();
   const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
 
-  if (userId && words.length > 0) {
-    const now = new Date().toISOString();
-    // Known words: treat as if reviewed once with "Easy" — far next_review date
-    const farFuture = new Date(Date.now() + HIGH_STABILITY_THRESHOLD * 2 * 86_400_000).toISOString();
+  const unknownWords = words.filter((w) => !w.knew);
 
-    const rows = words.map((w) => ({
+  if (userId && unknownWords.length > 0) {
+    const now = new Date().toISOString();
+
+    const rows = unknownWords.map((w) => ({
       user_id: userId,
       hanzi: w.hanzi,
       pinyin: w.pinyin,
       meaning: w.meaning,
       hsk_level: w.hsk_level,
-      stability: w.knew ? HIGH_STABILITY_THRESHOLD * 2 : 0,
-      difficulty: w.knew ? 4 : 7,           // easy known / harder unknown baseline
-      review_count: w.knew ? 1 : 0,
-      last_reviewed: w.knew ? now : null,
-      next_review: w.knew ? farFuture : now, // unknown words are due immediately
+      stability: 0,
+      difficulty: 7,
+      review_count: 0,
+      last_reviewed: null,
+      next_review: now, // due immediately
       flagged_for_immediate_use: false,
     }));
 

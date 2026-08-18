@@ -15,6 +15,18 @@ A continuous-acquisition Mandarin learning app: spaced-repetition vocabulary rev
 
 Home screen modes are reorderable (drag handle, persisted to `localStorage`) so you can put whichever practice mode you use most at the top.
 
+### New-user onboarding
+
+A brand-new account (zero saved words, never assessed — the same signal the Level Assessment redirect already used) is sent through a short chain before landing on the home screen:
+
+1. **`/onboarding`** — a skippable checklist: add a Gemini API key (required for Speaking Practice, Conversation, Reader, and the AI dictionary fallback) and set up the browser extension (optional, desktop Chrome/Edge). Nothing here blocks continuing — "Continue to app" works whether every step was done or none of them; each one can also be finished later from Profile.
+2. **`/assessment`** — the existing placement quiz, unchanged.
+3. Home.
+
+Existing accounts are never retroactively dropped into this — it's gated on the same "brand new" signal as the assessment redirect, tracked via an `sm_onboarded` cookie (`app/actions/onboarding.ts`), mirroring the existing `sm_assessed` one.
+
+**`/instructions`** (linked from Profile) is the standing reference version of the same setup checklist, plus a plain-language rundown of what every tab on the home screen does — available any time, not just on first run.
+
 ### Popup dictionary, everywhere
 
 The FSRS/vocabulary engine isn't limited to the app itself:
@@ -47,7 +59,8 @@ No App Store, no Apple Developer account required for any of the above.
 ```
 app/
   _components/        Shared client components (home screen, nav, language context)
-  actions/             Server actions — getDueWords, submitReview, logMistake, addWord(s)
+  actions/             Server actions — getDueWords, submitReview, logMistake, addWord(s),
+                        onboarding status/completion
   api/                 Route handlers: converse, transcribe, grade-answer, grade-sentence,
                         generate-story, define-word, gemini-token, search-words, extension/*
   review/              FSRS review session + slang review
@@ -56,7 +69,10 @@ app/
   speaking/            Hold-to-talk practice
   assessment/          HSK level placement quiz
   vocab/                Vocabulary browser + per-word detail page
+  onboarding/          First-run setup checklist (new accounts only, skippable)
+  instructions/        Standing setup checklist + what-each-tab-does reference (Profile link)
   settings/extension/  Manage browser-extension access tokens
+  settings/gemini-key/ Manage your BYOK Gemini key
   profile/             Account settings, sign out
   manifest.ts          PWA manifest (icons, capture_links, theme)
 lib/

@@ -20,7 +20,15 @@ export default async function Home() {
         .select("id", { count: "exact", head: true })
         .eq("user_id", userId);
       if ((count ?? 0) === 0) {
-        redirect("/assessment");
+        // Same "brand new account" signal the assessment redirect already
+        // uses (zero saved words, never assessed) — piggybacked instead of
+        // a standalone "just signed up" check so existing users with any
+        // history are never retroactively dropped into onboarding. Runs
+        // before assessment: /onboarding's own "Continue to app" sets
+        // sm_onboarded and sends them back here, where this same branch
+        // then falls through to the assessment redirect below.
+        const onboarded = cookieStore.get("sm_onboarded");
+        redirect(onboarded ? "/assessment" : "/onboarding");
       }
     }
   }

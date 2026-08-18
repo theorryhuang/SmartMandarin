@@ -275,6 +275,67 @@ const en = {
   extTokenCreated: (date: string) => `Created ${date}`,
   extTokenLastUsed: (date: string) => ` · last used ${date}`,
   extRevokeTitle: "Revoke",
+
+  // ── Onboarding (first-run checklist) ─────────────────────────────────────────
+  onboardingTitle: "Welcome to SmartMandarin",
+  onboardingSubtitle:
+    "A couple of quick things to get full functionality — skip anything and finish it later from your Profile.",
+  onboardingRequired: "Required",
+  onboardingOptional: "Optional",
+  onboardingDone: "Done",
+  onboardingGeminiDesc:
+    "Powers voice conversation, story generation, and grading. Free, and it's your own key — takes under a minute to get.",
+  onboardingGeminiCta: "Get your free key →",
+  onboardingExtensionDesc:
+    "Select Chinese text on any webpage to see its definition and queue it for review. Desktop Chrome/Edge only — skip this on mobile.",
+  onboardingExtensionCta: "Set up the extension →",
+  onboardingContinue: "Continue to app",
+  onboardingSkipHint: "Nothing here is required to continue — finish it anytime from Profile.",
+  onboardingLearnMore: "Curious what each tab does? See the Instructions page →",
+
+  // ── Instructions page ─────────────────────────────────────────────────────────
+  instructionsPageTitle: "Instructions",
+  instructionsPageDesc: "What to set up for full functionality, and what each tab is for.",
+  instructionsSetupTitle: "Setup",
+  instructionsSetupGeminiTitle: "Gemini API key",
+  instructionsSetupGeminiDesc:
+    "Required for Speaking Practice, Conversation, Reader, and the AI dictionary fallback. Free, bring-your-own-key — your quota is yours alone.",
+  instructionsSetupExtensionTitle: "Browser extension",
+  instructionsSetupExtensionDesc:
+    "Select Chinese text on any webpage (desktop Chrome/Edge) to see its definition and queue it for review.",
+  instructionsSetupInstallTitle: "Install as an app",
+  instructionsSetupInstallDesc: "SmartMandarin is a PWA — install it for a standalone window/Dock or Home Screen icon.",
+  instructionsInstallMac: "Mac: Safari → File → Add to Dock",
+  instructionsInstallIOS: "iOS: Safari → Share → Add to Home Screen",
+  instructionsInstallChrome: "Chrome/Edge (desktop): address-bar install icon, or ⋮ → Save and share → Install page as app…",
+  instructionsTabsTitle: "What each tab does",
+  instructionsTabReviewTitle: "Review",
+  instructionsTabReviewDesc:
+    "FSRS-4.5 spaced repetition on your vocabulary queue — cards resurface right as you're about to forget them.",
+  instructionsTabSlangTitle: "Slang Review",
+  instructionsTabSlangDesc: "A separate review track for informal/internet Mandarin, kept apart from your main HSK vocabulary.",
+  instructionsTabSpeakingTitle: "Speaking Practice",
+  instructionsTabSpeakingDesc: "Hold to talk — record yourself speaking Mandarin and get graded by Gemini.",
+  instructionsTabConversationTitle: "Conversation",
+  instructionsTabConversationDesc:
+    "Live voice chat with Gemini. Tap any word in the transcript to see its definition and log it as a mistake; toggle slang mode for informal speech.",
+  instructionsTabReaderTitle: "Reader",
+  instructionsTabReaderDesc:
+    "Gemini-generated stories at your level, with per-character highlighting for known vs. queued vocabulary — click any character to queue it.",
+  instructionsTabVocabTitle: "My Vocabulary",
+  instructionsTabVocabDesc: "Browse, search, and manage every word you've saved.",
+  instructionsTabAssessmentTitle: "Level Assessment",
+  instructionsTabAssessmentDesc: "A placement quiz that seeds your starting HSK level so review doesn't start cold. Retake it anytime.",
+
+  // ── Account deletion ─────────────────────────────────────────────────────────
+  dangerZone: "Danger Zone",
+  deleteAccountBtn: "Delete account",
+  deleteAccountWarning:
+    "This permanently deletes your account and everything in it — vocabulary, review history, chat and speaking transcripts, saved Gemini key, extension tokens. This cannot be undone.",
+  deleteAccountConfirmPrompt: "Type DELETE to confirm",
+  deleteAccountConfirmBtn: "Permanently delete my account",
+  deleteAccountDeleting: "Deleting…",
+  deleteAccountFailed: "Something went wrong — try again.",
 };
 
 const zh: typeof en = {
@@ -551,6 +612,58 @@ const zh: typeof en = {
   extTokenCreated: (date: string) => `创建于 ${date}`,
   extTokenLastUsed: (date: string) => ` · 上次使用 ${date}`,
   extRevokeTitle: "撤销",
+
+  // ── Onboarding (first-run checklist) ─────────────────────────────────────────
+  onboardingTitle: "欢迎使用 SmartMandarin",
+  onboardingSubtitle: "还有几步就能解锁全部功能——可以跳过，之后随时在个人资料里完成。",
+  onboardingRequired: "必需",
+  onboardingOptional: "可选",
+  onboardingDone: "已完成",
+  onboardingGeminiDesc: "语音对话、故事生成和批改功能都靠它。免费，而且是你自己的密钥——一分钟内就能拿到。",
+  onboardingGeminiCta: "获取免费密钥 →",
+  onboardingExtensionDesc: "在任意网页选中中文即可查看释义并加入复习队列。仅限桌面版 Chrome/Edge——手机上可跳过。",
+  onboardingExtensionCta: "设置扩展程序 →",
+  onboardingContinue: "继续使用应用",
+  onboardingSkipHint: "以上都不是必须完成才能继续的——之后随时可以在个人资料里完成。",
+  onboardingLearnMore: "想了解每个标签页是做什么的？查看使用说明 →",
+
+  // ── Instructions page ─────────────────────────────────────────────────────────
+  instructionsPageTitle: "使用说明",
+  instructionsPageDesc: "解锁全部功能需要做什么，以及每个标签页是做什么的。",
+  instructionsSetupTitle: "设置",
+  instructionsSetupGeminiTitle: "Gemini API 密钥",
+  instructionsSetupGeminiDesc: "口语练习、对话、阅读和 AI 词典兜底都需要它。免费，自带密钥——你的配额只属于你自己。",
+  instructionsSetupExtensionTitle: "浏览器扩展",
+  instructionsSetupExtensionDesc: "在任意网页（桌面版 Chrome/Edge）选中中文即可查看释义并加入复习队列。",
+  instructionsSetupInstallTitle: "安装为应用",
+  instructionsSetupInstallDesc: "SmartMandarin 是一个 PWA——安装后可获得独立窗口/Dock 图标或主屏幕图标。",
+  instructionsInstallMac: "Mac：Safari → 文件 → 添加到程序坞",
+  instructionsInstallIOS: "iOS：Safari → 分享 → 添加到主屏幕",
+  instructionsInstallChrome: "Chrome/Edge（桌面版）：地址栏安装图标，或 ⋮ → 保存和分享 → 将此页面安装为应用…",
+  instructionsTabsTitle: "每个标签页是做什么的",
+  instructionsTabReviewTitle: "复习",
+  instructionsTabReviewDesc: "对你的词汇队列进行 FSRS-4.5 间隔重复——卡片会在你快要遗忘时重新出现。",
+  instructionsTabSlangTitle: "俚语复习",
+  instructionsTabSlangDesc: "一个独立的复习轨道，专门用于非正式/网络中文，和你的主 HSK 词汇分开。",
+  instructionsTabSpeakingTitle: "口语练习",
+  instructionsTabSpeakingDesc: "按住说话——录下你说的中文，由 Gemini 评分。",
+  instructionsTabConversationTitle: "对话",
+  instructionsTabConversationDesc: "与 Gemini 实时语音聊天。点击文字记录中的任意单词查看释义并记为错题；可切换俚语模式练习非正式表达。",
+  instructionsTabReaderTitle: "阅读",
+  instructionsTabReaderDesc: "Gemini 生成的、适合你水平的故事，逐字高亮已掌握/待复习的词汇——点击任意字即可加入复习队列。",
+  instructionsTabVocabTitle: "我的词汇",
+  instructionsTabVocabDesc: "浏览、搜索并管理你保存过的所有单词。",
+  instructionsTabAssessmentTitle: "水平测试",
+  instructionsTabAssessmentDesc: "一个定位测验，用来设定你的起始 HSK 等级，让复习不必从零开始。可随时重新测试。",
+
+  // ── Account deletion ─────────────────────────────────────────────────────────
+  dangerZone: "危险区域",
+  deleteAccountBtn: "删除账户",
+  deleteAccountWarning: "此操作将永久删除你的账户及其所有内容——词汇、复习记录、对话和口语记录、保存的 Gemini 密钥、扩展程序令牌。此操作无法撤销。",
+  deleteAccountConfirmPrompt: "输入 DELETE 以确认",
+  deleteAccountConfirmBtn: "永久删除我的账户",
+  deleteAccountDeleting: "删除中…",
+  deleteAccountFailed: "出错了——请重试。",
 };
 
 export const translations: Record<Lang, typeof en> = { en, zh };

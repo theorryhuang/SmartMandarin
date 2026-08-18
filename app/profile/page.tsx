@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Puzzle, KeyRound } from "lucide-react";
+import { Puzzle, KeyRound, CircleHelp } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getServerT } from "@/lib/i18n-server";
 import { BackButton } from "@/app/_components/BackButton";
 import { HomeButton } from "@/app/_components/HomeButton";
 import { SignOutButton } from "./SignOutButton";
+import { DeleteAccountSection } from "./DeleteAccountSection";
 
 export const metadata = { title: "Profile · SmartMandarin" };
 
@@ -77,8 +78,23 @@ export default async function ProfilePage() {
           </div>
         </Link>
 
+        {/* Instructions */}
+        <Link
+          href="/instructions"
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-violet-300 transition-colors"
+        >
+          <CircleHelp size={18} className="text-violet-600 shrink-0" />
+          <div className="flex-1 text-left">
+            <div className="text-sm font-medium text-[var(--color-text-primary)]">{t.instructionsPageTitle}</div>
+            <div className="text-xs text-[var(--color-text-muted)]">{t.instructionsPageDesc}</div>
+          </div>
+        </Link>
+
         {/* Sign out */}
         <SignOutButton />
+
+        {/* Danger zone */}
+        <DeleteAccountSection />
       </div>
     </main>
   );
