@@ -40,6 +40,24 @@ export async function getDueWords(limit = 20): Promise<VocabularyMastery[]> {
   return (data ?? []) as VocabularyMastery[];
 }
 
+/**
+ * Just the count, for the global header's badge — same due-window as the
+ * home page's dueCount but as its own callable (home computes this inline
+ * against a page.tsx-local supabase client instead of a shared action).
+ */
+export async function getDueCount(): Promise<number> {
+  const supabase = await createClient();
+  const userId = (await supabase.auth.getUser()).data.user?.id ?? "";
+  if (!userId) return 0;
+  const nowIso = new Date().toISOString();
+  const { count } = await supabase
+    .from("vocabulary_mastery")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .or(`flagged_for_immediate_use.eq.true,next_review.is.null,next_review.lte.${nowIso}`);
+  return count ?? 0;
+}
+
 export async function getHSKLevelStats() {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("get_hsk_level_stats");

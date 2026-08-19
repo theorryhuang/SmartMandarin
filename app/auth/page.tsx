@@ -9,7 +9,7 @@ interface Props {
 export default async function AuthPage({ searchParams }: Props) {
   const { error } = await searchParams;
   return (
-    <main className="min-h-screen bg-[var(--color-background)]">
+    <main className="min-h-screen bg-[var(--color-background)] app-header-cancel">
       <AuthClient errorParam={error} />
     </main>
   );

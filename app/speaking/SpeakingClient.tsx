@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Mic, ChevronLeft, LayoutList, Plus, Trash2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Mic, LayoutList, Plus, Trash2 } from "lucide-react";
 import { useVoiceConversation } from "@/hooks/useVoiceConversation";
 import { useTurnPlayback } from "@/hooks/useTurnPlayback";
 import { TranscriptView } from "@/components/TranscriptView";
@@ -11,8 +10,7 @@ import { useWordPopup, WordPopupCard } from "@/components/WordPopup";
 import { saveSpeakingTurns, loadRecentSpeakingTurns, getSpeakingConversationList, deleteSpeakingConversationTurns } from "@/app/actions/speaking";
 import type { ConversationTurn, MasteryMap, TranscriptToken } from "@/lib/types";
 import { useLanguage } from "@/app/_components/LanguageContext";
-import { HomeButton } from "@/app/_components/HomeButton";
-import { LanguageSwitcher } from "@/app/_components/LanguageSwitcher";
+import { useHeaderOverride } from "@/app/_components/HeaderContext";
 
 interface Props {
   masteryMap: MasteryMap;
@@ -62,7 +60,6 @@ function loadRevealed(convId: string, turns: ConversationTurn[]): Set<number> {
 }
 
 export function SpeakingClient({ masteryMap }: Props) {
-  const router = useRouter();
   const { t } = useLanguage();
 
   // ── Multi-conversation state — mirrors ConversationClient.tsx's pattern,
@@ -471,51 +468,47 @@ export function SpeakingClient({ masteryMap }: Props) {
     error: t.error,
   };
 
+  // Merged into the global fixed header instead of a second local bar —
+  // see app/_components/AppHeader.tsx's center/actions slots. Memoized so
+  // this only rebuilds (and re-registers with the header) when its actual
+  // inputs change, not on every one of this component's own re-renders
+  // (transcript updates, recording state, etc. are frequent here).
+  const headerCenter = useMemo(
+    () => (
+      <div className="min-w-0">
+        <h1 className="font-semibold text-sm text-[var(--color-text-primary)] truncate">
+          {t.speakingPractice}
+        </h1>
+        <p className="text-xs text-[var(--color-text-muted)] truncate">
+          {t.tapWordToFlag(hskLevel)}
+        </p>
+      </div>
+    ),
+    [t, hskLevel]
+  );
+  const headerActions = useMemo(
+    () => (
+      <button
+        onClick={() => setShowChatList(true)}
+        className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--color-background)] transition-colors flex-shrink-0"
+        title="All chats"
+      >
+        <LayoutList size={18} className="text-[var(--color-text-muted)]" />
+      </button>
+    ),
+    []
+  );
+  // Also memoized as a whole — React bails out of re-rendering AppHeader
+  // when the context value it reads is reference-equal to last time, which
+  // only holds if this outer object is stable too, not just its fields.
+  const headerOverride = useMemo(
+    () => ({ center: headerCenter, actions: headerActions }),
+    [headerCenter, headerActions]
+  );
+  useHeaderOverride("speaking-header", headerOverride);
+
   return (
     <div className="flex flex-col h-full bg-[var(--color-background)]">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-4 pt-[max(12px,env(safe-area-inset-top))] pb-3 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-        <button
-          onClick={() => router.push("/")}
-          className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--color-background)] transition-colors flex-shrink-0"
-        >
-          <ChevronLeft size={20} className="text-[var(--color-text-muted)]" />
-        </button>
-        <div className="flex-1">
-          <h1 className="font-semibold text-sm text-[var(--color-text-primary)]">
-            {t.speakingPractice}
-          </h1>
-          <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-            {t.tapWordToFlag(hskLevel)}
-          </p>
-        </div>
-        <button
-          onClick={() => setShowChatList(true)}
-          className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--color-background)] transition-colors flex-shrink-0"
-          title="All chats"
-        >
-          <LayoutList size={18} className="text-[var(--color-text-muted)]" />
-        </button>
-        {/* Slang mode toggle disabled for now — parked for a later version.
-        <button
-          onClick={() => setSlangMode((s) => {
-            const next = !s;
-            localStorage.setItem("sm_slang_mode", next ? "1" : "0");
-            return next;
-          })}
-          className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all flex-shrink-0 ${
-            slangMode
-              ? "bg-violet-100 border-violet-300 text-violet-700"
-              : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
-          }`}
-        >
-          {slangMode ? t.slangActive : t.slang}
-        </button>
-        */}
-        <LanguageSwitcher />
-        <HomeButton className="flex-shrink-0" />
-      </div>
-
       {/* Transcript */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
         <TranscriptView

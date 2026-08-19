@@ -1,41 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { ChevronLeft, Home, Sparkles, BookOpenText, Plus, Brain } from "lucide-react";
+import { Sparkles, BookOpenText, Plus, Brain } from "lucide-react";
 import { getDailyState, startDailyBatch, addToDailyBatch, getWordExamples } from "@/app/actions/dailyLearning";
 import type { DailyState, DailyLearningWord, VocabularyMastery, WordExample } from "@/lib/types";
 import { DailyQuizCard } from "@/components/DailyQuizCard";
 import { ReviewSession } from "@/app/review/ReviewSession";
 import { useLanguage } from "@/app/_components/LanguageContext";
-import { LanguageSwitcher } from "@/app/_components/LanguageSwitcher";
-
-function NavHeader() {
-  const router = useRouter();
-  const { t } = useLanguage();
-  return (
-    <div className="px-5 pb-3 flex-shrink-0" style={{ paddingTop: "max(20px, env(safe-area-inset-top))" }}>
-      <div className="flex items-center justify-between max-w-sm mx-auto">
-        <button
-          onClick={() => router.back()}
-          className="flex items-center gap-1 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
-        >
-          <ChevronLeft size={18} />
-          {t.back}
-        </button>
-        <div className="flex items-center gap-3">
-          <LanguageSwitcher />
-          <button
-            onClick={() => router.push("/")}
-            className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
-          >
-            <Home size={18} />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function WordTile({ entry }: { entry: DailyLearningWord }) {
   const { t } = useLanguage();
@@ -200,7 +171,6 @@ function localToday(): string {
 
 export function DailyClient() {
   const { t } = useLanguage();
-  const router = useRouter();
   const [state, setState] = useState<DailyState | null>(null);
   const [quizIndex, setQuizIndex] = useState(0);
   const [count, setCount] = useState("10");
@@ -261,7 +231,6 @@ export function DailyClient() {
   if (state === null) {
     return (
       <div className="flex flex-col min-h-screen">
-        <NavHeader />
         <div className="flex-1 flex items-center justify-center text-sm text-[var(--color-text-muted)]">{t.loading}</div>
       </div>
     );
@@ -281,7 +250,6 @@ export function DailyClient() {
         sessionKey={`sm_daily_review_${state.todayBatch.batchDate}`}
         getAllWordsFn={async () => todayWords}
         onExit={() => setReviewingToday(false)}
-        onHome={() => router.push("/")}
       />
     );
   }
@@ -291,7 +259,6 @@ export function DailyClient() {
   if (quizWords.length > 0 && quizIndex < quizWords.length) {
     return (
       <div className="flex flex-col min-h-screen">
-        <NavHeader />
         <div className="flex-1 flex flex-col items-center justify-center px-6 pb-6">
           <div className="w-full max-w-md mb-4 text-center">
             <h2 className="text-lg font-medium">{t.dailyQuizTitle}</h2>
@@ -321,7 +288,6 @@ export function DailyClient() {
     const { words, targetCount } = state.todayBatch;
     return (
       <div className="flex flex-col min-h-screen">
-        <NavHeader />
         <div className="flex-1 flex flex-col items-center px-6 pb-6 gap-4 max-w-md mx-auto w-full">
           <div className="text-center mt-2">
             <div className="mx-auto mb-2 w-11 h-11 rounded-xl bg-amber-100 flex items-center justify-center">
@@ -357,7 +323,6 @@ export function DailyClient() {
   // ── Phase 3: no batch for today yet — ask how many words ───────────────────
   return (
     <div className="flex flex-col min-h-screen">
-      <NavHeader />
       <div className="flex-1 flex flex-col items-center justify-center px-6 pb-6 gap-5 max-w-sm mx-auto w-full text-center">
         <div className="w-11 h-11 rounded-xl bg-amber-100 flex items-center justify-center">
           <Sparkles size={22} className="text-amber-600" />

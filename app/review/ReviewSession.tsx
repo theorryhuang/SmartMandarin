@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useTransition, useRef } from "react";
-import { ChevronLeft, Home, PenLine, Layers } from "lucide-react";
+import { PenLine, Layers } from "lucide-react";
 import { ReviewCard } from "@/components/ReviewCard";
 import { SentenceCard } from "@/components/SentenceCard";
 import { getAllWords } from "@/app/actions/vocabulary";
 import type { VocabularyMastery } from "@/lib/types";
 import { useLanguage } from "@/app/_components/LanguageContext";
-import { LanguageSwitcher } from "@/app/_components/LanguageSwitcher";
+import { useHeaderOverride } from "@/app/_components/HeaderContext";
 
 const DEFAULT_SESSION_KEY = "sm_review_session";
 const MODE_KEY = "sm_review_mode";
@@ -85,57 +85,21 @@ function initSession(key: string, incoming: VocabularyMastery[]): {
   return { ordered, startIndex: 0 };
 }
 
-function NavHeader({
-  onBack,
-  onHome,
-  backLabel,
-  modeToggle,
-}: {
-  onBack: () => void;
-  onHome: () => void;
-  backLabel: string;
-  modeToggle?: React.ReactNode;
-}) {
-  return (
-    <div
-      className="px-5 pb-3 flex-shrink-0"
-      style={{ paddingTop: "max(20px, env(safe-area-inset-top))" }}
-    >
-      <div className="flex items-center justify-between max-w-sm mx-auto">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
-        >
-          <ChevronLeft size={18} />
-          {backLabel}
-        </button>
-        <div className="flex items-center gap-3">
-          {modeToggle}
-          <LanguageSwitcher />
-          <button
-            onClick={onHome}
-            className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
-          >
-            <Home size={18} />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 interface Props {
   initialCards: VocabularyMastery[];
   sessionKey?: string;
   getAllWordsFn?: () => Promise<VocabularyMastery[]>;
   onExit?: () => void;
-  onHome?: () => void;
 }
 
-export function ReviewSession({ initialCards, sessionKey = DEFAULT_SESSION_KEY, getAllWordsFn, onExit, onHome }: Props) {
+export function ReviewSession({ initialCards, sessionKey = DEFAULT_SESSION_KEY, getAllWordsFn, onExit }: Props) {
   const { t } = useLanguage();
   const activeKeyRef = useRef(sessionKey);
   const [mode, setMode] = useState<ReviewMode>(loadMode);
+
+  // Exiting a session (back to its picker) isn't a route change — register
+  // it with the global header for as long as this session is on screen.
+  useHeaderOverride("review-session", { onClick: () => onExit?.(), label: t.back });
 
   function toggleMode() {
     setMode((m) => {
@@ -232,7 +196,6 @@ export function ReviewSession({ initialCards, sessionKey = DEFAULT_SESSION_KEY, 
   if (cards.length === 0) {
     return (
       <div className="flex flex-col min-h-screen">
-        <NavHeader onBack={() => onExit?.()} onHome={() => onHome?.()} backLabel={t.back} />
         <div className="flex-1 flex flex-col items-center justify-center gap-5 text-center px-6 pb-6">
           <span className="text-4xl">🎉</span>
           <h2 className="text-xl font-medium">{t.allCaughtUp}</h2>
@@ -253,7 +216,6 @@ export function ReviewSession({ initialCards, sessionKey = DEFAULT_SESSION_KEY, 
     clearSession(sessionKey);
     return (
       <div className="flex flex-col min-h-screen">
-        <NavHeader onBack={() => onExit?.()} onHome={() => onHome?.()} backLabel={t.back} />
         <div className="flex-1 flex flex-col items-center justify-center gap-6 text-center px-6 pb-6 max-w-sm mx-auto w-full">
           <h2 className="text-2xl font-medium">{t.sessionComplete}</h2>
           <p className="text-sm text-[var(--color-text-muted)]">{t.cardsReviewed(sessionResults.length)}</p>
@@ -279,7 +241,7 @@ export function ReviewSession({ initialCards, sessionKey = DEFAULT_SESSION_KEY, 
 
   return (
     <div className="flex flex-col min-h-screen">
-      <NavHeader onBack={() => onExit?.()} onHome={() => onHome?.()} backLabel={t.back} modeToggle={modeToggle} />
+      <div className="flex justify-end px-6 pt-4">{modeToggle}</div>
       <div className="flex-1 flex flex-col items-center justify-center px-6 pb-6">
         {mode === "sentence" ? (
           <SentenceCard

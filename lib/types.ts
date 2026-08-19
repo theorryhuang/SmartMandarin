@@ -155,6 +155,37 @@ export interface DailyStreak {
   activeDates: string[];
 }
 
+// ─── Friends ──────────────────────────────────────────────────────────────────
+// See supabase/migrations/020_friends.sql — one table doubles as request and
+// friendship; an 'accepted' row *is* the friendship.
+
+export interface Friend {
+  friendId: string;
+  /** Row id in friend_requests — needed to unfriend (delete the row) */
+  requestId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  /** When the request was accepted */
+  since: string | null;
+}
+
+export interface FriendRequest {
+  requestId: string;
+  /** The other person — requester on an incoming request, addressee on an outgoing one */
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  createdAt: string;
+}
+
+export interface FriendProgress {
+  wordsTracked: number;
+  currentHSK: number | null;
+  /** Mastery ratio (0-100) within currentHSK specifically, same shape as the home page's own stat */
+  currentLevelMasteryPct: number;
+  streak: DailyStreak;
+}
+
 // ─── Conversation / Transcript ────────────────────────────────────────────────
 
 export interface TranscriptToken {

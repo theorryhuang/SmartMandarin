@@ -1,11 +1,9 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Puzzle, KeyRound, AudioLines, CircleHelp } from "lucide-react";
+import { Puzzle, KeyRound, AudioLines, CircleHelp, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getServerT } from "@/lib/i18n-server";
-import { BackButton } from "@/app/_components/BackButton";
-import { HomeButton } from "@/app/_components/HomeButton";
-import { LanguageSwitcher } from "@/app/_components/LanguageSwitcher";
+import { getFriendNotificationCount } from "@/app/actions/friends";
 import { SignOutButton } from "./SignOutButton";
 import { DeleteAccountSection } from "./DeleteAccountSection";
 
@@ -18,6 +16,13 @@ export default async function ProfilePage() {
 
   if (!user) redirect("/auth");
 
+  // Same count the global header's profile badge shows (see AppHeader) —
+  // repeated here because that badge hides itself on /profile (see
+  // getRouteConfig's showProfile: false, since you're already here), so
+  // this is the one place on this page a pending request is otherwise
+  // invisible without opening /friends to check.
+  const friendNotifCount = await getFriendNotificationCount();
+
   const name =
     user.user_metadata?.full_name ??
     user.user_metadata?.name ??
@@ -27,14 +32,6 @@ export default async function ProfilePage() {
 
   return (
     <main className="min-h-screen bg-[var(--color-background)] flex flex-col items-center justify-center p-8">
-      <div className="absolute left-6" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
-        <BackButton href="/" />
-      </div>
-      <div className="absolute right-6 flex items-center gap-3" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
-        <LanguageSwitcher />
-        <HomeButton />
-      </div>
-
       <div className="w-full max-w-sm flex flex-col items-center gap-6">
         {/* Avatar */}
         {avatar ? (
@@ -55,6 +52,25 @@ export default async function ProfilePage() {
           <h1 className="text-2xl font-semibold">{name}</h1>
           <p className="text-sm text-[var(--color-text-muted)] mt-1">{email}</p>
         </div>
+
+        {/* Friends */}
+        <Link
+          href="/friends"
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-violet-300 transition-colors"
+        >
+          <div className="relative shrink-0">
+            <Users size={18} className="text-violet-600" />
+            {friendNotifCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 min-w-[15px] h-[15px] bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1">
+                {friendNotifCount}
+              </span>
+            )}
+          </div>
+          <div className="flex-1 text-left">
+            <div className="text-sm font-medium text-[var(--color-text-primary)]">{t.profileNavFriends}</div>
+            <div className="text-xs text-[var(--color-text-muted)]">{t.profileNavFriendsDesc}</div>
+          </div>
+        </Link>
 
         {/* Browser extension */}
         <Link

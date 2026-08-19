@@ -20,6 +20,16 @@
   box-sizing: border-box;
 }
 
+/* Space for the global fixed AppHeader (see app/_components/AppHeader.tsx),
+ * default-on since every page shows it except Auth/Onboarding — each cancels
+ * this out on its own root element (see .app-header-cancel). */
+body {
+  padding-top: calc(56px + env(safe-area-inset-top));
+}
+.app-header-cancel {
+  margin-top: calc(-56px - env(safe-area-inset-top));
+}
+
 /* Interactable word tokens */
 .word-token {
   cursor: pointer;

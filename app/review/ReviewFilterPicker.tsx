@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { ChevronLeft, Home } from "lucide-react";
 import { ReviewSession } from "./ReviewSession";
 import {
   getDueWordsByLastRating,
@@ -13,7 +11,7 @@ import {
 } from "@/app/actions/vocabulary";
 import type { VocabularyMastery } from "@/lib/types";
 import { useLanguage } from "@/app/_components/LanguageContext";
-import { LanguageSwitcher } from "@/app/_components/LanguageSwitcher";
+import { useHeaderOverride } from "@/app/_components/HeaderContext";
 
 interface HSKLevel {
   label: string;
@@ -47,50 +45,22 @@ function mergeDeduped(arrays: VocabularyMastery[][]): VocabularyMastery[] {
   });
 }
 
-function NavHeader({
-  onBack,
-  onHome,
-}: {
-  onBack: () => void;
-  onHome: () => void;
-}) {
-  const { t } = useLanguage();
-  return (
-    <div
-      className="px-5 pb-3"
-      style={{ paddingTop: "max(20px, env(safe-area-inset-top))" }}
-    >
-      <div className="flex items-center justify-between max-w-sm mx-auto">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
-        >
-          <ChevronLeft size={18} />
-          {t.back}
-        </button>
-        <div className="flex items-center gap-3">
-          <LanguageSwitcher />
-          <button
-            onClick={onHome}
-            className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
-          >
-            <Home size={18} />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function ReviewFilterPicker() {
   const { t } = useLanguage();
-  const router = useRouter();
   const [selectedLabels, setSelectedLabels] = useState<Set<string>>(() => new Set());
   const [showSubFilter, setShowSubFilter] = useState(false);
   const [cards, setCards] = useState<VocabularyMastery[] | null>(null);
   const [sessionKey, setSessionKey] = useState("");
   const [isPending, startTransition] = useTransition();
   const [pendingKey, setPendingKey] = useState<string | null>(null);
+
+  // Sub-filter step's Back goes to the level picker, not browser-back — an
+  // active session (cards !== null) registers its own override instead (see
+  // ReviewSession), so this backs off once that's the case.
+  useHeaderOverride(
+    "review-filter-picker",
+    showSubFilter && cards === null ? { onClick: () => setShowSubFilter(false) } : null
+  );
 
   const activeHSKs = HSK_LEVELS.filter((l) => selectedLabels.has(l.label));
   // Slang words aren't leveled by HSK (is_slang rows are almost always
@@ -159,7 +129,6 @@ export function ReviewFilterPicker() {
         sessionKey={sessionKey}
         getAllWordsFn={getAllWordsFn}
         onExit={() => setCards(null)}
-        onHome={() => router.push("/")}
       />
     );
   }
@@ -243,7 +212,6 @@ export function ReviewFilterPicker() {
 
     return (
       <div className="flex flex-col min-h-screen">
-        <NavHeader onBack={() => setShowSubFilter(false)} onHome={() => router.push("/")} />
         <div className="flex-1 flex flex-col items-center justify-center px-6 pb-6 gap-6 max-w-sm mx-auto w-full">
           <h2 className="text-xl font-medium text-center">{subtitle}</h2>
           <div className="flex flex-col gap-3 w-full">
@@ -270,7 +238,6 @@ export function ReviewFilterPicker() {
   // ── HSK level picker (main) ────────────────────────────────────────────────
   return (
     <div className="flex flex-col min-h-screen">
-      <NavHeader onBack={() => router.back()} onHome={() => router.push("/")} />
       <div className="flex-1 flex flex-col items-center justify-center px-6 pb-6 gap-6 max-w-sm mx-auto w-full">
         <h2 className="text-xl font-medium text-center">{t.filterTitle}</h2>
         <div className="grid grid-cols-2 gap-3 w-full">

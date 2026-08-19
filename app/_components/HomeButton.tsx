@@ -12,7 +12,7 @@ export function HomeButton({ className = "" }: { className?: string }) {
     <button
       onClick={() => router.push("/")}
       aria-label="Home"
-      className={`flex items-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors ${className}`}
+      className={`w-9 h-9 flex items-center justify-center rounded-full text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-background)] transition-colors ${className}`}
     >
       <Home size={18} />
     </button>

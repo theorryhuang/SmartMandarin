@@ -1,8 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
 import { ReaderClient } from "./ReaderClient";
-import { BackButton } from "@/app/_components/BackButton";
-import { HomeButton } from "@/app/_components/HomeButton";
-import { LanguageSwitcher } from "@/app/_components/LanguageSwitcher";
 import type { VocabularyMastery, MasteryMap } from "@/lib/types";
 
 export default async function ReaderPage() {
@@ -30,17 +27,8 @@ export default async function ReaderPage() {
 
   return (
     <main className="min-h-screen bg-[var(--color-background)]">
-      <div className="max-w-2xl mx-auto relative px-4 pt-[max(32px,env(safe-area-inset-top))] pb-8">
-        <div className="absolute left-6" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
-          <BackButton href="/" />
-        </div>
-        <div className="absolute right-6 flex items-center gap-3" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
-          <LanguageSwitcher />
-          <HomeButton />
-        </div>
-        <div className="pt-10">
-          <ReaderClient masteryMap={masteryMap} hskLevel={avgHSK} />
-        </div>
+      <div className="max-w-2xl mx-auto px-4 pt-8 pb-8">
+        <ReaderClient masteryMap={masteryMap} hskLevel={avgHSK} />
       </div>
     </main>
   );

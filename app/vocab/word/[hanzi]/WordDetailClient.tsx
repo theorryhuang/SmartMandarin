@@ -3,15 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, Plus, Check, Trash2, Search, RotateCcw } from "lucide-react";
+import { Plus, Check, Trash2, Search, RotateCcw } from "lucide-react";
 import type { DictResult } from "@/lib/cedict";
 import type { VocabularyMastery } from "@/lib/types";
 import { hskColor } from "@/lib/hskColor";
 import { deleteWord, logMistake } from "@/app/actions/vocabulary";
 import { resetDailyLearned } from "@/app/actions/dailyLearning";
 import { useLanguage } from "@/app/_components/LanguageContext";
-import { HomeButton } from "@/app/_components/HomeButton";
-import { LanguageSwitcher } from "@/app/_components/LanguageSwitcher";
 
 interface Entry {
   pinyin: string;
@@ -171,22 +169,8 @@ export function WordDetailClient({
   }
 
   return (
-    <div className="pb-10 relative">
-      <div className="absolute left-6" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
-        <button
-          onClick={() => router.back()}
-          className="flex items-center gap-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
-        >
-          <ChevronLeft size={18} />
-          <span className="text-sm">{t.back}</span>
-        </button>
-      </div>
-      <div className="absolute right-6 flex items-center gap-3" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
-        <LanguageSwitcher />
-        <HomeButton />
-      </div>
-
-      <div className="px-4 flex flex-col items-center text-center" style={{ paddingTop: "calc(max(24px, env(safe-area-inset-top)) + 40px)" }}>
+    <div className="pb-10">
+      <div className="px-4 pt-6 flex flex-col items-center text-center">
         <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${c.bg} ${c.text}`}>
           {hskLevel !== null ? `HSK ${hskLevel}` : "—"}
         </span>

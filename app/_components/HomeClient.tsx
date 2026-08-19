@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Brain, MessageCircle, BookOpen, TrendingUp, ChevronRight, User, Mic, List, GripVertical, Sparkles, Flame } from "lucide-react";
+import { Brain, MessageCircle, BookOpen, TrendingUp, ChevronRight, Mic, List, GripVertical, Sparkles } from "lucide-react";
 import { useLanguage } from "./LanguageContext";
-import { LanguageSwitcher } from "./LanguageSwitcher";
 import { useState, useEffect } from "react";
 import {
   DndContext,
@@ -220,41 +219,16 @@ export function HomeClient({ dueCount, dailyQuizDueCount, streak, hasAnyWords, c
 
   return (
     <main className="min-h-screen bg-[var(--color-background)]">
-      <div className="max-w-lg lg:max-w-3xl mx-auto px-4 pt-12 pb-10">
+      <div className="max-w-lg lg:max-w-3xl mx-auto px-4 pt-6 pb-10">
 
-        {/* ── Top bar ── */}
-        <div className="flex items-start justify-between mb-8">
-          <div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-violet-600 to-sky-500 bg-clip-text text-transparent">
-              {t.appName}
-            </h1>
-            <p className="text-sm text-[var(--color-text-muted)] mt-0.5">
-              {hasAnyWords ? t.keepItUp : t.startJourney}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {streak.current > 0 && (
-              <Link
-                href="/daily"
-                className="flex items-center gap-1 h-10 px-2.5 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] text-amber-600 text-sm font-semibold hover:border-amber-300 transition-colors shadow-sm"
-              >
-                <Flame size={16} className="fill-amber-500 text-amber-500" />
-                {streak.current}
-              </Link>
-            )}
-            <LanguageSwitcher />
-            <Link
-              href="/profile"
-              className="relative w-10 h-10 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-center hover:border-violet-300 transition-colors shadow-sm"
-            >
-              <User size={18} className="text-[var(--color-text-secondary)]" />
-              {dueCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-orange-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
-                  {dueCount}
-                </span>
-              )}
-            </Link>
-          </div>
+        {/* ── Top bar — the global AppHeader covers streak/language/profile now ── */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-violet-600 to-sky-500 bg-clip-text text-transparent">
+            {t.appName}
+          </h1>
+          <p className="text-sm text-[var(--color-text-muted)] mt-0.5">
+            {hasAnyWords ? t.keepItUp : t.startJourney}
+          </p>
         </div>
 
         {/* Below lg this is just stacked block flow (grid/sticky utilities

@@ -1,8 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
+import { Suspense } from "react";
 import { cookies } from "next/headers";
 import "./globals.css";
 import { LanguageProvider } from "./_components/LanguageContext";
+import { HeaderProvider } from "./_components/HeaderContext";
+import { AppHeader } from "./_components/AppHeader";
 import type { Lang } from "@/lib/i18n";
 
 export const metadata: Metadata = {
@@ -42,7 +45,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           rounded — unlike /icons/icon-192.png which is full-bleed for the
           Android maskable crop and looks over-padded here. */}
       <body className="min-h-screen bg-[var(--color-background)] text-[var(--color-text-primary)] antialiased">
-        <LanguageProvider initialLang={initialLang}>{children}</LanguageProvider>
+        <LanguageProvider initialLang={initialLang}>
+          <HeaderProvider>
+            <Suspense fallback={null}>
+              <AppHeader />
+            </Suspense>
+            {children}
+          </HeaderProvider>
+        </LanguageProvider>
         {/* Registers public/sw.js — required for Chrome to treat this as
             installable at all (Safari's Add to Dock doesn't need this). */}
         <Script id="sw-register" strategy="afterInteractive">

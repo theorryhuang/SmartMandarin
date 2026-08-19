@@ -421,9 +421,89 @@ export type Database = {
           }
         ];
       };
+      friend_requests: {
+        Row: {
+          id: string;
+          requester_id: string;
+          addressee_id: string;
+          status: "pending" | "accepted" | "declined";
+          created_at: string;
+          responded_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          requester_id: string;
+          addressee_id: string;
+          status?: "pending" | "accepted" | "declined";
+          created_at?: string;
+          responded_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          requester_id?: string;
+          addressee_id?: string;
+          status?: "pending" | "accepted" | "declined";
+          created_at?: string;
+          responded_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "friend_requests_requester_id_fkey";
+            columns: ["requester_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "friend_requests_addressee_id_fkey";
+            columns: ["addressee_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: {
+      find_user_by_email: {
+        Args: { p_email: string };
+        Returns: { id: string; display_name: string | null; avatar_url: string | null }[];
+      };
+      get_friends: {
+        Args: Record<string, never>;
+        Returns: {
+          friend_id: string;
+          request_id: string;
+          display_name: string | null;
+          avatar_url: string | null;
+          since: string | null;
+        }[];
+      };
+      get_incoming_friend_requests: {
+        Args: Record<string, never>;
+        Returns: {
+          request_id: string;
+          user_id: string;
+          display_name: string | null;
+          avatar_url: string | null;
+          created_at: string;
+        }[];
+      };
+      get_outgoing_friend_requests: {
+        Args: Record<string, never>;
+        Returns: {
+          request_id: string;
+          user_id: string;
+          display_name: string | null;
+          avatar_url: string | null;
+          created_at: string;
+        }[];
+      };
+      get_friend_stats: {
+        Args: { p_friend_id: string };
+        Returns: Json;
+      };
       get_due_words: {
         // No p_user_id — derived from auth.uid() inside the function itself
         // (see supabase/migrations/019_fix_security_definer_idor.sql).

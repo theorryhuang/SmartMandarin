@@ -17,7 +17,7 @@ export default async function OnboardingPage() {
   const status = await getOnboardingStatus();
 
   return (
-    <main className="min-h-screen bg-[var(--color-background)] flex flex-col items-center p-6">
+    <main className="min-h-screen bg-[var(--color-background)] flex flex-col items-center p-6 app-header-cancel">
       <div
         className="w-full max-w-md flex flex-col gap-4"
         style={{ paddingTop: "max(48px, env(safe-area-inset-top))", paddingBottom: 24 }}

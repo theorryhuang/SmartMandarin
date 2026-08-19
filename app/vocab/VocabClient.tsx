@@ -2,15 +2,13 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
-import { Search, Trash2, Plus, Minus, ChevronLeft, X } from "lucide-react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { Search, Trash2, Plus, Minus, X } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import type { VocabularyMastery } from "@/lib/types";
 import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
 import { createClient } from "@/lib/supabase/client";
 import { deleteWord, logMistake } from "@/app/actions/vocabulary";
 import { useLanguage } from "@/app/_components/LanguageContext";
-import { HomeButton } from "@/app/_components/HomeButton";
-import { LanguageSwitcher } from "@/app/_components/LanguageSwitcher";
 import { hskColor } from "@/lib/hskColor";
 import { senseKey } from "@/lib/senseKey";
 
@@ -24,7 +22,6 @@ interface ApiSearchResult {
 
 export function VocabClient() {
   const { t } = useLanguage();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const initialQ = searchParams.get("q") ?? "";
   const [tab, setTab] = useState<"saved" | "search">(initialQ ? "search" : "search");
@@ -188,22 +185,7 @@ export function VocabClient() {
 
   return (
     <div className="pb-10">
-      {/* ── Header ── */}
-      <div className="absolute left-6" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
-        <button
-          onClick={() => initialQ ? router.back() : router.push("/")}
-          className="flex items-center gap-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
-        >
-          <ChevronLeft size={18} />
-          <span className="text-sm">{t.back}</span>
-        </button>
-      </div>
-      <div className="absolute right-6 flex items-center gap-3" style={{ top: "max(24px, env(safe-area-inset-top))" }}>
-        <LanguageSwitcher />
-        <HomeButton />
-      </div>
-
-      <div className="px-4 pb-1" style={{ paddingTop: "calc(max(24px, env(safe-area-inset-top)) + 40px)" }}>
+      <div className="px-4 pt-6 pb-1">
         <h1 className="font-semibold text-sm text-[var(--color-text-primary)]">{t.myVocabulary}</h1>
       </div>
 

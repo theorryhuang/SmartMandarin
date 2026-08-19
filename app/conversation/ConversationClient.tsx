@@ -1,14 +1,12 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
-import { ArrowUp, ChevronLeft, LayoutList, Mic, MicOff, Phone, PhoneOff, Plus, Trash2 } from "lucide-react";
-import { HomeButton } from "@/app/_components/HomeButton";
-import { LanguageSwitcher } from "@/app/_components/LanguageSwitcher";
-import { useRouter } from "next/navigation";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { ArrowUp, LayoutList, Mic, MicOff, Phone, PhoneOff, Plus, Trash2 } from "lucide-react";
 import { getConversationContext, getSavedHanziSet } from "@/app/actions/vocabulary";
 import { saveMessages, loadOlderMessages, getConversationList, deleteConversationMessages } from "@/app/actions/chat";
 import type { MasteryMap } from "@/lib/types";
 import { useLanguage } from "@/app/_components/LanguageContext";
+import { useHeaderOverride } from "@/app/_components/HeaderContext";
 import { useWordPopup, WordPopupCard } from "@/components/WordPopup";
 import { TappableText } from "@/components/TappableText";
 import { useGeminiLive } from "@/hooks/useGeminiLive";
@@ -42,7 +40,6 @@ function autoTitle(text: string): string {
 }
 
 export function ConversationClient({ masteryMap }: Props) {
-  const router = useRouter();
   const { t } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -659,22 +656,18 @@ export function ConversationClient({ masteryMap }: Props) {
   const liveActive = liveConv.connectionState === "connecting" || liveConv.connectionState === "connected";
   const activeConvTitle = conversations.find((c) => c.id === activeConvId)?.title || t.newChat;
 
-  return (
-    <div className="flex flex-col h-full bg-[var(--color-background)]">
-      {/* ── Header ── */}
-      <div className="flex items-center gap-3 px-4 pt-[max(12px,env(safe-area-inset-top))] pb-3 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-        <button
-          onClick={() => router.push("/")}
-          className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--color-background)] transition-colors flex-shrink-0"
-        >
-          <ChevronLeft size={20} className="text-[var(--color-text-muted)]" />
-        </button>
-
+  // Merged into the global fixed header instead of a second local bar —
+  // see app/_components/AppHeader.tsx's center/actions slots. Memoized so
+  // this only rebuilds (and re-registers with the header) when its actual
+  // inputs change, not on every one of this component's own re-renders
+  // (streaming transcript, live-call audio state, etc. are frequent here).
+  const headerCenter = useMemo(
+    () => (
+      <div className="flex items-center gap-3 min-w-0">
         <div className="w-9 h-9 rounded-full bg-violet-600 flex items-center justify-center flex-shrink-0">
           <span className="text-white text-sm font-medium select-none">灵</span>
         </div>
-
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0">
           <div className="font-semibold text-sm text-[var(--color-text-primary)]">小灵</div>
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
@@ -683,7 +676,13 @@ export function ConversationClient({ masteryMap }: Props) {
             </span>
           </div>
         </div>
-
+      </div>
+    ),
+    [activeConvTitle]
+  );
+  const headerActions = useMemo(
+    () => (
+      <>
         <button
           onClick={() => setShowChatList(true)}
           className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--color-background)] transition-colors flex-shrink-0"
@@ -691,23 +690,6 @@ export function ConversationClient({ masteryMap }: Props) {
         >
           <LayoutList size={18} className="text-[var(--color-text-muted)]" />
         </button>
-
-        {/* Slang mode toggle disabled for now — parked for a later version.
-        <button
-          onClick={() => setSlangMode((s) => {
-            const next = !s;
-            localStorage.setItem("sm_slang_mode", next ? "1" : "0");
-            return next;
-          })}
-          className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all flex-shrink-0 ${
-            slangMode
-              ? "bg-violet-100 border-violet-300 text-violet-700"
-              : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
-          }`}
-        >
-          {slangMode ? t.slangActive : t.slang}
-        </button>
-        */}
         <button
           onClick={() => (liveActive ? liveConv.disconnect() : liveConv.connect())}
           disabled={hskLevel === null}
@@ -720,10 +702,26 @@ export function ConversationClient({ masteryMap }: Props) {
         >
           {liveActive ? <PhoneOff size={16} /> : <Phone size={16} />}
         </button>
-        <LanguageSwitcher />
-        <HomeButton className="flex-shrink-0" />
-      </div>
+      </>
+    ),
+    // liveConv itself is a fresh object every render (useGeminiLive doesn't
+    // memoize its return value) — depend on the stable pieces actually used
+    // here instead (connect/disconnect are useCallback'd, connectionState
+    // is a plain string) so this doesn't defeat the memo by rebuilding
+    // every render regardless.
+    [liveActive, liveConv.connectionState, liveConv.connect, liveConv.disconnect, hskLevel]
+  );
+  // Also memoized as a whole — React bails out of re-rendering AppHeader
+  // when the context value it reads is reference-equal to last time, which
+  // only holds if this outer object is stable too, not just its fields.
+  const headerOverride = useMemo(
+    () => ({ center: headerCenter, actions: headerActions }),
+    [headerCenter, headerActions]
+  );
+  useHeaderOverride("conversation-header", headerOverride);
 
+  return (
+    <div className="flex flex-col h-full bg-[var(--color-background)]">
       {/* ── Live call status ── */}
       {liveConv.connectionState !== "idle" && (
         <div className="flex items-center justify-between gap-3 px-4 py-2 bg-violet-50 border-b border-violet-200 text-sm">

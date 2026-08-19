@@ -7,6 +7,7 @@ import { fetchGeminiInteractions } from "@/lib/gemini/interactions";
 import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
 import type { Json } from "@/lib/supabase/database.types";
 import type { FSRSRating, VocabularyMastery, DailyLearningBatch, DailyLearningWord, DailyState, DailyStreak, WordExample } from "@/lib/types";
+import { computeStreak } from "@/lib/streak";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -35,12 +36,6 @@ function todayStr(clientDate?: string): string {
 
 async function getUserId(supabase: SupabaseClient): Promise<string> {
   return (await supabase.auth.getUser()).data.user?.id ?? "";
-}
-
-function addDays(dateStr: string, delta: number): string {
-  const d = new Date(`${dateStr}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + delta);
-  return d.toISOString().slice(0, 10);
 }
 
 async function loadBatchWords(
@@ -607,26 +602,8 @@ export async function getDailyStreak(clientDate?: string): Promise<DailyStreak> 
     .order("batch_date", { ascending: true });
   if (error) throw new Error(error.message);
 
-  const activeDates = [...new Set((data ?? []).map((r) => r.batch_date as string))].sort();
-  if (activeDates.length === 0) return { current: 0, longest: 0, activeDates: [] };
-
-  let longest = 1;
-  let run = 1;
-  for (let i = 1; i < activeDates.length; i++) {
-    run = addDays(activeDates[i - 1], 1) === activeDates[i] ? run + 1 : 1;
-    longest = Math.max(longest, run);
-  }
-
-  const dateSet = new Set(activeDates);
-  const today = todayStr(clientDate);
-  let cursor = dateSet.has(today) ? today : addDays(today, -1);
-  let current = 0;
-  while (dateSet.has(cursor)) {
-    current += 1;
-    cursor = addDays(cursor, -1);
-  }
-
-  return { current, longest, activeDates };
+  const activeDates = (data ?? []).map((r) => r.batch_date as string);
+  return computeStreak(activeDates, todayStr(clientDate));
 }
 
 // ─── Home page badge ────────────────────────────────────────────────────────────

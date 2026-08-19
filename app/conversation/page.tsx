@@ -18,7 +18,10 @@ export default async function ConversationPage() {
   }
 
   return (
-    <main className="h-screen overflow-hidden">
+    // Body already reserves space for the fixed AppHeader (see globals.css)
+    // — size against what's left instead of the full viewport, so this
+    // chat's own h-full toolbar/transcript/input layout still fits exactly.
+    <main className="overflow-hidden" style={{ height: "calc(100dvh - 56px - env(safe-area-inset-top))" }}>
       <ConversationClient masteryMap={masteryMap} />
     </main>
   );
