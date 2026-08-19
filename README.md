@@ -6,11 +6,11 @@ A continuous-acquisition Mandarin learning app: spaced-repetition vocabulary rev
 
 - **Daily** — a curated daily batch of words to learn, quizzed the next day (with carry-over for anything missed), tracked on a home-screen streak calendar
 - **Review** — FSRS-4.5 spaced repetition on your vocabulary queue, filterable by HSK level, with an "Easy"/"Hard"/unreviewed sub-filter; forgotten words can be re-added straight from the word detail page
-- **Speaking Practice** — hold-to-talk voice practice, graded by Gemini
-- **Conversation** — live voice chat with Gemini (Multimodal Live API over WebRTC), tap any word in the transcript to see its definition and log it as a mistake
+- **Conversation** — one chat, three ways to talk to Gemini: type, hold the mic for one turn at a time (transcribed, graded, and read back to you), or open a live full-duplex voice call (Multimodal Live API over WebRTC). Tap any word in the transcript to see its definition and log it as a mistake; replay any message as audio and adjust playback speed
 - **Reader** — Gemini-generated stories with per-character highlighting (known vs. queued vocabulary), click any character to queue it for review
 - **My Vocabulary** — browse, search, and manage every word you've saved
 - **Level Assessment** — a placement quiz to seed your starting HSK level
+- **Friends** — send/accept friend requests by email, then compare progress (current HSK level, words tracked, streak) with anyone who's accepted; a notification badge on Profile tracks incoming requests and requests of yours that just got accepted
 - Drag-to-reorder home screen — pick which learning mode leads
 - English/中文 UI toggle
 
@@ -22,7 +22,7 @@ Home screen modes are reorderable (drag handle, persisted to `localStorage`) so 
 
 A brand-new account (zero saved words, never assessed — the same signal the Level Assessment redirect already used) is sent through a short chain before landing on the home screen:
 
-1. **`/onboarding`** — a skippable checklist: add a Gemini API key (required for Speaking Practice grading, Conversation, Reader, and the AI dictionary fallback), add an ElevenLabs key (required for Speaking Practice's transcription — no shared fallback, see below), and set up the browser extension (optional, desktop Chrome/Edge). "Required" here means required for *that feature*, not to use the app at all — "Continue to app" always works, whether every step was done or none of them; each one can also be finished later from Profile.
+1. **`/onboarding`** — a skippable checklist: add a Gemini API key (required for Conversation, Reader, and the AI dictionary fallback), add an ElevenLabs key (required for Conversation's push-to-talk mic — no shared fallback, see below), and set up the browser extension (optional, desktop Chrome/Edge). "Required" here means required for *that feature*, not to use the app at all — "Continue to app" always works, whether every step was done or none of them; each one can also be finished later from Profile.
 2. **`/assessment`** — the existing placement quiz, unchanged.
 3. Home.
 
@@ -61,27 +61,30 @@ No App Store, no Apple Developer account required for any of the above.
 
 ```
 app/
-  _components/        Shared client components (home screen, nav, language context)
+  _components/        Shared client components (global header/nav, language context)
   actions/             Server actions — getDueWords, submitReview, logMistake, addWord(s),
-                        daily batch/streak (dailyLearning.ts), onboarding status/completion
+                        daily batch/streak (dailyLearning.ts), friend requests/progress
+                        (friends.ts), onboarding status/completion
   api/                 Route handlers: converse, transcribe, grade-answer, grade-sentence,
                         generate-story, define-word, gemini-token, search-words, extension/*
   daily/               Daily word batch + next-day quiz, streak calendar
   review/              FSRS review session (HSK-filtered, hard/easy sub-filters)
-  conversation/        Voice chat UI + transcript
+  conversation/        Chat UI — text, hold-to-talk mic, and live voice call, one transcript
   reader/              Story generator + interactive reading view
-  speaking/            Hold-to-talk practice
   assessment/          HSK level placement quiz
   vocab/                Vocabulary browser + per-word detail page
+  friends/             Friend requests (send/accept/decline) + per-friend progress comparison
   onboarding/          First-run setup checklist (new accounts only, skippable)
   instructions/        Standing setup checklist + what-each-tab-does reference (Profile link)
   settings/extension/  Manage browser-extension access tokens
   settings/gemini-key/ Manage your BYOK Gemini key
   settings/elevenlabs-key/ Manage your BYOK ElevenLabs key (optional — shared key works too)
-  profile/             Account settings, sign out
+  profile/             Account settings, friends notification badge, sign out
   manifest.ts          PWA manifest (icons, capture_links, theme)
 lib/
   fsrs.ts              FSRS-4.5 scheduling algorithm + HSK injection logic
+  streak.ts             Shared streak (gaps-and-islands) derivation — your own daily streak
+                        and a friend's both run through this
   defineWord.ts         Shared dictionary-lookup core (used by both /api/define-word and
                         /api/extension/lookup)
   cedict.ts, segment.ts CC-CEDICT lookup + Chinese word segmentation
@@ -89,7 +92,7 @@ lib/
   supabase/             Browser + server Supabase clients, hand-authored DB types
 browser-extension/      Chrome/Edge MV3 popup dictionary (see its own README)
 supabase/migrations/    Full schema history (vocabulary_mastery, review_log, slang_bank,
-                        cedict, extension_tokens, RLS policies, RPCs)
+                        cedict, extension_tokens, friend_requests, RLS policies, RPCs)
 scripts/                Data pipeline: CEDICT DB build, HSK/slang seeding, Popcidian scraping
 ```
 
@@ -110,14 +113,14 @@ npm run dev
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key (browser client) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only Supabase client (extension API routes, seeding scripts) |
-| `ELEVENLABS_API_KEY` | Optional — lets the app owner skip the settings-page BYOK flow for Speaking Practice transcription, same as `GEMINI_API_KEY_OWNER` below. Not a shared key for other users. |
+| `ELEVENLABS_API_KEY` | Optional — lets the app owner skip the settings-page BYOK flow for Conversation's push-to-talk mic transcription, same as `GEMINI_API_KEY_OWNER` below. Not a shared key for other users. |
 | `SETTINGS_ENCRYPTION_KEY` | Encrypts users' BYOK Gemini/ElevenLabs keys at rest (`openssl rand -base64 32`) |
 | `GEMINI_API_KEY_OWNER` / `OWNER_USER_ID` | Optional — lets the app owner skip the settings-page BYOK flow |
 | `NEXT_PUBLIC_APP_URL` | Base URL used in generated links (browser extension "open full page", etc.) |
 
 Story generation, conversation, and grading run on Gemini, but there's no app-wide Gemini key — every user brings their own (free, via [aistudio.google.com/apikey](https://aistudio.google.com/apikey)) from Profile → Gemini API key. See `lib/gemini/resolveKey.ts`.
 
-Speaking Practice's transcription works the same way — no shared key for regular users, by design, so nobody's usage eats into a quota that isn't theirs. Every user brings their own ElevenLabs key (free tier available) from Profile → ElevenLabs API key. `ELEVENLABS_API_KEY` only ever benefits the app owner's own account (`OWNER_USER_ID`), exactly like `GEMINI_API_KEY_OWNER` — see `lib/elevenlabs/resolveKey.ts`.
+Conversation's push-to-talk mic transcription works the same way — no shared key for regular users, by design, so nobody's usage eats into a quota that isn't theirs. Every user brings their own ElevenLabs key (free tier available) from Profile → ElevenLabs API key. `ELEVENLABS_API_KEY` only ever benefits the app owner's own account (`OWNER_USER_ID`), exactly like `GEMINI_API_KEY_OWNER` — see `lib/elevenlabs/resolveKey.ts`.
 
 ### Database
 
@@ -136,4 +139,4 @@ node scripts/import-slang.mjs  # optional — feeds the slang bank, currently un
 
 ## Status
 
-Actively developed. Auth, FSRS review, daily word batches + streak tracking, conversation practice, the story reader, the browser extension, and the PWA install path are all built and working. Slang mode/review is built but currently disabled in the UI (parked for a later version, see Features). Not yet built: a LangGraph-based stateful tutoring layer, automated CI, and native (Capacitor/Swift) app builds — the current install story is PWA-only, which covers Mac/iOS/desktop-Chrome installability but not App Store distribution or iOS Universal Links (both gated behind a paid Apple Developer account, deliberately deferred).
+Actively developed. Auth, FSRS review, daily word batches + streak tracking, conversation practice, the story reader, friends (requests + progress comparison), the browser extension, and the PWA install path are all built and working. Slang mode/review is built but currently disabled in the UI (parked for a later version, see Features). Not yet built: a LangGraph-based stateful tutoring layer, automated CI, and native (Capacitor/Swift) app builds — the current install story is PWA-only, which covers Mac/iOS/desktop-Chrome installability but not App Store distribution or iOS Universal Links (both gated behind a paid Apple Developer account, deliberately deferred).

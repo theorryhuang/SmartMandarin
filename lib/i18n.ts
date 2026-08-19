@@ -23,8 +23,6 @@ const en = {
   review: "Review",
   slangReview: "Slang Review",
   allCaughtUp: "All caught up",
-  speakingPractice: "Speaking Practice",
-  speakingDesc: "Hold to speak · AI responds in Mandarin",
   chatPractice: "Chat Practice",
   chatDesc: "Practice Mandarin · Tap words to save",
   chats: "Chats",
@@ -161,7 +159,6 @@ const en = {
   pause: "Pause",
   showTranscript: "Show transcript",
   hideTranscript: "Hide transcript",
-  holdButtonToStart: "Hold the button to start speaking",
 
   // ── Conversation ─────────────────────────────────────────────────────────────
   typeToStart: "Type anything to start chatting in Mandarin",
@@ -386,11 +383,9 @@ const en = {
   instructionsTabSlangDesc: "A separate review track for informal/internet Mandarin, kept apart from your main HSK vocabulary.",
   instructionsTabDailyTitle: "Daily Words",
   instructionsTabDailyDesc: "A fresh batch of new words each day with example sentences, then a quick quiz to lock them in.",
-  instructionsTabSpeakingTitle: "Speaking Practice",
-  instructionsTabSpeakingDesc: "Hold to talk — record yourself speaking Mandarin and get graded by Gemini.",
   instructionsTabConversationTitle: "Conversation",
   instructionsTabConversationDesc:
-    "Live voice chat with Gemini. Tap any word in the transcript to see its definition and log it as a mistake; toggle slang mode for informal speech.",
+    "Text or voice chat with Gemini — type, hold the mic to speak a turn at a time, or start a live full-duplex call. Tap any word in the transcript to see its definition and log it as a mistake; toggle slang mode for informal speech.",
   instructionsTabReaderTitle: "Reader",
   instructionsTabReaderDesc:
     "Gemini-generated stories at your level, with per-character highlighting for known vs. queued vocabulary — click any character to queue it.",
@@ -403,7 +398,7 @@ const en = {
   dangerZone: "Danger Zone",
   deleteAccountBtn: "Delete account",
   deleteAccountWarning:
-    "This permanently deletes your account and everything in it — vocabulary, review history, chat and speaking transcripts, saved Gemini key, extension tokens. This cannot be undone.",
+    "This permanently deletes your account and everything in it — vocabulary, review history, chat transcripts, saved Gemini key, extension tokens. This cannot be undone.",
   deleteAccountConfirmPrompt: "Type DELETE to confirm",
   deleteAccountConfirmBtn: "Permanently delete my account",
   deleteAccountDeleting: "Deleting…",
@@ -466,8 +461,6 @@ const zh: typeof en = {
   review: "复习",
   slangReview: "俚语复习",
   allCaughtUp: "全部完成",
-  speakingPractice: "口语练习",
-  speakingDesc: "按住说话 · AI用普通话回复",
   chatPractice: "对话练习",
   chatDesc: "练习普通话 · 点击单词保存",
   chats: "对话列表",
@@ -602,7 +595,6 @@ const zh: typeof en = {
   pause: "暂停",
   showTranscript: "显示文字",
   hideTranscript: "隐藏文字",
-  holdButtonToStart: "按住按钮开始说话",
 
   // ── Conversation ─────────────────────────────────────────────────────────────
   typeToStart: "输入任何内容开始用普通话聊天",
@@ -818,10 +810,8 @@ const zh: typeof en = {
   instructionsTabSlangDesc: "一个独立的复习轨道，专门用于非正式/网络中文，和你的主 HSK 词汇分开。",
   instructionsTabDailyTitle: "每日单词",
   instructionsTabDailyDesc: "每天学习一批新单词，附带例句，之后有一个小测验帮你巩固记忆。",
-  instructionsTabSpeakingTitle: "口语练习",
-  instructionsTabSpeakingDesc: "按住说话——录下你说的中文，由 Gemini 评分。",
   instructionsTabConversationTitle: "对话",
-  instructionsTabConversationDesc: "与 Gemini 实时语音聊天。点击文字记录中的任意单词查看释义并记为错题；可切换俚语模式练习非正式表达。",
+  instructionsTabConversationDesc: "用文字或语音与 Gemini 聊天——打字、按住麦克风逐句说话，或开始实时语音通话。点击文字记录中的任意单词查看释义并记为错题；可切换俚语模式练习非正式表达。",
   instructionsTabReaderTitle: "阅读",
   instructionsTabReaderDesc: "Gemini 生成的、适合你水平的故事，逐字高亮已掌握/待复习的词汇——点击任意字即可加入复习队列。",
   instructionsTabVocabTitle: "我的词汇",
@@ -832,7 +822,7 @@ const zh: typeof en = {
   // ── Account deletion ─────────────────────────────────────────────────────────
   dangerZone: "危险区域",
   deleteAccountBtn: "删除账户",
-  deleteAccountWarning: "此操作将永久删除你的账户及其所有内容——词汇、复习记录、对话和口语记录、保存的 Gemini 密钥、扩展程序令牌。此操作无法撤销。",
+  deleteAccountWarning: "此操作将永久删除你的账户及其所有内容——词汇、复习记录、对话记录、保存的 Gemini 密钥、扩展程序令牌。此操作无法撤销。",
   deleteAccountConfirmPrompt: "输入 DELETE 以确认",
   deleteAccountConfirmBtn: "永久删除我的账户",
   deleteAccountDeleting: "删除中…",

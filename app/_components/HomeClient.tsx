@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Brain, MessageCircle, BookOpen, TrendingUp, ChevronRight, Mic, List, GripVertical, Sparkles } from "lucide-react";
+import { Brain, MessageCircle, BookOpen, TrendingUp, ChevronRight, List, GripVertical, Sparkles } from "lucide-react";
 import { useLanguage } from "./LanguageContext";
 import { useState, useEffect } from "react";
 import {
@@ -57,7 +57,9 @@ interface ModeItem {
 const MODE_DEFAULTS: ModeItem[] = [
   { id: "review",       href: "/review",       labelKey: "review",         descKey: "review",       icon: Brain,         iconBg: "bg-violet-100", iconColor: "text-violet-600" },
   { id: "daily",        href: "/daily",        labelKey: "dailyLearning",  descKey: "daily",        icon: Sparkles,      iconBg: "bg-amber-100",  iconColor: "text-amber-600"  },
-  { id: "speaking",     href: "/speaking",     labelKey: "speakingPractice",descKey: "speaking",    icon: Mic,           iconBg: "bg-rose-100",   iconColor: "text-rose-600"   },
+  // Speaking Practice merged into the chatbot — its hold-to-talk push-to-talk
+  // flow now lives behind Chat Practice's mic button (see ConversationClient),
+  // so it no longer needs its own tile/route here.
   { id: "conversation", href: "/conversation", labelKey: "chatPractice",   descKey: "chat",         icon: MessageCircle, iconBg: "bg-sky-100",    iconColor: "text-sky-600"    },
   { id: "reader",       href: "/reader",       labelKey: "reader",         descKey: "reader",       icon: BookOpen,      iconBg: "bg-emerald-100",iconColor: "text-emerald-600"},
   { id: "vocab",        href: "/vocab",        labelKey: "myVocabulary",   descKey: "vocab",        icon: List,          iconBg: "bg-teal-100",   iconColor: "text-teal-600"   },
@@ -204,7 +206,6 @@ export function HomeClient({ dueCount, dailyQuizDueCount, streak, hasAnyWords, c
   function getDesc(mode: ModeItem) {
     if (mode.id === "review")   return dueCount > 0 ? t.cardsDue(dueCount) : t.allCaughtUp;
     if (mode.id === "daily")    return dailyQuizDueCount > 0 ? t.dailyQuizDue(dailyQuizDueCount) : t.dailyDesc;
-    if (mode.id === "speaking") return t.speakingDesc;
     if (mode.id === "conversation") return t.chatDesc;
     if (mode.id === "reader")   return t.readerDesc;
     if (mode.id === "vocab")    return t.vocabDesc;

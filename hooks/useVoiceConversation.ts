@@ -15,6 +15,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { tokenizeTranscript } from "@/lib/tokenizeTranscript";
+import { isBoilerplateTranscript } from "@/lib/transcribeFilters";
 import type { TranscriptToken } from "@/lib/types";
 
 export type ConvState = "idle" | "recording" | "transcribing" | "thinking" | "speaking" | "error";
@@ -194,6 +195,15 @@ export function useVoiceConversation(opts: VoiceConvOptions & { initialHistory?:
         return;
       }
       const userText: string = transcribeData.text.trim();
+      // Hallucinated stock outro (see isBoilerplateTranscript) — near-silent
+      // or noisy audio came back "successfully" transcribed but as garbage
+      // that was never actually said. Treat it the same as no speech heard
+      // rather than sending it on to the AI as if it were real input.
+      if (isBoilerplateTranscript(userText)) {
+        setError("Could not hear any speech — try speaking louder or closer to the mic");
+        setState("error");
+        return;
+      }
       const userTokens = tokenizeTranscript(userText);
       const audioUrl = URL.createObjectURL(blob);
       optsRef.current.onTranscriptUpdate(userTokens, "user", userText, audioUrl);

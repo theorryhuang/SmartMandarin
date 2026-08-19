@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
-import { ArrowUp, LayoutList, Mic, MicOff, Phone, PhoneOff, Plus, Trash2 } from "lucide-react";
+import { ArrowUp, LayoutList, Mic, MicOff, Pause, Phone, PhoneOff, Play, Plus, Trash2 } from "lucide-react";
 import { getConversationContext, getSavedHanziSet } from "@/app/actions/vocabulary";
 import { saveMessages, loadOlderMessages, getConversationList, deleteConversationMessages } from "@/app/actions/chat";
 import type { MasteryMap } from "@/lib/types";
@@ -10,11 +10,17 @@ import { useHeaderOverride } from "@/app/_components/HeaderContext";
 import { useWordPopup, WordPopupCard } from "@/components/WordPopup";
 import { TappableText } from "@/components/TappableText";
 import { useGeminiLive } from "@/hooks/useGeminiLive";
+import { useVoiceConversation, type ConvState } from "@/hooks/useVoiceConversation";
+import { useTurnPlayback } from "@/hooks/useTurnPlayback";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
   id: string;
+  /** Object URL for the user's recorded audio blob (practice-mic turns only,
+   *  session-local — never persisted, same as ConversationTurn.audioUrl used
+   *  to be on the old standalone Speaking Practice page). */
+  audioUrl?: string;
 }
 
 interface ConversationMeta {
@@ -149,8 +155,20 @@ export function ConversationClient({ masteryMap }: Props) {
   // instead (same pattern as sm_conv_messages_/sm_conv_history_ below) so it
   // survives navigating away and back without accumulating across sessions.
   const [forcedWords, setForcedWords] = useState<string[]>([]);
-  const [isRecording, setIsRecording] = useState(false);
-  const [isTranscribing, setIsTranscribing] = useState(false);
+
+  // TTS playback speed for both the practice mic's auto-spoken replies and
+  // any message's manual replay button — shared single control, same range
+  // the old standalone Speaking Practice page used.
+  const [speechRate, setSpeechRate] = useState(1);
+  const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
+  const [isSpeechPaused, setIsSpeechPaused] = useState(false);
+  const activeAudioRef = useRef<HTMLAudioElement | null>(null);
+  // Messages toggled hidden via the per-bubble "Hide transcript" button
+  // (ported from Speaking Practice's blur-to-quiz-yourself transcript).
+  // Deliberately opt-in/empty by default — unlike the old standalone page,
+  // this chat's messages are visible by default so typed conversations
+  // don't regress into a blurred-by-default surprise.
+  const [hiddenMessageIds, setHiddenMessageIds] = useState<Set<string>>(new Set());
 
   const { popup, popupRef, showHover, hideHover, toggleClick, toggleSense, togglePartSense, navigateToWord, navigateToPart, resolveRange } = useWordPopup({
     masteryMap,
@@ -180,9 +198,11 @@ export function ConversationClient({ masteryMap }: Props) {
   const historyRef = useRef<{ role: "user" | "assistant"; content: string }[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
   const activeConvIdRef = useRef<string>("");
+  // Disambiguates ids for the two messages (user + assistant) a single
+  // practice-mic turn produces back-to-back — they can otherwise land in
+  // the same millisecond.
+  const practiceIdSeq = useRef(0);
 
   useEffect(() => {
     activeConvIdRef.current = activeConvId;
@@ -197,6 +217,58 @@ export function ConversationClient({ masteryMap }: Props) {
       setUnknownWords(unknownWords);
     });
   }, []);
+
+  // ── Practice mic (push-to-talk) — replaces the old standalone Speaking
+  //    Practice page. Hold to speak → transcribe → Gemini reply → browser
+  //    TTS auto-speaks the reply, all as one turn-based hold-and-release
+  //    cycle. Distinct from the Live Call button below, which streams
+  //    full-duplex via Gemini Live instead of one turn at a time. ──────────
+  const practiceConv = useVoiceConversation({
+    slangMode,
+    forcedWords,
+    hskLevel: hskLevel ?? 1,
+    unknownWords,
+    speechRate,
+    onTranscriptUpdate: (_tokens, role, rawText, audioUrl) => {
+      const id = `practice_${Date.now()}_${practiceIdSeq.current++}`;
+      const msg: Message = { role, content: rawText, id, audioUrl };
+      setMessages((prev) => [...prev, msg]);
+
+      const convId = activeConvIdRef.current;
+      saveMessages([{ role, content: rawText, id }], convId).catch(() => {});
+
+      historyRef.current = [...historyRef.current, { role, content: rawText }].slice(-20);
+      try { localStorage.setItem(`sm_conv_history_${convId}`, JSON.stringify(historyRef.current)); } catch {}
+
+      if (role === "user") {
+        setConversations((prev) => {
+          const isFirst = !prev.find((c) => c.id === convId)?.title;
+          const updated = prev.map((c) =>
+            c.id === convId ? { ...c, updatedAt: Date.now(), title: isFirst ? autoTitle(rawText) : c.title } : c
+          );
+          localStorage.setItem("sm_conversations", JSON.stringify(updated));
+          return updated;
+        });
+      }
+    },
+    onAITurnEnd: () => setForcedWords([]),
+  });
+
+  const turnPlayback = useTurnPlayback();
+
+  // Stops whatever's currently audible (practice mic recording/speaking,
+  // manual message replay, or a playing recorded-audio blob) — called
+  // whenever the active conversation is about to change out from under it.
+  const stopVoicePlayback = useCallback(() => {
+    practiceConv.cancel();
+    turnPlayback.stop();
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      activeAudioRef.current = null;
+    }
+    setPlayingMessageId(null);
+    setIsSpeechPaused(false);
+  }, [practiceConv, turnPlayback]);
 
   // Init: migrate old single-chat format, then load conversations —
   // entirely synchronous, no network wait. This must render whatever's
@@ -362,6 +434,8 @@ export function ConversationClient({ masteryMap }: Props) {
     const currentId = activeConvIdRef.current;
     if (convId === currentId) { setShowChatList(false); return; }
 
+    stopVoicePlayback();
+
     if (currentId) {
       try { localStorage.setItem(`sm_conv_history_${currentId}`, JSON.stringify(historyRef.current)); } catch {}
     }
@@ -386,7 +460,7 @@ export function ConversationClient({ masteryMap }: Props) {
     setShowChatList(false);
     // If nothing's cached locally for convId, the activeConvId-keyed
     // backfill effect above picks it up from the DB automatically.
-  }, []);
+  }, [stopVoicePlayback]);
 
   const createNewConversation = useCallback(() => {
     const id = `conv_${Date.now()}`;
@@ -397,6 +471,8 @@ export function ConversationClient({ masteryMap }: Props) {
       localStorage.setItem("sm_conversations", JSON.stringify(updated));
       return updated;
     });
+
+    stopVoicePlayback();
 
     const currentId = activeConvIdRef.current;
     if (currentId) {
@@ -409,7 +485,7 @@ export function ConversationClient({ masteryMap }: Props) {
     setActiveConvId(id);
     localStorage.setItem("sm_active_conv", id);
     setShowChatList(false);
-  }, []);
+  }, [stopVoicePlayback]);
 
   const deleteConversation = useCallback((convId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -436,6 +512,7 @@ export function ConversationClient({ masteryMap }: Props) {
     setConversations(remaining);
 
     if (activeConvIdRef.current === convId) {
+      stopVoicePlayback();
       if (remaining.length > 0) {
         const target = remaining[0];
         let newMsgs: Message[] = [];
@@ -466,7 +543,7 @@ export function ConversationClient({ masteryMap }: Props) {
         setActiveConvId(newId);
       }
     }
-  }, []);
+  }, [stopVoicePlayback]);
 
   const sendMessage = useCallback(async () => {
     const text = input.trim();
@@ -542,57 +619,60 @@ export function ConversationClient({ masteryMap }: Props) {
     }
   }, [input, isLoading, hskLevel, slangMode, forcedWords, unknownWords, activeConvId]);
 
-  const startRecording = useCallback(async () => {
-    try {
-      let stream: MediaStream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-        });
-      } catch {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      }
-      const mimeType = getSupportedMimeType();
-      const recorder = new MediaRecorder(stream, { mimeType });
-      audioChunksRef.current = [];
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
-      };
-      recorder.onstop = async () => {
-        recorder.stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(audioChunksRef.current, { type: mimeType });
-        audioChunksRef.current = [];
-        setIsTranscribing(true);
-        try {
-          const form = new FormData();
-          form.append("audio", blob, "audio.webm");
-          const res = await fetch("/api/transcribe", { method: "POST", body: form });
-          const data = await res.json();
-          const text = data.text?.trim() ?? "";
-          const blocked = isBoilerplate(text);
-          console.log("[transcribe] raw:", JSON.stringify(text));
-          console.log("[transcribe] blob size:", blob.size, "mime:", mimeType);
-          console.log("[transcribe] boilerplate blocked:", blocked);
-          if (text && !blocked) {
-            setInput(text);
-            inputRef.current?.focus();
-          }
-        } catch { /* ignore */ } finally {
-          setIsTranscribing(false);
-        }
-      };
-      mediaRecorderRef.current = recorder;
-      recorder.start();
-      setIsRecording(true);
-    } catch { /* mic denied */ }
-  }, []);
+  // Replays one message's audio: the user's actual recorded clip if this
+  // session still has it (practice-mic turns only, an in-memory blob URL —
+  // see the Message.audioUrl doc comment), otherwise browser TTS reading
+  // the text back — which covers every assistant reply and any typed
+  // message too. Toggling the same message pauses/resumes in place; picking
+  // a different one stops whatever was playing and starts fresh.
+  const handleReplayMessage = useCallback((msg: Message) => {
+    const isUserAudio = msg.role === "user" && !!msg.audioUrl;
 
-  const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current?.state !== "inactive") {
-      mediaRecorderRef.current?.stop();
+    if (playingMessageId === msg.id) {
+      if (isSpeechPaused) {
+        if (isUserAudio && activeAudioRef.current) {
+          activeAudioRef.current.playbackRate = speechRate;
+          activeAudioRef.current.play();
+        } else {
+          turnPlayback.resume(speechRate, () => setPlayingMessageId(null));
+        }
+        setIsSpeechPaused(false);
+      } else {
+        if (isUserAudio && activeAudioRef.current) {
+          activeAudioRef.current.pause();
+        } else {
+          turnPlayback.pause();
+        }
+        setIsSpeechPaused(true);
+      }
+      return;
     }
-    mediaRecorderRef.current = null;
-    setIsRecording(false);
+
+    turnPlayback.stop();
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      activeAudioRef.current = null;
+    }
+    setIsSpeechPaused(false);
+    setPlayingMessageId(msg.id);
+
+    if (isUserAudio) {
+      const audio = new Audio(msg.audioUrl);
+      audio.playbackRate = speechRate;
+      activeAudioRef.current = audio;
+      audio.onended = () => { setPlayingMessageId(null); activeAudioRef.current = null; };
+      audio.play();
+    } else {
+      turnPlayback.play(msg.content, speechRate, () => setPlayingMessageId(null));
+    }
+  }, [playingMessageId, isSpeechPaused, speechRate, turnPlayback]);
+
+  const toggleHidden = useCallback((id: string) => {
+    setHiddenMessageIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
   }, []);
 
   // ── Live voice call (Gemini Live — full-duplex, replaces hold-to-record
@@ -654,7 +734,16 @@ export function ConversationClient({ masteryMap }: Props) {
   });
 
   const liveActive = liveConv.connectionState === "connecting" || liveConv.connectionState === "connected";
+  const practiceBusy = practiceConv.state !== "idle";
   const activeConvTitle = conversations.find((c) => c.id === activeConvId)?.title || t.newChat;
+
+  const practiceStatusLabel: Record<Exclude<ConvState, "idle">, string> = {
+    recording: t.recording,
+    transcribing: t.transcribing,
+    thinking: t.thinking,
+    speaking: t.speaking,
+    error: t.error,
+  };
 
   // Merged into the global fixed header instead of a second local bar —
   // see app/_components/AppHeader.tsx's center/actions slots. Memoized so
@@ -692,7 +781,7 @@ export function ConversationClient({ masteryMap }: Props) {
         </button>
         <button
           onClick={() => (liveActive ? liveConv.disconnect() : liveConv.connect())}
-          disabled={hskLevel === null}
+          disabled={hskLevel === null || practiceBusy}
           title={liveConv.connectionState === "connected" ? "End live voice call" : "Start live voice call"}
           className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors flex-shrink-0 disabled:opacity-40 ${
             liveActive
@@ -709,7 +798,7 @@ export function ConversationClient({ masteryMap }: Props) {
     // here instead (connect/disconnect are useCallback'd, connectionState
     // is a plain string) so this doesn't defeat the memo by rebuilding
     // every render regardless.
-    [liveActive, liveConv.connectionState, liveConv.connect, liveConv.disconnect, hskLevel]
+    [liveActive, liveConv.connectionState, liveConv.connect, liveConv.disconnect, hskLevel, practiceBusy]
   );
   // Also memoized as a whole — React bails out of re-rendering AppHeader
   // when the context value it reads is reference-equal to last time, which
@@ -767,40 +856,69 @@ export function ConversationClient({ masteryMap }: Props) {
           </div>
         )}
 
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
-          >
-            {msg.role === "assistant" && (
-              <div className="w-7 h-7 rounded-full bg-violet-600 flex items-center justify-center flex-shrink-0 mt-1">
-                <span className="text-white text-xs font-medium select-none">灵</span>
-              </div>
-            )}
+        {messages.map((msg) => {
+          const hidden = hiddenMessageIds.has(msg.id);
+          const isPlayingThis = playingMessageId === msg.id && !isSpeechPaused;
+          return (
             <div
-              className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-[15px] ${
-                msg.role === "user"
-                  ? "bg-violet-600 text-white rounded-tr-sm"
-                  : "bg-[var(--color-surface)] text-[var(--color-text-primary)] rounded-tl-sm border border-[var(--color-border)] shadow-sm"
-              }`}
+              key={msg.id}
+              className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
             >
-              {msg.role === "assistant" ? (
-                <TappableText
-                  text={msg.content}
-                  masteryMap={masteryMap}
-                  savedWords={savedWords}
-                  onWordClick={toggleClick}
-                  onWordHover={showHover}
-                  onHoverLeave={hideHover}
-                  resolveRange={resolveRange}
-                  activeWord={popup?.word ?? null}
-                />
-              ) : (
-                <span className="leading-relaxed">{msg.content}</span>
+              {msg.role === "assistant" && (
+                <div className="w-7 h-7 rounded-full bg-violet-600 flex items-center justify-center flex-shrink-0 mt-1">
+                  <span className="text-white text-xs font-medium select-none">灵</span>
+                </div>
               )}
+              <div
+                className={`flex flex-col gap-1.5 max-w-[78%] rounded-2xl px-4 py-2.5 text-[15px] ${
+                  msg.role === "user"
+                    ? "bg-violet-600 text-white rounded-tr-sm"
+                    : "bg-[var(--color-surface)] text-[var(--color-text-primary)] rounded-tl-sm border border-[var(--color-border)] shadow-sm"
+                }`}
+              >
+                {/* Replay (recorded audio, or TTS) + hide/show — ported
+                    from the old standalone Speaking Practice page's
+                    per-turn controls. */}
+                <div className="flex items-center gap-2.5">
+                  <button
+                    onClick={() => handleReplayMessage(msg)}
+                    title={isPlayingThis ? t.pause : t.play}
+                    className={`flex items-center transition-colors ${
+                      msg.role === "user" ? "text-violet-200 hover:text-white" : "text-violet-600 hover:text-violet-800"
+                    }`}
+                  >
+                    {isPlayingThis ? <Pause size={12} /> : <Play size={12} />}
+                  </button>
+                  <button
+                    onClick={() => toggleHidden(msg.id)}
+                    className={`text-[10px] underline underline-offset-2 transition-colors ${
+                      msg.role === "user" ? "text-violet-200 hover:text-white" : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
+                    }`}
+                  >
+                    {hidden ? t.showTranscript : t.hideTranscript}
+                  </button>
+                </div>
+
+                {!hidden && (
+                  msg.role === "assistant" ? (
+                    <TappableText
+                      text={msg.content}
+                      masteryMap={masteryMap}
+                      savedWords={savedWords}
+                      onWordClick={toggleClick}
+                      onWordHover={showHover}
+                      onHoverLeave={hideHover}
+                      resolveRange={resolveRange}
+                      activeWord={popup?.word ?? null}
+                    />
+                  ) : (
+                    <span className="leading-relaxed">{msg.content}</span>
+                  )
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {isLoading && (
           <div className="flex gap-2">
@@ -817,9 +935,9 @@ export function ConversationClient({ masteryMap }: Props) {
       </div>
 
       {/* ── Error ── */}
-      {chatError && (
+      {(chatError || practiceConv.error) && (
         <div className="px-4 py-2.5 bg-red-900/10 border-t border-red-800/30">
-          <p className="text-sm text-red-500">{chatError}</p>
+          <p className="text-sm text-red-500">{chatError || practiceConv.error}</p>
         </div>
       )}
 
@@ -838,10 +956,32 @@ export function ConversationClient({ masteryMap }: Props) {
         </div>
       )}
 
+      {/* ── TTS speed — shared by the practice mic's auto-spoken replies
+          and every message's manual replay button. ── */}
+      <div className="flex items-center gap-2 px-4 py-1.5 bg-[var(--color-surface)] border-t border-[var(--color-border)]">
+        <span className="text-[10px] text-[var(--color-text-muted)] w-6">1x</span>
+        <input
+          type="range"
+          min={1}
+          max={2}
+          step={0.1}
+          value={speechRate}
+          onChange={(e) => setSpeechRate(parseFloat(e.target.value))}
+          // See useTurnPlayback's doc comment — rate can't change mid-utterance,
+          // only take effect on the next play/resume, so this is disabled
+          // while something's actively playing (not just paused).
+          disabled={playingMessageId !== null && !isSpeechPaused}
+          className="flex-1 accent-violet-600 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        />
+        <span className="text-[10px] text-[var(--color-text-muted)] w-6 text-right">2x</span>
+        <span className="text-[10px] text-violet-600 font-medium w-8 text-right">{speechRate.toFixed(1)}x</span>
+      </div>
+
       {/* ── Input ── */}
       {/* Disabled while a live call is up — that session owns the mic and
           drives its own turns, a text/hold-to-record message alongside it
-          would interleave unpredictably with the open audio stream. */}
+          would interleave unpredictably with the open audio stream. Same
+          reasoning applies to the practice mic mid-turn. */}
       <div className="px-4 py-3 bg-[var(--color-surface)] border-t border-[var(--color-border)]">
         <div className="flex items-center gap-2 bg-[var(--color-background)] border border-[var(--color-border)] rounded-2xl px-4 py-2 focus-within:border-violet-400 transition-colors">
           <input
@@ -849,37 +989,55 @@ export function ConversationClient({ masteryMap }: Props) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
-            placeholder={liveActive ? "Live call in progress…" : t.typeInput}
-            disabled={isLoading || hskLevel === null || liveActive}
+            placeholder={
+              liveActive
+                ? "Live call in progress…"
+                : practiceConv.state !== "idle"
+                ? practiceStatusLabel[practiceConv.state]
+                : t.typeInput
+            }
+            disabled={isLoading || hskLevel === null || liveActive || practiceBusy}
             className="flex-1 bg-transparent text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none disabled:opacity-50"
           />
           <button
-            onPointerDown={startRecording}
-            onPointerUp={stopRecording}
-            onPointerLeave={stopRecording}
-            disabled={isLoading || isTranscribing || hskLevel === null || liveActive}
+            onPointerDown={() => {
+              if (liveActive || practiceConv.state !== "idle") return;
+              practiceConv.resetHistory(historyRef.current);
+              practiceConv.startRecording();
+            }}
+            onPointerUp={() => practiceConv.state === "recording" && practiceConv.stopRecording()}
+            onPointerLeave={() => practiceConv.state === "recording" && practiceConv.stopRecording()}
+            disabled={isLoading || hskLevel === null || liveActive || (practiceBusy && practiceConv.state !== "recording")}
+            title={t.holdToSpeak}
             className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors disabled:opacity-40 flex-shrink-0 ${
-              isRecording
+              practiceConv.state === "recording"
                 ? "bg-red-500"
                 : "bg-[var(--color-border)] hover:bg-slate-300"
             }`}
           >
-            {isTranscribing ? (
+            {practiceConv.state === "transcribing" || practiceConv.state === "thinking" ? (
               <span className="w-3 h-3 rounded-full border-2 border-violet-500 border-t-transparent animate-spin" />
+            ) : practiceConv.state === "speaking" ? (
+              <span className="w-3 h-3 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
             ) : (
-              <Mic size={15} className={isRecording ? "text-white" : "text-[var(--color-text-muted)]"} />
+              <Mic size={15} className={practiceConv.state === "recording" ? "text-white" : "text-[var(--color-text-muted)]"} />
             )}
           </button>
           <button
             onClick={sendMessage}
-            disabled={isLoading || !input.trim() || hskLevel === null || liveActive}
+            disabled={isLoading || !input.trim() || hskLevel === null || liveActive || practiceBusy}
             className="w-8 h-8 rounded-full bg-violet-600 hover:bg-violet-700 flex items-center justify-center transition-colors disabled:opacity-40 flex-shrink-0"
           >
             <ArrowUp size={15} className="text-white" />
           </button>
         </div>
-        <p className="text-center text-[10px] text-[var(--color-text-muted)] mt-1.5">
-          {t.tapToSelect}
+        <p className="text-center text-[10px] text-[var(--color-text-muted)] mt-1.5 flex items-center justify-center gap-2">
+          <span>{practiceConv.state !== "idle" ? practiceStatusLabel[practiceConv.state] : t.tapToSelect}</span>
+          {(practiceConv.state === "transcribing" || practiceConv.state === "thinking" || practiceConv.state === "speaking") && (
+            <button onClick={practiceConv.cancel} className="underline underline-offset-2">
+              {t.cancel}
+            </button>
+          )}
         </p>
       </div>
 
@@ -940,16 +1098,4 @@ export function ConversationClient({ masteryMap }: Props) {
       )}
     </div>
   );
-}
-
-function isBoilerplate(text: string): boolean {
-  return /点赞|订阅|转发|打赏|明镜|点点栏目/.test(text);
-}
-
-function getSupportedMimeType(): string {
-  const types = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"];
-  for (const type of types) {
-    if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(type)) return type;
-  }
-  return "audio/webm";
 }

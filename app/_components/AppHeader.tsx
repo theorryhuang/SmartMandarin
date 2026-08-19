@@ -14,8 +14,8 @@ import { getDailyStreak } from "@/app/actions/dailyLearning";
 import { getFriendNotificationCount } from "@/app/actions/friends";
 
 /** Total rendered height (content + safe area) — kept in sync with the h-14
- *  below. Full-height pages (Speaking, Conversation) size themselves
- *  against `100dvh - this` instead of a spacer element. */
+ *  below. Full-height pages (Conversation) size themselves against
+ *  `100dvh - this` instead of a spacer element. */
 export const APP_HEADER_OFFSET = "calc(56px + env(safe-area-inset-top))";
 
 interface RouteConfig {
@@ -60,7 +60,7 @@ function getRouteConfig(
   if (pathname === "/profile") return { backHref: "/", showProfile: false };
   if (pathname === "/friends") return { backHref: "/profile" };
   if (pathname === "/reader" || pathname === "/assessment") return { backHref: "/" };
-  if (pathname === "/speaking" || pathname === "/conversation") return { backHref: "/" };
+  if (pathname === "/conversation") return { backHref: "/" };
 
   if (pathname.startsWith("/settings/")) {
     const fromOnboarding = searchParams.get("from") === "onboarding";
@@ -77,8 +77,8 @@ function getRouteConfig(
   // /vocab/word/[hanzi], /daily, /review, and anything else: plain
   // router.back(), every button shown. /daily and /review's own stateful
   // views (an active review session, the sub-filter step) override Back
-  // themselves via useHeaderOverride while they're on screen — as do
-  // Speaking/Conversation, which merge their own title/actions in too.
+  // themselves via useHeaderOverride while they're on screen — as does
+  // Conversation, which merges its own title/actions in too.
   return {};
 }
 
@@ -153,8 +153,8 @@ export function AppHeader() {
         )}
 
         {/* Fills the middle — either a page's custom center content (merged
-            in place of a second local header, e.g. Speaking/Conversation's
-            title), or nothing, just pushing the right cluster to the edge. */}
+            in place of a second local header, e.g. Conversation's title),
+            or nothing, just pushing the right cluster to the edge. */}
         <div className="flex-1 min-w-0 flex items-center">{override?.center}</div>
 
         <div className="flex items-center gap-1.5 flex-shrink-0">

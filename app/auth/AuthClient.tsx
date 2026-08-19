@@ -1,18 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { Brain, Sparkles, Mic, MessageCircle, BookOpen, List, type LucideIcon } from "lucide-react";
+import { Brain, Sparkles, MessageCircle, BookOpen, List, type LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/app/_components/LanguageContext";
 import { LanguageSwitcher } from "@/app/_components/LanguageSwitcher";
 
-// Same six modes/icons as the home screen (app/_components/HomeClient.tsx) —
+// Same five modes/icons as the home screen (app/_components/HomeClient.tsx) —
 // signed-out visitors get a preview of what they're signing up for, using
 // the same marketing-style copy as the Instructions page's tab breakdown.
-const FEATURES: { icon: LucideIcon; iconBg: string; iconColor: string; titleKey: "instructionsTabReviewTitle" | "instructionsTabDailyTitle" | "instructionsTabSpeakingTitle" | "instructionsTabConversationTitle" | "instructionsTabReaderTitle" | "instructionsTabVocabTitle"; descKey: "instructionsTabReviewDesc" | "instructionsTabDailyDesc" | "instructionsTabSpeakingDesc" | "instructionsTabConversationDesc" | "instructionsTabReaderDesc" | "instructionsTabVocabDesc" }[] = [
+const FEATURES: { icon: LucideIcon; iconBg: string; iconColor: string; titleKey: "instructionsTabReviewTitle" | "instructionsTabDailyTitle" | "instructionsTabConversationTitle" | "instructionsTabReaderTitle" | "instructionsTabVocabTitle"; descKey: "instructionsTabReviewDesc" | "instructionsTabDailyDesc" | "instructionsTabConversationDesc" | "instructionsTabReaderDesc" | "instructionsTabVocabDesc" }[] = [
   { icon: Brain,         iconBg: "bg-violet-100",  iconColor: "text-violet-600",  titleKey: "instructionsTabReviewTitle",       descKey: "instructionsTabReviewDesc" },
   { icon: Sparkles,      iconBg: "bg-amber-100",   iconColor: "text-amber-600",   titleKey: "instructionsTabDailyTitle",        descKey: "instructionsTabDailyDesc" },
-  { icon: Mic,           iconBg: "bg-rose-100",    iconColor: "text-rose-600",    titleKey: "instructionsTabSpeakingTitle",     descKey: "instructionsTabSpeakingDesc" },
   { icon: MessageCircle, iconBg: "bg-sky-100",     iconColor: "text-sky-600",     titleKey: "instructionsTabConversationTitle", descKey: "instructionsTabConversationDesc" },
   { icon: BookOpen,      iconBg: "bg-emerald-100", iconColor: "text-emerald-600", titleKey: "instructionsTabReaderTitle",       descKey: "instructionsTabReaderDesc" },
   { icon: List,          iconBg: "bg-teal-100",    iconColor: "text-teal-600",    titleKey: "instructionsTabVocabTitle",        descKey: "instructionsTabVocabDesc" },

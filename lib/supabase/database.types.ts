@@ -161,47 +161,6 @@ export type Database = {
         };
         Relationships: [];
       };
-      speaking_turns: {
-        Row: {
-          id: string;
-          user_id: string;
-          client_id: string;
-          role: "user" | "assistant";
-          raw_text: string;
-          tokens: Json;
-          created_at: string;
-          conversation_id: string | null;
-        };
-        Insert: {
-          id?: string;
-          user_id: string;
-          client_id: string;
-          role: "user" | "assistant";
-          raw_text: string;
-          tokens: Json;
-          created_at?: string;
-          conversation_id?: string | null;
-        };
-        Update: {
-          id?: string;
-          user_id?: string;
-          client_id?: string;
-          role?: "user" | "assistant";
-          raw_text?: string;
-          tokens?: Json;
-          created_at?: string;
-          conversation_id?: string | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "speaking_turns_user_id_fkey";
-            columns: ["user_id"];
-            isOneToOne: false;
-            referencedRelation: "users";
-            referencedColumns: ["id"];
-          }
-        ];
-      };
       chat_messages: {
         Row: {
           id: string;

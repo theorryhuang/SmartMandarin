@@ -7,7 +7,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 /**
  * Permanently deletes the current user's account and everything attached to
  * it. Every user-owned table (vocabulary_mastery, review_log, chat_messages,
- * speaking_turns, extension_tokens, user_settings/gemini keys) declares
+ * extension_tokens, user_settings/gemini keys) declares
  * `references auth.users(id) on delete cascade`, so deleting the auth user
  * cascades through all of it in one step — no manual per-table cleanup.
  *

@@ -11,7 +11,6 @@ import {
   Brain,
   Flame,
   Sparkles,
-  Mic,
   MessageCircle,
   BookOpen,
   List,
@@ -91,7 +90,6 @@ export function InstructionsClient({ status }: { status: OnboardingStatus }) {
         <TabRow icon={Flame} iconBg="bg-orange-100" iconColor="text-orange-500" title={t.instructionsTabSlangTitle} desc={t.instructionsTabSlangDesc} />
         */}
         <TabRow icon={Sparkles} iconBg="bg-amber-100" iconColor="text-amber-600" title={t.instructionsTabDailyTitle} desc={t.instructionsTabDailyDesc} />
-        <TabRow icon={Mic} iconBg="bg-rose-100" iconColor="text-rose-600" title={t.instructionsTabSpeakingTitle} desc={t.instructionsTabSpeakingDesc} />
         <TabRow icon={MessageCircle} iconBg="bg-sky-100" iconColor="text-sky-600" title={t.instructionsTabConversationTitle} desc={t.instructionsTabConversationDesc} />
         <TabRow icon={BookOpen} iconBg="bg-emerald-100" iconColor="text-emerald-600" title={t.instructionsTabReaderTitle} desc={t.instructionsTabReaderDesc} />
         <TabRow icon={List} iconBg="bg-teal-100" iconColor="text-teal-600" title={t.instructionsTabVocabTitle} desc={t.instructionsTabVocabDesc} />
