@@ -140,3 +140,10 @@ node scripts/import-slang.mjs  # optional — feeds the slang bank, currently un
 ## Status
 
 Actively developed. Auth, FSRS review, daily word batches + streak tracking, conversation practice, the story reader, friends (requests + progress comparison), the browser extension, and the PWA install path are all built and working. Slang mode/review is built but currently disabled in the UI (parked for a later version, see Features). Not yet built: a LangGraph-based stateful tutoring layer, automated CI, and native (Capacitor/Swift) app builds — the current install story is PWA-only, which covers Mac/iOS/desktop-Chrome installability but not App Store distribution or iOS Universal Links (both gated behind a paid Apple Developer account, deliberately deferred).
+
+## Demos
+
+https://github.com/user-attachments/assets/904f91ce-b8f3-4f2f-a13e-f4d0ef371cea
+
+https://github.com/user-attachments/assets/c48188f1-3587-4f52-984d-6578ba7eafb0
+
