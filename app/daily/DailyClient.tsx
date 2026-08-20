@@ -112,19 +112,24 @@ function WordTile({ entry }: { entry: DailyLearningWord }) {
             <p className="text-xs text-[var(--color-text-muted)] italic animate-pulse py-1">{t.dailyExamplesLoading}</p>
           )}
           {examplesError && <p className="text-xs text-red-500 py-1">{examplesError}</p>}
-          {examples?.map((ex, i) => (
-            <div key={i} className="text-sm pt-1.5 first:pt-2">
-              {/* Only worth labeling when there's more than one sense to
-                  tell apart — a single-sense word's one example doesn't
-                  need a "which use case is this" caption. */}
-              {examples.length > 1 && ex.useCase && (
-                <div className="text-[10px] font-medium text-amber-700 uppercase tracking-wide mb-0.5">{ex.useCase}</div>
-              )}
-              <div className="text-[var(--color-text-primary)]">{ex.sentence}</div>
-              <div className="text-xs text-[var(--color-text-muted)] mt-0.5">{ex.pinyin}</div>
-              <div className="text-xs text-[var(--color-text-secondary)]">{ex.translation}</div>
-            </div>
-          ))}
+          {examples?.map((ex, i) => {
+            // useCase doubles as the closest thing to a definition here
+            // (e.g. "Scope or boundary of coverage/activity") — always show
+            // it, not just when there's more than one sense to distinguish;
+            // a single-sense word still needs its meaning explained, not
+            // just its part of speech.
+            const label = [ex.useCase, ex.partOfSpeech].filter(Boolean).join(" · ");
+            return (
+              <div key={i} className="text-sm pt-1.5 first:pt-2">
+                {label && (
+                  <div className="text-[10px] font-medium text-amber-700 uppercase tracking-wide mb-0.5">{label}</div>
+                )}
+                <div className="text-[var(--color-text-primary)]">{ex.sentence}</div>
+                <div className="text-xs text-[var(--color-text-muted)] mt-0.5">{ex.pinyin}</div>
+                <div className="text-xs text-[var(--color-text-secondary)]">{ex.translation}</div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

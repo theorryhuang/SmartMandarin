@@ -134,6 +134,8 @@ export interface DailyLearningBatch {
 export interface WordExample {
   /** Short label for which sense/usage this sentence demonstrates */
   useCase: string;
+  /** e.g. "verb", "adjective", "conjunction" — the word's role *in this sense* */
+  partOfSpeech: string;
   sentence: string;
   pinyin: string;
   translation: string;

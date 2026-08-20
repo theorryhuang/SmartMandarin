@@ -380,6 +380,45 @@ export type Database = {
           }
         ];
       };
+      gemini_generation_log: {
+        Row: {
+          id: string;
+          user_id: string;
+          purpose: string;
+          word_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          purpose: string;
+          word_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          purpose?: string;
+          word_id?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "gemini_generation_log_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "gemini_generation_log_word_id_fkey";
+            columns: ["word_id"];
+            isOneToOne: false;
+            referencedRelation: "vocabulary_mastery";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
       friend_requests: {
         Row: {
           id: string;
@@ -484,6 +523,22 @@ export type Database = {
       };
       delete_stale_conversations: {
         Args: { p_max_age?: string };
+        Returns: void;
+      };
+      check_gemini_generation_quota: {
+        // Raises 'DAILY_LIMIT_REACHED' / 'RATE_LIMIT_MINUTE' as a Postgres
+        // exception (surfaces as error.message on the JS side) rather than
+        // returning a value — see
+        // supabase/migrations/023_gemini_quota_check_before_log.sql.
+        // Read-only: no-ops (doesn't count against either limit, doesn't
+        // write anything) if p_word_id already has a log row for p_purpose
+        // within the last day. Pair with log_gemini_generation, called only
+        // once the generation this check cleared actually succeeds.
+        Args: { p_purpose: string; p_word_id: string; p_rpm_limit: number; p_rpd_limit: number };
+        Returns: void;
+      };
+      log_gemini_generation: {
+        Args: { p_purpose: string; p_word_id: string };
         Returns: void;
       };
     };

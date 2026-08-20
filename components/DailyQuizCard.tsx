@@ -37,8 +37,9 @@ interface Props {
 export function DailyQuizCard({ entry, currentIndex, totalCards, onDone }: Props) {
   const { t } = useLanguage();
   const { word } = entry;
-  const [useCases, setUseCases] = useState<string[] | null>(null);
+  const [useCases, setUseCases] = useState<{ useCase: string; partOfSpeech: string }[] | null>(null);
   const [useCaseIndex, setUseCaseIndex] = useState(0);
+  const [useCaseLoadError, setUseCaseLoadError] = useState<string | null>(null);
   const [sentence, setSentence] = useState("");
   const [grading, setGrading] = useState(false);
   const [result, setResult] = useState<GradeResult | null>(null);
@@ -52,20 +53,30 @@ export function DailyQuizCard({ entry, currentIndex, totalCards, onDone }: Props
     setSentence("");
     setResult(null);
     setGradeError(null);
+    setUseCaseLoadError(null);
     setFlipped(false);
 
     getWordExamples(entry.dailyWordId)
       .then((examples) => {
-        const labels = examples.map((ex) => ex.useCase).filter(Boolean);
-        setUseCases(labels.length > 0 ? labels : [""]);
+        const labels = examples
+          .filter((ex) => ex.useCase)
+          .map((ex) => ({ useCase: ex.useCase, partOfSpeech: ex.partOfSpeech }));
+        setUseCases(labels.length > 0 ? labels : [{ useCase: "", partOfSpeech: "" }]);
       })
-      // A hiccup generating/fetching use cases shouldn't block the quiz —
-      // fall back to a single generic attempt, same as before this feature.
-      .catch(() => setUseCases([""]));
+      // A hiccup generating/fetching use cases (including hitting the
+      // use-case generation quota) shouldn't block the quiz — fall back to
+      // a single generic attempt, same as before this feature. But unlike
+      // before, the reason is now shown rather than swallowed silently, so
+      // e.g. a daily-limit message is something you actually see.
+      .catch((e) => {
+        setUseCaseLoadError(e instanceof Error ? e.message : String(e));
+        setUseCases([{ useCase: "", partOfSpeech: "" }]);
+      });
   }, [entry.dailyWordId]);
 
   const isMultiSense = (useCases?.length ?? 0) > 1;
-  const currentUseCase = useCases?.[useCaseIndex] ?? "";
+  const currentUseCase = useCases?.[useCaseIndex]?.useCase ?? "";
+  const currentPartOfSpeech = useCases?.[useCaseIndex]?.partOfSpeech ?? "";
   const isLastUseCase = useCases !== null && useCaseIndex === useCases.length - 1;
 
   function checkSentence() {
@@ -140,6 +151,11 @@ export function DailyQuizCard({ entry, currentIndex, totalCards, onDone }: Props
           />
         </div>
       </div>
+      {useCaseLoadError && (
+        <p className="w-full -mt-2 text-xs text-orange-600 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+          {useCaseLoadError} — quizzing on the word generally instead.
+        </p>
+      )}
 
       <div style={{ perspective: "1000px" }} className="w-full">
         <div
@@ -183,6 +199,11 @@ export function DailyQuizCard({ entry, currentIndex, totalCards, onDone }: Props
         <p className="text-xs text-[var(--color-text-muted)] italic animate-pulse">{t.dailyQuizLoadingUseCases}</p>
       ) : (
         <div className="w-full flex flex-col gap-2">
+          {currentPartOfSpeech && (
+            <span className="self-start px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 text-[11px] border border-sky-200">
+              {currentPartOfSpeech}
+            </span>
+          )}
           <label className="text-sm text-[var(--color-text-secondary)]">
             {isMultiSense ? t.sentencePromptUseCase(word.hanzi, currentUseCase) : t.sentencePrompt(word.hanzi)}
           </label>

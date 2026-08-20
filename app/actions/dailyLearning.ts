@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { submitReview } from "@/app/actions/vocabulary";
 import { resolveGeminiKey } from "@/lib/gemini/resolveKey";
 import { fetchGeminiInteractions } from "@/lib/gemini/interactions";
+import { gradeSentence } from "@/lib/gemini/gradeSentence";
 import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
 import type { Json } from "@/lib/supabase/database.types";
 import type { FSRSRating, VocabularyMastery, DailyLearningBatch, DailyLearningWord, DailyState, DailyStreak, WordExample } from "@/lib/types";
@@ -412,12 +413,59 @@ export async function addToDailyBatch(count: number, clientDate?: string): Promi
 
 const MAX_USE_CASES = 5;
 
+// Use-case generation runs on a stronger, non-"-lite" model than the app's
+// default (see lib/gemini/interactions.ts) — recalling which senses of a
+// word are actually still alive in modern usage is a knowledge-recall task,
+// exactly where the cheap default tier fabricates (this is what produced
+// the 把握-as-"physical grasp" bug). It runs once per word and is cached
+// forever after, so the cost difference is negligible.
+//
+// Its free-tier quota is tight, though. GEMINI_USE_CASE_WORDS_PER_MINUTE/DAY
+// below back an app-side cap on *distinct new words per window* (not raw
+// API calls — a word needing a retry or two, or a repeat regeneration of a
+// word already done today, shouldn't burn extra slots of a limit that's
+// supposed to mean "N words") — see checkUseCaseGenerationQuota, which
+// makes hitting either limit surface a clear message instead of Gemini's
+// raw 429.
+const GEMINI_USE_CASE_MODEL = "gemini-3.7-flash";
+const GEMINI_USE_CASE_WORDS_PER_MINUTE = 5;
+const GEMINI_USE_CASE_WORDS_PER_DAY = 20;
+const GEMINI_USE_CASE_QUOTA_PURPOSE = "daily_use_cases";
+
+type WordDesc = { hanzi: string; pinyin: string; meaning: string };
+
+function wordDescClause(word: WordDesc): string {
+  return `"${word.hanzi}"${word.pinyin ? ` (${word.pinyin})` : ""}${word.meaning ? `, meaning "${word.meaning}"` : ""}`;
+}
+
+function hanziRuleClause(hanzi: string): string {
+  return `Critical: the sentence must contain the exact characters "${hanzi}" verbatim. Never substitute a synonym or near-synonym (e.g. do not swap 尽管 for 虽然, or 立刻 for 马上) even if it reads more naturally — a sentence missing those exact characters is wrong.`;
+}
+
+/** Exact prompt sent to identify a word's use cases. */
+function buildUseCasesPrompt(word: WordDesc): string {
+  const wordDesc = wordDescClause(word);
+  const HANZI_RULE = hanziRuleClause(word.hanzi);
+  return `Identify the distinct common use cases (senses/usages) of the Mandarin word ${wordDesc} — most words genuinely have just one; only split out more (up to ${MAX_USE_CASES}) for words that are actually polysemous in everyday use (e.g. 尽管 as a concessive "despite/although" vs. its separate imperative "go ahead and — without hesitation" sense). Don't invent minor stylistic variants of the same sense as if they were distinct.
+
+Critical: only list senses a native speaker would actually produce in contemporary Mandarin — not a sense that's merely implied by the individual characters' literal/etymological meaning if the compound itself isn't used that way anymore. For example 把握 does NOT mean literally "to physically grasp/hold something" in modern usage even though 握 alone means "to hold" — it's used only for abstract things like confidence, certainty, or opportunities, so that literal sense must not be listed. If you're not sure a sense is genuinely in live use, leave it out rather than include it.
+
+For each use case, give a short label (a few words, e.g. "despite / although (concessive)" — describe the *sense*, don't also state the part of speech here, that goes in its own field below), the word's part of speech *in that sense* (a single word: verb, noun, adjective, adverb, conjunction, preposition, measure word, etc. — note polysemous words often shift part of speech between senses, e.g. 尽管's concessive sense is a conjunction while its imperative sense is an adverb), and one short, natural example sentence using it. Keep sentences simple enough for a learner (roughly HSK 1-4 vocabulary aside from the target word itself), and vary context across use cases so they're not near-duplicates.
+
+${HANZI_RULE}
+
+Respond with ONLY valid JSON (no markdown, no extra text): an array of one object per use case:
+[
+  { "useCase": "...", "partOfSpeech": "...", "sentence": "...", "pinyin": "...", "translation": "..." }
+]`;
+}
+
 /**
  * One Gemini call, JSON-parsed. Shared by the two request shapes below
  * (identify-use-cases, and re-request-one-use-case) so the fetch/abort/
  * parse boilerplate isn't duplicated between them.
  */
-async function callGeminiJSON(apiKey: string, prompt: string): Promise<unknown> {
+async function callGeminiJSON(apiKey: string, prompt: string, model: string): Promise<unknown> {
   // 30s, not grade-sentence's 20s — several sentences + pinyin +
   // translation each is a bigger ask than that route's single verdict.
   const controller = new AbortController();
@@ -426,8 +474,21 @@ async function callGeminiJSON(apiKey: string, prompt: string): Promise<unknown> 
   try {
     res = await fetchGeminiInteractions(
       apiKey,
-      { input: prompt, store: false, generation_config: { thinking_level: "minimal", max_output_tokens: 600 } },
-      { signal: controller.signal }
+      // "minimal" (used elsewhere, see gradeSentence.ts) isn't a valid
+      // thinking_level for GEMINI_USE_CASE_MODEL — its allowed values are
+      // low/medium/high. "low" is the closest fit to "don't overthink a
+      // lexicographic identification task."
+      // max_output_tokens raised from 600: GEMINI_USE_CASE_MODEL is a
+      // mandatory-reasoning model (thinking_level can't be turned off, only
+      // low/medium/high) and reasoning tokens are billed against this same
+      // budget before the visible JSON output — 600 was tight enough to
+      // plausibly truncate the response mid-JSON on a multi-use-case word,
+      // which is indistinguishable from "the model just returned garbage"
+      // without the raw-text logging added below.
+      { input: prompt, store: false, generation_config: { thinking_level: "low", max_output_tokens: 2000 } },
+      // fallbackModel === model: no cross-tier fallback for this call — see
+      // the comment on fetchGeminiInteractions for why.
+      { signal: controller.signal, model, fallbackModel: model }
     );
   } catch (err) {
     // A bare AbortError/DOMException would otherwise reach the client as
@@ -443,6 +504,39 @@ async function callGeminiJSON(apiKey: string, prompt: string): Promise<unknown> 
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
+    // A raw 429 from Gemini itself — not our own app-side check, which
+    // already turned its version of this into a friendly message before
+    // this call ever happened. Reaching here means real, concurrent
+    // requests actually overran the model's own limit (our check only
+    // counts *logged* words, so several requests dispatched in the same
+    // instant — e.g. regenerating a whole batch at once — can all pass the
+    // check before any of them has logged a success). Give it the same
+    // friendly shape rather than a raw stack trace.
+    if (res.status === 429) {
+      const retryMatch = body.match(/retry in ([\d.]+)s/i);
+      const retrySeconds = retryMatch ? Math.ceil(Number(retryMatch[1])) : null;
+      // Gemini's error text includes "limit: N" — matching that against
+      // our own known per-minute/per-day numbers tells daily and
+      // per-minute exhaustion apart (Google uses the same metric *name*
+      // for both, only the reported limit value differs), so this doesn't
+      // land as the same generic message either way.
+      const limitMatch = body.match(/limit:\s*(\d+)/i);
+      const reportedLimit = limitMatch ? Number(limitMatch[1]) : null;
+
+      if (reportedLimit === GEMINI_USE_CASE_WORDS_PER_DAY) {
+        throw new Error(
+          `Gemini's own daily limit for ${model} is used up (${GEMINI_USE_CASE_WORDS_PER_DAY}/day) — that's it for today, try again tomorrow.`
+        );
+      }
+      if (reportedLimit === GEMINI_USE_CASE_WORDS_PER_MINUTE) {
+        throw new Error(
+          `Gemini's own per-minute limit for ${model} is used up (${GEMINI_USE_CASE_WORDS_PER_MINUTE}/min) — wait${retrySeconds ? ` ${retrySeconds}s` : " a moment"} and try again.`
+        );
+      }
+      throw new Error(
+        `Rate limited by Gemini — too many requests at once. Try again${retrySeconds ? ` in ${retrySeconds}s` : " shortly"}.`
+      );
+    }
     throw new Error(`Gemini API error (${res.status}): ${body}`);
   }
 
@@ -450,11 +544,75 @@ async function callGeminiJSON(apiKey: string, prompt: string): Promise<unknown> 
   const modelStep = data.steps?.find((s: { type: string }) => s.type === "model_output");
   const raw = modelStep?.content?.filter((c: { type: string }) => c.type === "text").map((c: { text: string }) => c.text).join("").trim() ?? "";
 
-  try {
-    return JSON.parse(raw);
-  } catch {
-    throw new Error("Model did not return valid JSON");
+  if (!raw) {
+    // No text content at all — most likely every output token went to
+    // reasoning (see the max_output_tokens comment above) and nothing was
+    // left for the actual answer, rather than a malformed-JSON problem.
+    throw new Error(
+      `Model returned no text output (finish_reason: ${data.steps?.[data.steps.length - 1]?.finish_reason ?? "unknown"}) — likely spent its whole token budget on reasoning.`
+    );
   }
+
+  // Defensive: models asked for "ONLY valid JSON, no markdown" still
+  // sometimes wrap it in a ```json fence anyway.
+  const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    // Log the actual raw text (server-side, not swallowed) — every prior
+    // failure here has been a black box because the caller only ever saw
+    // "Model did not return valid JSON," which describes the symptom, not
+    // what actually came back.
+    console.error(`[dailyLearning] Failed to parse model output as JSON (${raw.length} chars):`, raw.slice(0, 2000));
+    throw new Error(`Model did not return valid JSON: ${raw.slice(0, 300)}${raw.length > 300 ? "…" : ""}`);
+  }
+}
+
+/**
+ * Checks (read-only) the caller's use-case-generation quota for one word
+ * (see 023_gemini_quota_check_before_log.sql) — throws a specific,
+ * user-facing message before ever hitting Gemini if the per-minute or
+ * per-day *new-word* cap is already used up. Called once per word, before
+ * any of its generation calls (including retries — see validate() below) —
+ * those don't need their own check, this one already cleared the word to
+ * proceed. A repeat (this word already has a log row from earlier today,
+ * e.g. re-opening it or hitting the debug regenerate button) is always
+ * free and never consumes either cap — enforced by the RPC itself, not
+ * here. Pair with logUseCaseGeneration, called only once generation
+ * actually succeeds — a failed call (bad request, timeout, ...) must not
+ * burn a slot of a limit that's supposed to mean "N words successfully
+ * generated."
+ */
+async function checkUseCaseGenerationQuota(supabase: SupabaseClient, wordId: string): Promise<void> {
+  const { error } = await supabase.rpc("check_gemini_generation_quota", {
+    p_purpose: GEMINI_USE_CASE_QUOTA_PURPOSE,
+    p_word_id: wordId,
+    p_rpm_limit: GEMINI_USE_CASE_WORDS_PER_MINUTE,
+    p_rpd_limit: GEMINI_USE_CASE_WORDS_PER_DAY,
+  });
+  if (!error) return;
+
+  if (error.message.includes("DAILY_LIMIT_REACHED")) {
+    throw new Error(
+      `Daily limit reached: max ${GEMINI_USE_CASE_WORDS_PER_DAY} new words' use cases generated per day (repeats don't count). Try again tomorrow.`
+    );
+  }
+  if (error.message.includes("RATE_LIMIT_MINUTE")) {
+    throw new Error(
+      `Rate limited: max ${GEMINI_USE_CASE_WORDS_PER_MINUTE} new words' use cases generated per minute (repeats don't count). Wait a moment and try again.`
+    );
+  }
+  throw new Error(error.message);
+}
+
+/** Records a word as successfully generated — see checkUseCaseGenerationQuota. */
+async function logUseCaseGeneration(supabase: SupabaseClient, wordId: string): Promise<void> {
+  const { error } = await supabase.rpc("log_gemini_generation", {
+    p_purpose: GEMINI_USE_CASE_QUOTA_PURPOSE,
+    p_word_id: wordId,
+  });
+  if (error) throw new Error(error.message);
 }
 
 /**
@@ -478,7 +636,7 @@ export async function getWordExamples(dailyWordId: string): Promise<WordExample[
 
   const { data: row, error } = await supabase
     .from("daily_learning_words")
-    .select("example_sentences, vocabulary_mastery(hanzi, pinyin, meaning)")
+    .select("example_sentences, vocabulary_mastery(id, hanzi, pinyin, meaning)")
     .eq("id", dailyWordId)
     .eq("user_id", userId)
     .maybeSingle();
@@ -489,28 +647,24 @@ export async function getWordExamples(dailyWordId: string): Promise<WordExample[
     return row.example_sentences as unknown as WordExample[];
   }
 
-  const word = row.vocabulary_mastery as unknown as { hanzi: string; pinyin: string; meaning: string };
+  const word = row.vocabulary_mastery as unknown as { id: string; hanzi: string; pinyin: string; meaning: string };
+
+  // Gated once per word, not per Gemini call — see checkUseCaseGenerationQuota.
+  // A repeat (this word already generated earlier today) is free; a
+  // genuinely new word counts against the per-minute/per-day caps.
+  await checkUseCaseGenerationQuota(supabase, word.id);
+
   const { apiKey } = await resolveGeminiKey();
 
   // Gemini generating a sentence that quietly swaps in a synonym (e.g. 虽然
   // instead of the requested 尽管) is a real, observed failure mode — every
   // sentence below gets a plain substring check before being trusted, with
   // a per-use-case retry for anything that fails it.
-  const wordDesc = `"${word.hanzi}"${word.pinyin ? ` (${word.pinyin})` : ""}${word.meaning ? `, meaning "${word.meaning}"` : ""}`;
-  const HANZI_RULE = `Critical: the sentence must contain the exact characters "${word.hanzi}" verbatim. Never substitute a synonym or near-synonym (e.g. do not swap 尽管 for 虽然, or 立刻 for 马上) even if it reads more naturally — a sentence missing those exact characters is wrong.`;
+  const wordDesc = wordDescClause(word);
+  const HANZI_RULE = hanziRuleClause(word.hanzi);
 
   async function requestUseCases(): Promise<WordExample[]> {
-    const prompt = `Identify the distinct common use cases (senses/usages) of the Mandarin word ${wordDesc} — most words genuinely have just one; only split out more (up to ${MAX_USE_CASES}) for words that are actually polysemous in everyday use (e.g. 尽管 as a concessive "despite/although" vs. its separate imperative "go ahead and — without hesitation" sense). Don't invent minor stylistic variants of the same sense as if they were distinct.
-
-For each use case, give a short label (a few words, e.g. "despite / although (concessive)") and one short, natural example sentence using it. Keep sentences simple enough for a learner (roughly HSK 1-4 vocabulary aside from the target word itself), and vary context across use cases so they're not near-duplicates.
-
-${HANZI_RULE}
-
-Respond with ONLY valid JSON (no markdown, no extra text): an array of one object per use case:
-[
-  { "useCase": "...", "sentence": "...", "pinyin": "...", "translation": "..." }
-]`;
-    const parsed = await callGeminiJSON(apiKey, prompt);
+    const parsed = await callGeminiJSON(apiKey, buildUseCasesPrompt(word), GEMINI_USE_CASE_MODEL);
     return Array.isArray(parsed) ? (parsed as WordExample[]).slice(0, MAX_USE_CASES) : [];
   }
 
@@ -520,35 +674,79 @@ Respond with ONLY valid JSON (no markdown, no extra text): an array of one objec
 ${HANZI_RULE}
 
 Respond with ONLY valid JSON (no markdown, no extra text): a single object:
-{ "sentence": "...", "pinyin": "...", "translation": "..." }`;
-    const parsed = await callGeminiJSON(apiKey, prompt);
+{ "partOfSpeech": "...", "sentence": "...", "pinyin": "...", "translation": "..." }`;
+    const parsed = await callGeminiJSON(apiKey, prompt, GEMINI_USE_CASE_MODEL);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
     const ex = parsed as Omit<WordExample, "useCase">;
     return ex.sentence ? { useCase, ...ex } : null;
   }
 
-  const initial = await requestUseCases();
-  const valid: WordExample[] = [];
-  const needsRetry: string[] = [];
-  for (const ex of initial) {
-    if (ex.useCase && ex.sentence?.includes(word.hanzi)) {
-      valid.push(ex);
-    } else if (ex.useCase) {
-      needsRetry.push(ex.useCase);
+  // Self-check: the use-case generator and the grader are two independent
+  // Gemini calls with no shared ground truth between them — nothing stops
+  // the former from inventing a sense (see the 把握-as-"physical grasp"
+  // prompt guard above) that the latter would then fail the student for
+  // demonstrating, i.e. the app contradicting itself mid-quiz. Grading each
+  // generated example through the exact same `gradeSentence` the student's
+  // own answer will later go through closes that gap structurally: a use
+  // case only ever reaches the quiz once its own example has already
+  // passed the grader that will judge the student.
+  async function selfGradeOk(ex: WordExample): Promise<boolean> {
+    try {
+      const grade = await gradeSentence(apiKey, {
+        hanzi: word.hanzi,
+        pinyin: word.pinyin,
+        meaning: word.meaning,
+        sentence: ex.sentence,
+        useCase: ex.useCase || undefined,
+      });
+      return grade.valid && grade.natural;
+    } catch {
+      // A grading hiccup shouldn't sink an otherwise-fine example — the
+      // hanzi check above is the only hard requirement.
+      return true;
     }
   }
-  // One retry pass per use case that failed the hanzi check the first
-  // time — bounded (never more calls than the model's own use-case count),
-  // rather than an open-ended loop.
-  for (const useCase of needsRetry) {
-    const retried = await requestForUseCase(useCase);
-    if (retried?.sentence.includes(word.hanzi)) valid.push(retried);
+
+  // One regeneration attempt per use case that fails either check —
+  // bounded (never more calls than the model's own use-case count), rather
+  // than an open-ended loop.
+  async function validate(ex: WordExample): Promise<WordExample | null> {
+    if (ex.sentence?.includes(word.hanzi) && (await selfGradeOk(ex))) return ex;
+    if (!ex.useCase) return null;
+    try {
+      const retried = await requestForUseCase(ex.useCase);
+      if (retried?.sentence.includes(word.hanzi) && (await selfGradeOk(retried))) return retried;
+    } catch {
+      // Regeneration failing for any reason just means this one sense
+      // doesn't make the cut — it must not sink the whole Promise.all,
+      // other use cases for this word may have already validated fine on
+      // their first attempt. (Not quota-related: the word already cleared
+      // checkUseCaseGenerationQuota once before any of this ran, and
+      // retries for an already-cleared word aren't checked again.)
+    }
+    return null;
   }
 
-  if (valid.length === 0) {
+  const initial = await requestUseCases();
+  // Sequential, not Promise.all — each failed use case's retry is its own
+  // real Gemini call, and firing several at once for a single polysemous
+  // word is exactly the kind of self-inflicted burst that can trip the
+  // model's own per-minute limit (see the 429 handling above). One word
+  // rarely has more than a couple of use cases, so the latency cost here
+  // is small.
+  const validated: (WordExample | null)[] = [];
+  for (const ex of initial.filter((e) => e.useCase)) {
+    validated.push(await validate(ex));
+  }
+  const examples = validated.filter((ex): ex is WordExample => ex !== null);
+
+  if (examples.length === 0) {
     throw new Error("Model couldn't produce a sentence actually using this word — try again.");
   }
-  const examples = valid;
+
+  // Only now, with at least one real example in hand, does this word count
+  // against the quota checkUseCaseGenerationQuota cleared it against above.
+  await logUseCaseGeneration(supabase, word.id);
 
   await supabase
     .from("daily_learning_words")
