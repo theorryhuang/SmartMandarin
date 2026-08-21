@@ -126,7 +126,9 @@ export interface DailyLearningBatch {
 }
 
 /**
- * A Gemini-generated example sentence, cached per daily_learning_words row.
+ * A Gemini-generated example sentence, cached per word_id (daily_word_examples
+ * — see 024_daily_word_examples_cache.sql) so it survives the word being
+ * carried over into a new daily_learning_words row after a failed quiz.
  * One per distinct use case of the word — a simple word might have just
  * one, a polysemous one (尽管 as "despite" vs. "go ahead and…") several —
  * rather than a fixed count regardless of how many senses actually exist.
@@ -140,6 +142,15 @@ export interface WordExample {
   pinyin: string;
   translation: string;
 }
+
+// A server action whose failure the UI needs to react to by *message*, not
+// just "something broke" — e.g. QUIZ_PENDING, or a quota-limit explanation —
+// must return this instead of throwing. Next.js redacts thrown Server Action
+// errors to a generic "An error occurred in the Server Components render…"
+// message in production builds regardless of what was actually thrown; a
+// returned value is plain data and isn't touched. See getWordExamples /
+// startDailyBatch in app/actions/dailyLearning.ts.
+export type ActionResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
 export interface DailyState {
   /** A past unresolved batch that must be quizzed before a new one can be built */

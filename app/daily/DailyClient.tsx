@@ -10,7 +10,7 @@ import { useLanguage } from "@/app/_components/LanguageContext";
 
 function WordTile({ entry }: { entry: DailyLearningWord }) {
   const { t } = useLanguage();
-  const { word, carriedOver, dailyWordId } = entry;
+  const { word, carriedOver } = entry;
   const [flipped, setFlipped] = useState(false);
   const [examplesOpen, setExamplesOpen] = useState(false);
   const [examples, setExamples] = useState<WordExample[] | null>(null);
@@ -37,8 +37,12 @@ function WordTile({ entry }: { entry: DailyLearningWord }) {
       setExamplesError(null);
       startLoadingExamples(async () => {
         try {
-          const ex = await getWordExamples(dailyWordId);
-          setExamples(ex);
+          const res = await getWordExamples(word.id);
+          if (res.ok) {
+            setExamples(res.value);
+          } else {
+            setExamplesError(res.error);
+          }
         } catch (e) {
           setExamplesError(e instanceof Error ? e.message : String(e));
         }
@@ -204,10 +208,13 @@ export function DailyClient() {
     setError(null);
     startLoading(async () => {
       try {
-        const batch = await startDailyBatch(n, localToday());
-        if (batch === null) {
+        const res = await startDailyBatch(n, localToday());
+        if (!res.ok) {
+          setError(res.error);
+        } else if (res.value === null) {
           setError("NO_WORDS");
         } else {
+          const batch = res.value;
           setState((s) => (s ? { ...s, todayBatch: batch } : s));
         }
       } catch (e) {

@@ -7,7 +7,7 @@ import { fetchGeminiInteractions } from "@/lib/gemini/interactions";
 import { gradeSentence } from "@/lib/gemini/gradeSentence";
 import { HIGH_STABILITY_THRESHOLD } from "@/lib/fsrs";
 import type { Json } from "@/lib/supabase/database.types";
-import type { FSRSRating, VocabularyMastery, DailyLearningBatch, DailyLearningWord, DailyState, DailyStreak, WordExample } from "@/lib/types";
+import type { FSRSRating, VocabularyMastery, DailyLearningBatch, DailyLearningWord, DailyState, DailyStreak, WordExample, ActionResult } from "@/lib/types";
 import { computeStreak } from "@/lib/streak";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -278,11 +278,11 @@ export async function submitDailyQuizAnswer(
  * `count` is the total words for the day, not the count of *new* words —
  * carried-over words count against it.
  */
-export async function startDailyBatch(count: number, clientDate?: string): Promise<DailyLearningBatch | null> {
+export async function startDailyBatch(count: number, clientDate?: string): Promise<ActionResult<DailyLearningBatch | null>> {
   const supabase = await createClient();
   const userId = await getUserId(supabase);
-  if (!userId) throw new Error("Not signed in");
-  if (!Number.isFinite(count) || count < 1) throw new Error("Invalid word count");
+  if (!userId) return { ok: false, error: "Not signed in" };
+  if (!Number.isFinite(count) || count < 1) return { ok: false, error: "Invalid word count" };
 
   const today = todayStr(clientDate);
 
@@ -296,7 +296,7 @@ export async function startDailyBatch(count: number, clientDate?: string): Promi
   if (existingErr) throw new Error(existingErr.message);
   if (existing) {
     const words = await loadBatchWords(supabase, existing.id);
-    return { batchId: existing.id, batchDate: existing.batch_date, targetCount: existing.target_count, words };
+    return { ok: true, value: { batchId: existing.id, batchDate: existing.batch_date, targetCount: existing.target_count, words } };
   }
 
   // Guard: an older batch must be fully quizzed first.
@@ -314,7 +314,7 @@ export async function startDailyBatch(count: number, clientDate?: string): Promi
       .in("batch_id", ids)
       .eq("status", "pending");
     if (pendingErr) throw new Error(pendingErr.message);
-    if ((pendingCount ?? 0) > 0) throw new Error("QUIZ_PENDING");
+    if ((pendingCount ?? 0) > 0) return { ok: false, error: "QUIZ_PENDING" };
   }
 
   // Carried-over words: the word's *most recent* attempt (across all past
@@ -345,7 +345,7 @@ export async function startDailyBatch(count: number, clientDate?: string): Promi
   const newWords = await selectNewUnlearnedWords(supabase, userId, remaining, everAttempted);
 
   const totalWords = [...carriedWords, ...newWords];
-  if (totalWords.length === 0) return null;
+  if (totalWords.length === 0) return { ok: true, value: null };
 
   const { data: batch, error: batchErr } = await supabase
     .from("daily_learning_batches")
@@ -362,7 +362,7 @@ export async function startDailyBatch(count: number, clientDate?: string): Promi
   if (insertErr) throw new Error(insertErr.message);
 
   const words = await loadBatchWords(supabase, batch.id);
-  return { batchId: batch.id, batchDate: batch.batch_date, targetCount: batch.target_count, words };
+  return { ok: true, value: { batchId: batch.id, batchDate: batch.batch_date, targetCount: batch.target_count, words } };
 }
 
 /**
@@ -616,55 +616,79 @@ async function logUseCaseGeneration(supabase: SupabaseClient, wordId: string): P
 }
 
 /**
- * Returns one example sentence per distinct use case of a word in a daily
- * batch — not a fixed count. Most words have exactly one sense and get one
- * sentence; a genuinely polysemous word like 尽管 (concessive "despite" vs.
- * imperative "go ahead and…") gets one per sense, so the next day's quiz
- * (see DailyQuizCard) can test each of them instead of only ever probing
+ * Returns one example sentence per distinct use case of a word — not a
+ * fixed count. Most words have exactly one sense and get one sentence; a
+ * genuinely polysemous word like 尽管 (concessive "despite" vs. imperative
+ * "go ahead and…") gets one per sense, so the next day's quiz (see
+ * DailyQuizCard) can test each of them instead of only ever probing
  * whichever single sense the model happened to pick.
  *
- * Generated with Gemini on first request and cached on the
- * daily_learning_words row so re-opening it later doesn't re-spend a call.
- * Deliberately not written back to vocabulary_mastery — this is scratch
- * reference material for the daily-learning flow, not part of the saved
- * vocab list.
+ * Generated with Gemini on first request and cached in daily_word_examples,
+ * keyed by word_id (not the daily_learning_words row) so a word carried
+ * over into a new batch after a failed quiz — or re-added via "add more" —
+ * reuses what was already generated instead of re-spending a call each time
+ * it reappears. Deliberately not written to vocabulary_mastery itself —
+ * this is scratch reference material for the daily-learning flow, not part
+ * of the saved vocab list.
+ *
+ * Returns an ActionResult rather than throwing: this is a Server Action, and
+ * Next.js redacts thrown-error messages to a generic one in production —
+ * every quota/Gemini-failure message crafted below would otherwise never
+ * reach the client. See ActionResult in lib/types.ts.
  */
-export async function getWordExamples(dailyWordId: string): Promise<WordExample[]> {
+export async function getWordExamples(wordId: string): Promise<ActionResult<WordExample[]>> {
   const supabase = await createClient();
   const userId = await getUserId(supabase);
-  if (!userId) throw new Error("Not signed in");
+  if (!userId) return { ok: false, error: "Not signed in" };
 
-  const { data: row, error } = await supabase
-    .from("daily_learning_words")
-    .select("example_sentences, vocabulary_mastery(id, hanzi, pinyin, meaning)")
-    .eq("id", dailyWordId)
+  const { data: word, error: wordErr } = await supabase
+    .from("vocabulary_mastery")
+    .select("id, hanzi, pinyin, meaning")
+    .eq("id", wordId)
     .eq("user_id", userId)
     .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!row) throw new Error("NOT_FOUND");
+  if (wordErr) throw new Error(wordErr.message);
+  if (!word) return { ok: false, error: "NOT_FOUND" };
+  // Re-bound so TS keeps the non-null narrowing inside the closures below —
+  // it doesn't carry `word`'s narrowing across a captured-variable boundary.
+  const w = word;
 
-  if (row.example_sentences) {
-    return row.example_sentences as unknown as WordExample[];
+  const { data: cached, error: cacheErr } = await supabase
+    .from("daily_word_examples")
+    .select("examples")
+    .eq("word_id", wordId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (cacheErr) throw new Error(cacheErr.message);
+  if (cached) {
+    return { ok: true, value: cached.examples as unknown as WordExample[] };
   }
-
-  const word = row.vocabulary_mastery as unknown as { id: string; hanzi: string; pinyin: string; meaning: string };
 
   // Gated once per word, not per Gemini call — see checkUseCaseGenerationQuota.
   // A repeat (this word already generated earlier today) is free; a
   // genuinely new word counts against the per-minute/per-day caps.
-  await checkUseCaseGenerationQuota(supabase, word.id);
+  try {
+    await checkUseCaseGenerationQuota(supabase, w.id);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
 
-  const { apiKey } = await resolveGeminiKey();
+  let apiKey: string;
+  try {
+    ({ apiKey } = await resolveGeminiKey());
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
 
   // Gemini generating a sentence that quietly swaps in a synonym (e.g. 虽然
   // instead of the requested 尽管) is a real, observed failure mode — every
   // sentence below gets a plain substring check before being trusted, with
   // a per-use-case retry for anything that fails it.
-  const wordDesc = wordDescClause(word);
-  const HANZI_RULE = hanziRuleClause(word.hanzi);
+  const wordDesc = wordDescClause(w);
+  const HANZI_RULE = hanziRuleClause(w.hanzi);
 
   async function requestUseCases(): Promise<WordExample[]> {
-    const parsed = await callGeminiJSON(apiKey, buildUseCasesPrompt(word), GEMINI_USE_CASE_MODEL);
+    const parsed = await callGeminiJSON(apiKey, buildUseCasesPrompt(w), GEMINI_USE_CASE_MODEL);
     return Array.isArray(parsed) ? (parsed as WordExample[]).slice(0, MAX_USE_CASES) : [];
   }
 
@@ -693,9 +717,9 @@ Respond with ONLY valid JSON (no markdown, no extra text): a single object:
   async function selfGradeOk(ex: WordExample): Promise<boolean> {
     try {
       const grade = await gradeSentence(apiKey, {
-        hanzi: word.hanzi,
-        pinyin: word.pinyin,
-        meaning: word.meaning,
+        hanzi: w.hanzi,
+        pinyin: w.pinyin,
+        meaning: w.meaning,
         sentence: ex.sentence,
         useCase: ex.useCase || undefined,
       });
@@ -711,11 +735,11 @@ Respond with ONLY valid JSON (no markdown, no extra text): a single object:
   // bounded (never more calls than the model's own use-case count), rather
   // than an open-ended loop.
   async function validate(ex: WordExample): Promise<WordExample | null> {
-    if (ex.sentence?.includes(word.hanzi) && (await selfGradeOk(ex))) return ex;
+    if (ex.sentence?.includes(w.hanzi) && (await selfGradeOk(ex))) return ex;
     if (!ex.useCase) return null;
     try {
       const retried = await requestForUseCase(ex.useCase);
-      if (retried?.sentence.includes(word.hanzi) && (await selfGradeOk(retried))) return retried;
+      if (retried?.sentence.includes(w.hanzi) && (await selfGradeOk(retried))) return retried;
     } catch {
       // Regeneration failing for any reason just means this one sense
       // doesn't make the cut — it must not sink the whole Promise.all,
@@ -727,34 +751,37 @@ Respond with ONLY valid JSON (no markdown, no extra text): a single object:
     return null;
   }
 
-  const initial = await requestUseCases();
-  // Sequential, not Promise.all — each failed use case's retry is its own
-  // real Gemini call, and firing several at once for a single polysemous
-  // word is exactly the kind of self-inflicted burst that can trip the
-  // model's own per-minute limit (see the 429 handling above). One word
-  // rarely has more than a couple of use cases, so the latency cost here
-  // is small.
-  const validated: (WordExample | null)[] = [];
-  for (const ex of initial.filter((e) => e.useCase)) {
-    validated.push(await validate(ex));
+  try {
+    const initial = await requestUseCases();
+    // Sequential, not Promise.all — each failed use case's retry is its own
+    // real Gemini call, and firing several at once for a single polysemous
+    // word is exactly the kind of self-inflicted burst that can trip the
+    // model's own per-minute limit (see the 429 handling above). One word
+    // rarely has more than a couple of use cases, so the latency cost here
+    // is small.
+    const validated: (WordExample | null)[] = [];
+    for (const ex of initial.filter((e) => e.useCase)) {
+      validated.push(await validate(ex));
+    }
+    const examples = validated.filter((ex): ex is WordExample => ex !== null);
+
+    if (examples.length === 0) {
+      return { ok: false, error: "Model couldn't produce a sentence actually using this word — try again." };
+    }
+
+    // Only now, with at least one real example in hand, does this word
+    // count against the quota checkUseCaseGenerationQuota cleared it
+    // against above.
+    await logUseCaseGeneration(supabase, w.id);
+
+    await supabase
+      .from("daily_word_examples")
+      .upsert({ word_id: w.id, user_id: userId, examples: examples as unknown as Json });
+
+    return { ok: true, value: examples };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
-  const examples = validated.filter((ex): ex is WordExample => ex !== null);
-
-  if (examples.length === 0) {
-    throw new Error("Model couldn't produce a sentence actually using this word — try again.");
-  }
-
-  // Only now, with at least one real example in hand, does this word count
-  // against the quota checkUseCaseGenerationQuota cleared it against above.
-  await logUseCaseGeneration(supabase, word.id);
-
-  await supabase
-    .from("daily_learning_words")
-    .update({ example_sentences: examples as unknown as Json })
-    .eq("id", dailyWordId)
-    .eq("user_id", userId);
-
-  return examples;
 }
 
 // ─── Manual re-queue ────────────────────────────────────────────────────────────

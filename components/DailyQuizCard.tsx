@@ -56,9 +56,14 @@ export function DailyQuizCard({ entry, currentIndex, totalCards, onDone }: Props
     setUseCaseLoadError(null);
     setFlipped(false);
 
-    getWordExamples(entry.dailyWordId)
-      .then((examples) => {
-        const labels = examples
+    getWordExamples(word.id)
+      .then((res) => {
+        if (!res.ok) {
+          setUseCaseLoadError(res.error);
+          setUseCases([{ useCase: "", partOfSpeech: "" }]);
+          return;
+        }
+        const labels = res.value
           .filter((ex) => ex.useCase)
           .map((ex) => ({ useCase: ex.useCase, partOfSpeech: ex.partOfSpeech }));
         setUseCases(labels.length > 0 ? labels : [{ useCase: "", partOfSpeech: "" }]);
@@ -72,7 +77,7 @@ export function DailyQuizCard({ entry, currentIndex, totalCards, onDone }: Props
         setUseCaseLoadError(e instanceof Error ? e.message : String(e));
         setUseCases([{ useCase: "", partOfSpeech: "" }]);
       });
-  }, [entry.dailyWordId]);
+  }, [entry.dailyWordId, word.id]);
 
   const isMultiSense = (useCases?.length ?? 0) > 1;
   const currentUseCase = useCases?.[useCaseIndex]?.useCase ?? "";

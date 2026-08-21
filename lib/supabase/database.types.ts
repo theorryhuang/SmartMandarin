@@ -338,7 +338,6 @@ export type Database = {
           status: "pending" | "passed" | "failed";
           carried_over: boolean;
           quizzed_at: string | null;
-          example_sentences: Json | null;
           created_at: string;
         };
         Insert: {
@@ -349,7 +348,6 @@ export type Database = {
           status?: "pending" | "passed" | "failed";
           carried_over?: boolean;
           quizzed_at?: string | null;
-          example_sentences?: Json | null;
           created_at?: string;
         };
         Update: {
@@ -360,7 +358,6 @@ export type Database = {
           status?: "pending" | "passed" | "failed";
           carried_over?: boolean;
           quizzed_at?: string | null;
-          example_sentences?: Json | null;
           created_at?: string;
         };
         Relationships: [
@@ -375,6 +372,35 @@ export type Database = {
             foreignKeyName: "daily_learning_words_word_id_fkey";
             columns: ["word_id"];
             isOneToOne: false;
+            referencedRelation: "vocabulary_mastery";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      daily_word_examples: {
+        Row: {
+          word_id: string;
+          user_id: string;
+          examples: Json;
+          created_at: string;
+        };
+        Insert: {
+          word_id: string;
+          user_id: string;
+          examples: Json;
+          created_at?: string;
+        };
+        Update: {
+          word_id?: string;
+          user_id?: string;
+          examples?: Json;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "daily_word_examples_word_id_fkey";
+            columns: ["word_id"];
+            isOneToOne: true;
             referencedRelation: "vocabulary_mastery";
             referencedColumns: ["id"];
           }
